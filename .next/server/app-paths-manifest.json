@@ -1,0 +1,4 @@
+{
+  "/plan/[groupId]/page": "app/plan/[groupId]/page.js",
+  "/page": "app/page.js"
+}
