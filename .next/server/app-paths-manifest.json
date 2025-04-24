@@ -1,6 +1,0 @@
-{
-  "/page": "app/page.js",
-  "/plan/[groupId]/page": "app/plan/[groupId]/page.js",
-  "/auth/signin/page": "app/auth/signin/page.js",
-  "/planning-room/[groupId]/page": "app/planning-room/[groupId]/page.js"
-}
