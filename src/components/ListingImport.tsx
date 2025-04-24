@@ -13,13 +13,14 @@ export default function ListingImport({ onImport }: ListingImportProps) {
   const [notes, setNotes] = useState('');
 
   const handleImport = () => {
-    if (!content.trim()) {
+    const trimmedContent = content.replace(/\s+/g, ' ').trim();
+    if (!trimmedContent) {
       toast.error(`Please enter ${cardType === 'where' ? 'a location' : 'what you want to do'}`);
       return;
     }
 
     const listingData: ImportedListingData = {
-      content: content.trim(),
+      content: trimmedContent,
       notes: notes.trim(),
       imageUrl: '/marker-icon-2x.png',
       cardType
@@ -111,7 +112,7 @@ export default function ListingImport({ onImport }: ListingImportProps) {
           <button
             type="button"
             onClick={handleImport}
-            disabled={!content.trim()}
+            disabled={!content.replace(/\s+/g, ' ').trim()}
             className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Add Card

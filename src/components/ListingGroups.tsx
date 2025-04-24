@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { ListingGroup, Listing } from '@/types/listing';
-import ListingCard from './ListingCard';
+import Card from './Card';
 import { Menu, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { PencilIcon, CheckIcon, XMarkIcon, PlusIcon, ViewColumnsIcon, TrashIcon, EllipsisVerticalIcon, CalendarIcon } from '@heroicons/react/24/outline';
@@ -243,19 +243,34 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
               <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
                 <div className="px-1 py-1">
                   {group.listings.some(listing => listing.cardType === 'where') && (
-                    <Menu.Item>
-                      {({ active }) => (
-                        <button
-                          onClick={() => handlePlanGroup(group)}
-                          className={`${
-                            active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700'
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
-                        >
-                          <CalendarIcon className="mr-2 h-5 w-5" />
-                          Plan Route
-                        </button>
-                      )}
-                    </Menu.Item>
+                    <>
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={() => handlePlanGroup(group)}
+                            className={`${
+                              active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700'
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                          >
+                            <CalendarIcon className="mr-2 h-5 w-5" />
+                            Plan Route
+                          </button>
+                        )}
+                      </Menu.Item>
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={() => router.push(`/planning-room/${group.id}`)}
+                            className={`${
+                              active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700'
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                          >
+                            <ViewColumnsIcon className="mr-2 h-5 w-5" />
+                            Planning Room
+                          </button>
+                        )}
+                      </Menu.Item>
+                    </>
                   )}
                   <Menu.Item>
                     {({ active }) => (
@@ -316,130 +331,133 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
   );
 
   return (
-    <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="space-y-6">
-        <div className="flex justify-end">
-          <button
-            onClick={toggleManageMode}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <ViewColumnsIcon className="-ml-1 mr-2 h-5 w-5" />
-            {isManageMode ? 'Switch to Normal View' : 'Switch to Manage View'}
-          </button>
-        </div>
-
-        <div className="flex flex-col space-y-6">
-          <Droppable
-            droppableId="groups"
-            type="group"
-            direction="vertical"
-          >
-            {(provided) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className="flex flex-col space-y-6"
-              >
-                {groups.map((group, index) => (
-                  <Draggable
-                    key={group.id}
-                    draggableId={group.id}
-                    index={index}
-                    isDragDisabled={!isManageMode}
-                  >
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className={`bg-white rounded-lg shadow ${
-                          snapshot.isDragging ? 'ring-2 ring-indigo-500 ring-opacity-50' : ''
-                        } w-full`}
-                      >
-                        <div {...provided.dragHandleProps}>
-                          {renderGroupHeader(group)}
-                        </div>
-                        <Droppable
-                          droppableId={group.id}
-                          type="listing"
-                          direction={isManageMode ? "vertical" : "horizontal"}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.droppableProps}
-                              className={`p-4 bg-gray-50 min-h-[200px] rounded-b-lg ${
-                                snapshot.isDraggingOver ? 'bg-indigo-50' : ''
-                              }`}
-                            >
-                              <div className={`${
-                                isManageMode
-                                  ? 'flex flex-col space-y-4'
-                                  : 'flex flex-row gap-4 overflow-x-auto'
-                              }`}>
-                                {group.listings.map((listing, index) => (
-                                  <Draggable
-                                    key={listing.id}
-                                    draggableId={listing.id}
-                                    index={index}
-                                    isDragDisabled={false}
-                                  >
-                                    {(provided, snapshot) => (
-                                      <div
-                                        ref={provided.innerRef}
-                                        {...provided.draggableProps}
-                                        {...provided.dragHandleProps}
-                                        style={{
-                                          ...provided.draggableProps.style,
-                                          width: isManageMode ? '100%' : '300px'
-                                        }}
-                                        className={`${snapshot.isDragging ? 'opacity-50' : ''} flex-shrink-0`}
-                                      >
-                                        <ListingCard
-                                          listing={listing}
-                                          onEdit={() => {}}
-                                        />
-                                      </div>
-                                    )}
-                                  </Draggable>
-                                ))}
-                                {provided.placeholder}
-                              </div>
-                            </div>
-                          )}
-                        </Droppable>
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
-
-          {/* New Group Drop Zone */}
-          <Droppable droppableId="new-group" type="listing">
-            {(provided, snapshot) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-                className={`border-2 border-dashed rounded-lg p-4 flex items-center justify-center min-h-[200px] ${
-                  snapshot.isDraggingOver
-                    ? 'border-indigo-500 bg-indigo-50'
-                    : 'border-gray-300'
-                }`}
-              >
-                <div className="text-center">
-                  <PlusIcon className="h-8 w-8 mx-auto text-gray-400" />
-                  <p className="mt-2 text-sm text-gray-500">
-                    Drag a card here to create a new group
-                  </p>
-                </div>
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
-        </div>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={toggleManageMode}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+        >
+          <ViewColumnsIcon className="h-5 w-5 mr-2" />
+          Switch to {isManageMode ? 'View' : 'Manage'} Mode
+        </button>
       </div>
-    </DragDropContext>
+
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="space-y-6">
+          <div className="flex flex-col space-y-6">
+            <Droppable
+              droppableId="groups"
+              type="group"
+              direction="vertical"
+            >
+              {(provided) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className="flex flex-col space-y-6"
+                >
+                  {groups.map((group, index) => (
+                    <Draggable
+                      key={group.id}
+                      draggableId={group.id}
+                      index={index}
+                      isDragDisabled={!isManageMode}
+                    >
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`bg-white rounded-lg shadow ${
+                            snapshot.isDragging ? 'ring-2 ring-indigo-500 ring-opacity-50' : ''
+                          } w-full`}
+                        >
+                          <div {...provided.dragHandleProps}>
+                            {renderGroupHeader(group)}
+                          </div>
+                          <Droppable
+                            droppableId={group.id}
+                            type="listing"
+                            direction={isManageMode ? "vertical" : "horizontal"}
+                          >
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                                className={`p-4 bg-gray-50 min-h-[200px] rounded-b-lg ${
+                                  snapshot.isDraggingOver ? 'bg-indigo-50' : ''
+                                }`}
+                              >
+                                <div className={`${
+                                  isManageMode
+                                    ? 'flex flex-col space-y-4'
+                                    : 'flex flex-row gap-4 overflow-x-auto'
+                                }`}>
+                                  {group.listings.map((listing, index) => (
+                                    <Draggable
+                                      key={listing.id}
+                                      draggableId={listing.id}
+                                      index={index}
+                                      isDragDisabled={false}
+                                    >
+                                      {(provided, snapshot) => (
+                                        <div
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          {...provided.dragHandleProps}
+                                          style={{
+                                            ...provided.draggableProps.style,
+                                            width: isManageMode ? '100%' : '300px'
+                                          }}
+                                          className={`${snapshot.isDragging ? 'opacity-50' : ''} flex-shrink-0`}
+                                        >
+                                          <Card
+                                            listing={listing}
+                                            onEdit={() => {}}
+                                            onReaction={() => {}}
+                                          />
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  ))}
+                                  {provided.placeholder}
+                                </div>
+                              </div>
+                            )}
+                          </Droppable>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+
+            {/* New Group Drop Zone */}
+            <Droppable droppableId="new-group" type="listing">
+              {(provided, snapshot) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                  className={`border-2 border-dashed rounded-lg p-4 flex items-center justify-center min-h-[200px] ${
+                    snapshot.isDraggingOver
+                      ? 'border-indigo-500 bg-indigo-50'
+                      : 'border-gray-300'
+                  }`}
+                >
+                  <div className="text-center">
+                    <PlusIcon className="h-8 w-8 mx-auto text-gray-400" />
+                    <p className="mt-2 text-sm text-gray-500">
+                      Drag a card here to create a new group
+                    </p>
+                  </div>
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </div>
+        </div>
+      </DragDropContext>
+    </div>
   );
 } 

@@ -89,6 +89,116 @@ module.exports = require("next/dist/compiled/next-server/app-page.runtime.dev.js
 
 /***/ }),
 
+/***/ "assert":
+/*!*************************!*\
+  !*** external "assert" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("assert");
+
+/***/ }),
+
+/***/ "buffer":
+/*!*************************!*\
+  !*** external "buffer" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("buffer");
+
+/***/ }),
+
+/***/ "crypto":
+/*!*************************!*\
+  !*** external "crypto" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("crypto");
+
+/***/ }),
+
+/***/ "events":
+/*!*************************!*\
+  !*** external "events" ***!
+  \*************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("events");
+
+/***/ }),
+
+/***/ "http":
+/*!***********************!*\
+  !*** external "http" ***!
+  \***********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("http");
+
+/***/ }),
+
+/***/ "https":
+/*!************************!*\
+  !*** external "https" ***!
+  \************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("https");
+
+/***/ }),
+
+/***/ "querystring":
+/*!******************************!*\
+  !*** external "querystring" ***!
+  \******************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("querystring");
+
+/***/ }),
+
+/***/ "url":
+/*!**********************!*\
+  !*** external "url" ***!
+  \**********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("url");
+
+/***/ }),
+
+/***/ "util":
+/*!***********************!*\
+  !*** external "util" ***!
+  \***********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("util");
+
+/***/ }),
+
+/***/ "zlib":
+/*!***********************!*\
+  !*** external "zlib" ***!
+  \***********************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("zlib");
+
+/***/ }),
+
 /***/ "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader.js?name=app%2Fplan%2F%5BgroupId%5D%2Fpage&page=%2Fplan%2F%5BgroupId%5D%2Fpage&appPaths=%2Fplan%2F%5BgroupId%5D%2Fpage&pagePath=private-next-app-dir%2Fplan%2F%5BgroupId%5D%2Fpage.tsx&appDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D!":
 /*!************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************!*\
   !*** ./node_modules/next/dist/build/webpack/loaders/next-app-loader.js?name=app%2Fplan%2F%5BgroupId%5D%2Fpage&page=%2Fplan%2F%5BgroupId%5D%2Fpage&appPaths=%2Fplan%2F%5BgroupId%5D%2Fpage&pagePath=private-next-app-dir%2Fplan%2F%5BgroupId%5D%2Fpage.tsx&appDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D! ***!
@@ -110,13 +220,13 @@ eval("Promise.resolve(/*! import() eager */).then(__webpack_require__.t.bind(__w
 
 /***/ }),
 
-/***/ "(ssr)/./node_modules/next/dist/build/webpack/loaders/next-flight-client-entry-loader.js?modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fnode_modules%2Fnext%2Ffont%2Fgoogle%2Ftarget.css%3F%7B%22path%22%3A%22src%2Fapp%2Flayout.tsx%22%2C%22import%22%3A%22Inter%22%2C%22arguments%22%3A%5B%7B%22subsets%22%3A%5B%22latin%22%5D%7D%5D%2C%22variableName%22%3A%22inter%22%7D&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp%2Fglobals.css&server=true!":
-/*!*********************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************!*\
-  !*** ./node_modules/next/dist/build/webpack/loaders/next-flight-client-entry-loader.js?modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fnode_modules%2Fnext%2Ffont%2Fgoogle%2Ftarget.css%3F%7B%22path%22%3A%22src%2Fapp%2Flayout.tsx%22%2C%22import%22%3A%22Inter%22%2C%22arguments%22%3A%5B%7B%22subsets%22%3A%5B%22latin%22%5D%7D%5D%2C%22variableName%22%3A%22inter%22%7D&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp%2Fglobals.css&server=true! ***!
-  \*********************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************/
-/***/ (() => {
+/***/ "(ssr)/./node_modules/next/dist/build/webpack/loaders/next-flight-client-entry-loader.js?modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fnode_modules%2Fnext%2Ffont%2Fgoogle%2Ftarget.css%3F%7B%22path%22%3A%22src%2Fapp%2Flayout.tsx%22%2C%22import%22%3A%22Inter%22%2C%22arguments%22%3A%5B%7B%22subsets%22%3A%5B%22latin%22%5D%7D%5D%2C%22variableName%22%3A%22inter%22%7D&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp%2Fglobals.css&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fcomponents%2FSessionProvider.tsx&server=true!":
+/*!*******************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** ./node_modules/next/dist/build/webpack/loaders/next-flight-client-entry-loader.js?modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fnode_modules%2Fnext%2Ffont%2Fgoogle%2Ftarget.css%3F%7B%22path%22%3A%22src%2Fapp%2Flayout.tsx%22%2C%22import%22%3A%22Inter%22%2C%22arguments%22%3A%5B%7B%22subsets%22%3A%5B%22latin%22%5D%7D%5D%2C%22variableName%22%3A%22inter%22%7D&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp%2Fglobals.css&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fcomponents%2FSessionProvider.tsx&server=true! ***!
+  \*******************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************/
+/***/ ((__unused_webpack_module, __unused_webpack_exports, __webpack_require__) => {
 
-
+eval("Promise.resolve(/*! import() eager */).then(__webpack_require__.bind(__webpack_require__, /*! ./src/components/SessionProvider.tsx */ \"(ssr)/./src/components/SessionProvider.tsx\"))//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHNzcikvLi9ub2RlX21vZHVsZXMvbmV4dC9kaXN0L2J1aWxkL3dlYnBhY2svbG9hZGVycy9uZXh0LWZsaWdodC1jbGllbnQtZW50cnktbG9hZGVyLmpzP21vZHVsZXM9JTJGVXNlcnMlMkZkYW5pZWxjaHUlMkZEb2N1bWVudHMlMkZHaXRIdWIlMkZPcGVuSG91c2UzLjAlMkZub2RlX21vZHVsZXMlMkZuZXh0JTJGZm9udCUyRmdvb2dsZSUyRnRhcmdldC5jc3MlM0YlN0IlMjJwYXRoJTIyJTNBJTIyc3JjJTJGYXBwJTJGbGF5b3V0LnRzeCUyMiUyQyUyMmltcG9ydCUyMiUzQSUyMkludGVyJTIyJTJDJTIyYXJndW1lbnRzJTIyJTNBJTVCJTdCJTIyc3Vic2V0cyUyMiUzQSU1QiUyMmxhdGluJTIyJTVEJTdEJTVEJTJDJTIydmFyaWFibGVOYW1lJTIyJTNBJTIyaW50ZXIlMjIlN0QmbW9kdWxlcz0lMkZVc2VycyUyRmRhbmllbGNodSUyRkRvY3VtZW50cyUyRkdpdEh1YiUyRk9wZW5Ib3VzZTMuMCUyRnNyYyUyRmFwcCUyRmdsb2JhbHMuY3NzJm1vZHVsZXM9JTJGVXNlcnMlMkZkYW5pZWxjaHUlMkZEb2N1bWVudHMlMkZHaXRIdWIlMkZPcGVuSG91c2UzLjAlMkZzcmMlMkZjb21wb25lbnRzJTJGU2Vzc2lvblByb3ZpZGVyLnRzeCZzZXJ2ZXI9dHJ1ZSEiLCJtYXBwaW5ncyI6IkFBQUEiLCJzb3VyY2VzIjpbIndlYnBhY2s6Ly9vcGVuaG91c2UvPzlmNWEiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0KC8qIHdlYnBhY2tNb2RlOiBcImVhZ2VyXCIgKi8gXCIvVXNlcnMvZGFuaWVsY2h1L0RvY3VtZW50cy9HaXRIdWIvT3BlbkhvdXNlMy4wL3NyYy9jb21wb25lbnRzL1Nlc3Npb25Qcm92aWRlci50c3hcIikiXSwibmFtZXMiOltdLCJzb3VyY2VSb290IjoiIn0=\n//# sourceURL=webpack-internal:///(ssr)/./node_modules/next/dist/build/webpack/loaders/next-flight-client-entry-loader.js?modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fnode_modules%2Fnext%2Ffont%2Fgoogle%2Ftarget.css%3F%7B%22path%22%3A%22src%2Fapp%2Flayout.tsx%22%2C%22import%22%3A%22Inter%22%2C%22arguments%22%3A%5B%7B%22subsets%22%3A%5B%22latin%22%5D%7D%5D%2C%22variableName%22%3A%22inter%22%7D&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp%2Fglobals.css&modules=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fcomponents%2FSessionProvider.tsx&server=true!\n");
 
 /***/ }),
 
@@ -152,6 +262,17 @@ eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpac
 
 /***/ }),
 
+/***/ "(ssr)/./src/components/SessionProvider.tsx":
+/*!********************************************!*\
+  !*** ./src/components/SessionProvider.tsx ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"default\": () => (/* binding */ SessionProvider)\n/* harmony export */ });\n/* harmony import */ var react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react/jsx-dev-runtime */ \"(ssr)/./node_modules/next/dist/server/future/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js\");\n/* harmony import */ var react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__);\n/* harmony import */ var next_auth_react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! next-auth/react */ \"(ssr)/./node_modules/next-auth/react/index.js\");\n/* harmony import */ var next_auth_react__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(next_auth_react__WEBPACK_IMPORTED_MODULE_1__);\n/* __next_internal_client_entry_do_not_use__ default auto */ \n\nfunction SessionProvider({ children, session }) {\n    return /*#__PURE__*/ (0,react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxDEV)(next_auth_react__WEBPACK_IMPORTED_MODULE_1__.SessionProvider, {\n        session: session,\n        children: children\n    }, void 0, false, {\n        fileName: \"/Users/danielchu/Documents/GitHub/OpenHouse3.0/src/components/SessionProvider.tsx\",\n        lineNumber: 13,\n        columnNumber: 5\n    }, this);\n}\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHNzcikvLi9zcmMvY29tcG9uZW50cy9TZXNzaW9uUHJvdmlkZXIudHN4IiwibWFwcGluZ3MiOiI7Ozs7Ozs7OztBQUU2RTtBQUU5RCxTQUFTQSxnQkFBZ0IsRUFDdENFLFFBQVEsRUFDUkMsT0FBTyxFQUlSO0lBQ0MscUJBQ0UsOERBQUNGLDREQUF1QkE7UUFBQ0UsU0FBU0E7a0JBQy9CRDs7Ozs7O0FBR1AiLCJzb3VyY2VzIjpbIndlYnBhY2s6Ly9vcGVuaG91c2UvLi9zcmMvY29tcG9uZW50cy9TZXNzaW9uUHJvdmlkZXIudHN4P2Q0MTciXSwic291cmNlc0NvbnRlbnQiOlsiJ3VzZSBjbGllbnQnO1xuXG5pbXBvcnQgeyBTZXNzaW9uUHJvdmlkZXIgYXMgTmV4dEF1dGhTZXNzaW9uUHJvdmlkZXIgfSBmcm9tICduZXh0LWF1dGgvcmVhY3QnO1xuXG5leHBvcnQgZGVmYXVsdCBmdW5jdGlvbiBTZXNzaW9uUHJvdmlkZXIoe1xuICBjaGlsZHJlbixcbiAgc2Vzc2lvbixcbn06IHtcbiAgY2hpbGRyZW46IFJlYWN0LlJlYWN0Tm9kZTtcbiAgc2Vzc2lvbjogYW55O1xufSkge1xuICByZXR1cm4gKFxuICAgIDxOZXh0QXV0aFNlc3Npb25Qcm92aWRlciBzZXNzaW9uPXtzZXNzaW9ufT5cbiAgICAgIHtjaGlsZHJlbn1cbiAgICA8L05leHRBdXRoU2Vzc2lvblByb3ZpZGVyPlxuICApO1xufSAiXSwibmFtZXMiOlsiU2Vzc2lvblByb3ZpZGVyIiwiTmV4dEF1dGhTZXNzaW9uUHJvdmlkZXIiLCJjaGlsZHJlbiIsInNlc3Npb24iXSwic291cmNlUm9vdCI6IiJ9\n//# sourceURL=webpack-internal:///(ssr)/./src/components/SessionProvider.tsx\n");
+
+/***/ }),
+
 /***/ "(rsc)/./src/app/globals.css":
 /*!*****************************!*\
   !*** ./src/app/globals.css ***!
@@ -170,7 +291,7 @@ eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpac
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
-eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"default\": () => (/* binding */ RootLayout),\n/* harmony export */   metadata: () => (/* binding */ metadata)\n/* harmony export */ });\n/* harmony import */ var react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react/jsx-dev-runtime */ \"(rsc)/./node_modules/next/dist/server/future/route-modules/app-page/vendored/rsc/react-jsx-dev-runtime.js\");\n/* harmony import */ var react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__);\n/* harmony import */ var next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! next/font/google/target.css?{\"path\":\"src/app/layout.tsx\",\"import\":\"Inter\",\"arguments\":[{\"subsets\":[\"latin\"]}],\"variableName\":\"inter\"} */ \"(rsc)/./node_modules/next/font/google/target.css?{\\\"path\\\":\\\"src/app/layout.tsx\\\",\\\"import\\\":\\\"Inter\\\",\\\"arguments\\\":[{\\\"subsets\\\":[\\\"latin\\\"]}],\\\"variableName\\\":\\\"inter\\\"}\");\n/* harmony import */ var next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_2__);\n/* harmony import */ var _globals_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./globals.css */ \"(rsc)/./src/app/globals.css\");\n\n\n\nconst metadata = {\n    title: \"Open House Planner\",\n    description: \"Plan and organize your property visits\"\n};\nfunction RootLayout({ children }) {\n    return /*#__PURE__*/ (0,react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxDEV)(\"html\", {\n        lang: \"en\",\n        children: /*#__PURE__*/ (0,react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxDEV)(\"body\", {\n            className: (next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_2___default().className),\n            children: children\n        }, void 0, false, {\n            fileName: \"/Users/danielchu/Documents/GitHub/OpenHouse3.0/src/app/layout.tsx\",\n            lineNumber: 19,\n            columnNumber: 7\n        }, this)\n    }, void 0, false, {\n        fileName: \"/Users/danielchu/Documents/GitHub/OpenHouse3.0/src/app/layout.tsx\",\n        lineNumber: 18,\n        columnNumber: 5\n    }, this);\n}\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9zcmMvYXBwL2xheW91dC50c3giLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7QUFJTUE7QUFKaUI7QUFNaEIsTUFBTUMsV0FBcUI7SUFDaENDLE9BQU87SUFDUEMsYUFBYTtBQUNmLEVBQUU7QUFFYSxTQUFTQyxXQUFXLEVBQ2pDQyxRQUFRLEVBR1Q7SUFDQyxxQkFDRSw4REFBQ0M7UUFBS0MsTUFBSztrQkFDVCw0RUFBQ0M7WUFBS0MsV0FBV1QsK0pBQWU7c0JBQUdLOzs7Ozs7Ozs7OztBQUd6QyIsInNvdXJjZXMiOlsid2VicGFjazovL29wZW5ob3VzZS8uL3NyYy9hcHAvbGF5b3V0LnRzeD81N2E5Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCAnLi9nbG9iYWxzLmNzcyc7XG5pbXBvcnQgdHlwZSB7IE1ldGFkYXRhIH0gZnJvbSAnbmV4dCc7XG5pbXBvcnQgeyBJbnRlciB9IGZyb20gJ25leHQvZm9udC9nb29nbGUnO1xuXG5jb25zdCBpbnRlciA9IEludGVyKHsgc3Vic2V0czogWydsYXRpbiddIH0pO1xuXG5leHBvcnQgY29uc3QgbWV0YWRhdGE6IE1ldGFkYXRhID0ge1xuICB0aXRsZTogJ09wZW4gSG91c2UgUGxhbm5lcicsXG4gIGRlc2NyaXB0aW9uOiAnUGxhbiBhbmQgb3JnYW5pemUgeW91ciBwcm9wZXJ0eSB2aXNpdHMnLFxufTtcblxuZXhwb3J0IGRlZmF1bHQgZnVuY3Rpb24gUm9vdExheW91dCh7XG4gIGNoaWxkcmVuLFxufToge1xuICBjaGlsZHJlbjogUmVhY3QuUmVhY3ROb2RlO1xufSkge1xuICByZXR1cm4gKFxuICAgIDxodG1sIGxhbmc9XCJlblwiPlxuICAgICAgPGJvZHkgY2xhc3NOYW1lPXtpbnRlci5jbGFzc05hbWV9PntjaGlsZHJlbn08L2JvZHk+XG4gICAgPC9odG1sPlxuICApO1xufSAiXSwibmFtZXMiOlsiaW50ZXIiLCJtZXRhZGF0YSIsInRpdGxlIiwiZGVzY3JpcHRpb24iLCJSb290TGF5b3V0IiwiY2hpbGRyZW4iLCJodG1sIiwibGFuZyIsImJvZHkiLCJjbGFzc05hbWUiXSwic291cmNlUm9vdCI6IiJ9\n//# sourceURL=webpack-internal:///(rsc)/./src/app/layout.tsx\n");
+eval("__webpack_require__.r(__webpack_exports__);\n/* harmony export */ __webpack_require__.d(__webpack_exports__, {\n/* harmony export */   \"default\": () => (/* binding */ RootLayout),\n/* harmony export */   metadata: () => (/* binding */ metadata)\n/* harmony export */ });\n/* harmony import */ var react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react/jsx-dev-runtime */ \"(rsc)/./node_modules/next/dist/server/future/route-modules/app-page/vendored/rsc/react-jsx-dev-runtime.js\");\n/* harmony import */ var react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__);\n/* harmony import */ var next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! next/font/google/target.css?{\"path\":\"src/app/layout.tsx\",\"import\":\"Inter\",\"arguments\":[{\"subsets\":[\"latin\"]}],\"variableName\":\"inter\"} */ \"(rsc)/./node_modules/next/font/google/target.css?{\\\"path\\\":\\\"src/app/layout.tsx\\\",\\\"import\\\":\\\"Inter\\\",\\\"arguments\\\":[{\\\"subsets\\\":[\\\"latin\\\"]}],\\\"variableName\\\":\\\"inter\\\"}\");\n/* harmony import */ var next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_4__);\n/* harmony import */ var _globals_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./globals.css */ \"(rsc)/./src/app/globals.css\");\n/* harmony import */ var next_auth__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! next-auth */ \"(rsc)/./node_modules/next-auth/index.js\");\n/* harmony import */ var next_auth__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(next_auth__WEBPACK_IMPORTED_MODULE_2__);\n/* harmony import */ var _components_SessionProvider__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @/components/SessionProvider */ \"(rsc)/./src/components/SessionProvider.tsx\");\n\n\n\n\n\nconst metadata = {\n    title: \"Open House Planner\",\n    description: \"Plan and organize your property visits\"\n};\nasync function RootLayout({ children }) {\n    const session = await (0,next_auth__WEBPACK_IMPORTED_MODULE_2__.getServerSession)();\n    return /*#__PURE__*/ (0,react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxDEV)(\"html\", {\n        lang: \"en\",\n        children: /*#__PURE__*/ (0,react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxDEV)(\"body\", {\n            className: (next_font_google_target_css_path_src_app_layout_tsx_import_Inter_arguments_subsets_latin_variableName_inter___WEBPACK_IMPORTED_MODULE_4___default().className),\n            children: /*#__PURE__*/ (0,react_jsx_dev_runtime__WEBPACK_IMPORTED_MODULE_0__.jsxDEV)(_components_SessionProvider__WEBPACK_IMPORTED_MODULE_3__[\"default\"], {\n                session: session,\n                children: children\n            }, void 0, false, {\n                fileName: \"/Users/danielchu/Documents/GitHub/OpenHouse3.0/src/app/layout.tsx\",\n                lineNumber: 24,\n                columnNumber: 9\n            }, this)\n        }, void 0, false, {\n            fileName: \"/Users/danielchu/Documents/GitHub/OpenHouse3.0/src/app/layout.tsx\",\n            lineNumber: 23,\n            columnNumber: 7\n        }, this)\n    }, void 0, false, {\n        fileName: \"/Users/danielchu/Documents/GitHub/OpenHouse3.0/src/app/layout.tsx\",\n        lineNumber: 22,\n        columnNumber: 5\n    }, this);\n}\n//# sourceURL=[module]\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiKHJzYykvLi9zcmMvYXBwL2xheW91dC50c3giLCJtYXBwaW5ncyI6Ijs7Ozs7Ozs7Ozs7Ozs7QUFNTUE7QUFOaUI7QUFHc0I7QUFDYztBQUlwRCxNQUFNRyxXQUFxQjtJQUNoQ0MsT0FBTztJQUNQQyxhQUFhO0FBQ2YsRUFBRTtBQUVhLGVBQWVDLFdBQVcsRUFDdkNDLFFBQVEsRUFHVDtJQUNDLE1BQU1DLFVBQVUsTUFBTVAsMkRBQWdCQTtJQUV0QyxxQkFDRSw4REFBQ1E7UUFBS0MsTUFBSztrQkFDVCw0RUFBQ0M7WUFBS0MsV0FBV1osK0pBQWU7c0JBQzlCLDRFQUFDRSxtRUFBZUE7Z0JBQUNNLFNBQVNBOzBCQUN2QkQ7Ozs7Ozs7Ozs7Ozs7Ozs7QUFLWCIsInNvdXJjZXMiOlsid2VicGFjazovL29wZW5ob3VzZS8uL3NyYy9hcHAvbGF5b3V0LnRzeD81N2E5Il0sInNvdXJjZXNDb250ZW50IjpbImltcG9ydCAnLi9nbG9iYWxzLmNzcyc7XG5pbXBvcnQgdHlwZSB7IE1ldGFkYXRhIH0gZnJvbSAnbmV4dCc7XG5pbXBvcnQgeyBJbnRlciB9IGZyb20gJ25leHQvZm9udC9nb29nbGUnO1xuaW1wb3J0IHsgZ2V0U2VydmVyU2Vzc2lvbiB9IGZyb20gJ25leHQtYXV0aCc7XG5pbXBvcnQgU2Vzc2lvblByb3ZpZGVyIGZyb20gJ0AvY29tcG9uZW50cy9TZXNzaW9uUHJvdmlkZXInO1xuXG5jb25zdCBpbnRlciA9IEludGVyKHsgc3Vic2V0czogWydsYXRpbiddIH0pO1xuXG5leHBvcnQgY29uc3QgbWV0YWRhdGE6IE1ldGFkYXRhID0ge1xuICB0aXRsZTogJ09wZW4gSG91c2UgUGxhbm5lcicsXG4gIGRlc2NyaXB0aW9uOiAnUGxhbiBhbmQgb3JnYW5pemUgeW91ciBwcm9wZXJ0eSB2aXNpdHMnLFxufTtcblxuZXhwb3J0IGRlZmF1bHQgYXN5bmMgZnVuY3Rpb24gUm9vdExheW91dCh7XG4gIGNoaWxkcmVuLFxufToge1xuICBjaGlsZHJlbjogUmVhY3QuUmVhY3ROb2RlO1xufSkge1xuICBjb25zdCBzZXNzaW9uID0gYXdhaXQgZ2V0U2VydmVyU2Vzc2lvbigpO1xuXG4gIHJldHVybiAoXG4gICAgPGh0bWwgbGFuZz1cImVuXCI+XG4gICAgICA8Ym9keSBjbGFzc05hbWU9e2ludGVyLmNsYXNzTmFtZX0+XG4gICAgICAgIDxTZXNzaW9uUHJvdmlkZXIgc2Vzc2lvbj17c2Vzc2lvbn0+XG4gICAgICAgICAge2NoaWxkcmVufVxuICAgICAgICA8L1Nlc3Npb25Qcm92aWRlcj5cbiAgICAgIDwvYm9keT5cbiAgICA8L2h0bWw+XG4gICk7XG59ICJdLCJuYW1lcyI6WyJpbnRlciIsImdldFNlcnZlclNlc3Npb24iLCJTZXNzaW9uUHJvdmlkZXIiLCJtZXRhZGF0YSIsInRpdGxlIiwiZGVzY3JpcHRpb24iLCJSb290TGF5b3V0IiwiY2hpbGRyZW4iLCJzZXNzaW9uIiwiaHRtbCIsImxhbmciLCJib2R5IiwiY2xhc3NOYW1lIl0sInNvdXJjZVJvb3QiOiIifQ==\n//# sourceURL=webpack-internal:///(rsc)/./src/app/layout.tsx\n");
 
 /***/ }),
 
@@ -201,6 +322,35 @@ const __default__ = proxy.default;
 
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (__default__);
 
+/***/ }),
+
+/***/ "(rsc)/./src/components/SessionProvider.tsx":
+/*!********************************************!*\
+  !*** ./src/components/SessionProvider.tsx ***!
+  \********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   $$typeof: () => (/* binding */ $$typeof),
+/* harmony export */   __esModule: () => (/* binding */ __esModule),
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var next_dist_build_webpack_loaders_next_flight_loader_module_proxy__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! next/dist/build/webpack/loaders/next-flight-loader/module-proxy */ "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-loader/module-proxy.js");
+
+const proxy = (0,next_dist_build_webpack_loaders_next_flight_loader_module_proxy__WEBPACK_IMPORTED_MODULE_0__.createProxy)(String.raw`/Users/danielchu/Documents/GitHub/OpenHouse3.0/src/components/SessionProvider.tsx`)
+
+// Accessing the __esModule property and exporting $$typeof are required here.
+// The __esModule getter forces the proxy target to create the default export
+// and the $$typeof value is for rendering logic to determine if the module
+// is a client boundary.
+const { __esModule, $$typeof } = proxy;
+const __default__ = proxy.default;
+
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (__default__);
+
 /***/ })
 
 };
@@ -210,7 +360,7 @@ const __default__ = proxy.default;
 var __webpack_require__ = require("../../../webpack-runtime.js");
 __webpack_require__.C(exports);
 var __webpack_exec__ = (moduleId) => (__webpack_require__(__webpack_require__.s = moduleId))
-var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/next","vendor-chunks/react-beautiful-dnd","vendor-chunks/react-redux","vendor-chunks/prop-types","vendor-chunks/redux","vendor-chunks/@heroicons","vendor-chunks/react-is","vendor-chunks/css-box-model","vendor-chunks/@babel","vendor-chunks/hoist-non-react-statics","vendor-chunks/object-assign","vendor-chunks/@swc","vendor-chunks/memoize-one","vendor-chunks/use-memo-one","vendor-chunks/raf-schd","vendor-chunks/tiny-invariant","vendor-chunks/leaflet"], () => (__webpack_exec__("(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader.js?name=app%2Fplan%2F%5BgroupId%5D%2Fpage&page=%2Fplan%2F%5BgroupId%5D%2Fpage&appPaths=%2Fplan%2F%5BgroupId%5D%2Fpage&pagePath=private-next-app-dir%2Fplan%2F%5BgroupId%5D%2Fpage.tsx&appDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D!")));
+var __webpack_exports__ = __webpack_require__.X(0, ["vendor-chunks/next","vendor-chunks/next-auth","vendor-chunks/openid-client","vendor-chunks/@babel","vendor-chunks/oauth","vendor-chunks/preact","vendor-chunks/uuid","vendor-chunks/yallist","vendor-chunks/cookie","vendor-chunks/oidc-token-hash","vendor-chunks/@panva","vendor-chunks/@swc","vendor-chunks/react-beautiful-dnd","vendor-chunks/react-redux","vendor-chunks/prop-types","vendor-chunks/redux","vendor-chunks/@heroicons","vendor-chunks/react-is","vendor-chunks/css-box-model","vendor-chunks/hoist-non-react-statics","vendor-chunks/object-assign","vendor-chunks/memoize-one","vendor-chunks/use-memo-one","vendor-chunks/raf-schd","vendor-chunks/tiny-invariant","vendor-chunks/leaflet"], () => (__webpack_exec__("(rsc)/./node_modules/next/dist/build/webpack/loaders/next-app-loader.js?name=app%2Fplan%2F%5BgroupId%5D%2Fpage&page=%2Fplan%2F%5BgroupId%5D%2Fpage&appPaths=%2Fplan%2F%5BgroupId%5D%2Fpage&pagePath=private-next-app-dir%2Fplan%2F%5BgroupId%5D%2Fpage.tsx&appDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0%2Fsrc%2Fapp&pageExtensions=tsx&pageExtensions=ts&pageExtensions=jsx&pageExtensions=js&rootDir=%2FUsers%2Fdanielchu%2FDocuments%2FGitHub%2FOpenHouse3.0&isDev=true&tsconfigPath=tsconfig.json&basePath=&assetPrefix=&nextConfigOutput=&preferredRegion=&middlewareConfig=e30%3D!")));
 module.exports = __webpack_exports__;
 
 })();

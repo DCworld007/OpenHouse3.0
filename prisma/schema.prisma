@@ -1,0 +1,142 @@
+// This is your Prisma schema file
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  groups        GroupMember[]
+  messages      Message[]
+  reactions     Reaction[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Application specific models
+model CardGroup {
+  id        String    @id @default(cuid())
+  name      String
+  type      String    // 'date' | 'custom'
+  date      String?
+  order     Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  members   GroupMember[]
+  cards     Card[]
+  messages  Message[]
+}
+
+model GroupMember {
+  id        String      @id @default(cuid())
+  userId    String
+  groupId   String
+  role      String      // 'owner' | 'editor' | 'viewer'
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     CardGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model Card {
+  id        String      @id @default(cuid())
+  title     String      // Previously 'address'
+  cardType  String      // 'where' | 'what'
+  groupId   String
+  imageUrl  String
+  sourceUrl String
+  source    String
+  price     Float
+  notes     String?
+  order     Int
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  visitDate DateTime?
+  metadata  Json?       // Flexible field for additional data
+  group     CardGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  text      String
+  type      String      // 'text' | 'poll'
+  userId    String
+  groupId   String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  poll      Json?       // { question: string, options: string[], votes: Record<number, string[]> }
+  reactions MessageReaction[]
+  user      User        @relation(fields: [userId], references: [id])
+  group     CardGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  type      String   // 'thumbsUp' | 'thumbsDown'
+  userId    String
+  cardId    String   // Changed from listingId
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId, type])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
+} 

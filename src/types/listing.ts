@@ -1,10 +1,10 @@
 export interface Listing {
   id: string;
-  price?: number;
+  price: number;
   address: string;
   imageUrl: string;
   sourceUrl: string;
-  source: 'housesigma' | 'google' | 'manual';
+  source: string;
   openHouse?: {
     date: string;
     startTime: string;
@@ -17,6 +17,10 @@ export interface Listing {
   groupId: string;
   order: number;
   cardType: 'where' | 'what';
+  reactions?: Array<{
+    type: 'thumbsUp' | 'thumbsDown';
+    userId: string;
+  }>;
 }
 
 export interface ListingGroup {
