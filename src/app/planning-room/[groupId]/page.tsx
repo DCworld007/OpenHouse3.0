@@ -32,7 +32,8 @@ export default function PlanningRoomPage({ params }: { params: { groupId: string
           id: foundGroup.id,
           name: foundGroup.name,
           type: foundGroup.type || 'custom',
-          order: foundGroup.order || 0,
+          date: foundGroup.date || new Date().toISOString().split('T')[0],
+          order: typeof foundGroup.order === 'number' ? foundGroup.order : 0,
           listings: foundGroup.listings || foundGroup.cards?.map((card: any) => ({
             id: card.id,
             address: card.content,
@@ -80,7 +81,9 @@ export default function PlanningRoomPage({ params }: { params: { groupId: string
           // Update both listings and cards in the group, ensuring type is defined
           groups[groupIndex] = {
             ...updatedGroup,
-            type: updatedGroup.type || 'custom', // Ensure type is always defined
+            type: updatedGroup.type || 'custom',
+            date: updatedGroup.date || new Date().toISOString().split('T')[0],
+            order: typeof updatedGroup.order === 'number' ? updatedGroup.order : 0,
             cards
           };
           
