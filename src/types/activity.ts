@@ -6,14 +6,16 @@ export interface Activity {
   details: ActivityDetails;
 }
 
-export type ActivityType = 'message' | 'reaction' | 'poll' | 'vote' | 'card';
+export type ActivityType = 'card_reaction' | 'card_reorder' | 'poll_vote' | 'card_add' | 'card_edit' | 'poll_create';
 
-export type ActivityDetails = 
-  | MessageActivity 
-  | ReactionActivity 
-  | PollActivity 
-  | VoteActivity 
-  | CardActivity;
+export type ActivityDetails = {
+  cardTitle?: string;
+  reactionType?: 'thumbsUp' | 'thumbsDown';
+  fromIndex?: number;
+  toIndex?: number;
+  pollOption?: string;
+  pollQuestion?: string;
+};
 
 interface MessageActivity {
   type: 'message';
