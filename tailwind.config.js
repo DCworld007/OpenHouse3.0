@@ -21,6 +21,15 @@ module.exports = {
           900: '#0c4a6e',
         },
       },
+      keyframes: {
+        'subtle-pulse': {
+          '0%, 100%': { transform: 'scale(1) translateX(-50%)' },
+          '50%': { transform: 'scale(1.05) translateX(-48%)' },
+        },
+      },
+      animation: {
+        'subtle-pulse': 'subtle-pulse 2s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

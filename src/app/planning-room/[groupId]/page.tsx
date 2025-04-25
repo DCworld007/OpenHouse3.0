@@ -22,18 +22,75 @@ export default function PlanningRoomPage({ params }: { params: { groupId: string
 
     try {
       const groups = JSON.parse(savedData);
-      const foundGroup = groups.find((g: ListingGroup) => g.id === params.groupId);
+      const foundGroup = groups.find((g: any) => g.id === params.groupId);
       if (!foundGroup) {
         console.error('Group not found:', params.groupId);
         router.push('/');
       } else {
-        setGroup(foundGroup);
+        // Convert old format to new format if necessary
+        const convertedGroup: ListingGroup = {
+          id: foundGroup.id,
+          name: foundGroup.name,
+          type: foundGroup.type || 'custom',
+          order: foundGroup.order || 0,
+          listings: foundGroup.listings || foundGroup.cards?.map((card: any) => ({
+            id: card.id,
+            address: card.content,
+            cardType: card.type,
+            groupId: foundGroup.id,
+            imageUrl: card.type === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
+            sourceUrl: '',
+            source: 'manual',
+            price: 0,
+            notes: card.notes,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            order: 0,
+            reactions: []
+          })) || []
+        };
+        setGroup(convertedGroup);
       }
     } catch (error) {
       console.error('Error loading saved data:', error);
       router.push('/');
     }
   }, [params.groupId, router]);
+
+  // Handle group updates
+  const handleGroupUpdate = (updatedGroup: ListingGroup) => {
+    // Update local state
+    setGroup(updatedGroup);
+
+    // Update localStorage
+    const savedData = localStorage.getItem(STORAGE_KEY);
+    if (savedData) {
+      try {
+        const groups = JSON.parse(savedData);
+        const groupIndex = groups.findIndex((g: ListingGroup) => g.id === updatedGroup.id);
+        if (groupIndex !== -1) {
+          // Convert listings back to cards format
+          const cards = updatedGroup.listings.map(listing => ({
+            id: listing.id,
+            type: listing.cardType,
+            content: listing.address,
+            notes: listing.notes
+          }));
+
+          // Update both listings and cards in the group, ensuring type is defined
+          groups[groupIndex] = {
+            ...updatedGroup,
+            type: updatedGroup.type || 'custom', // Ensure type is always defined
+            cards
+          };
+          
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+        }
+      } catch (error) {
+        console.error('Error updating localStorage:', error);
+      }
+    }
+  };
 
   if (!group) {
     return (
@@ -46,5 +103,5 @@ export default function PlanningRoomPage({ params }: { params: { groupId: string
     );
   }
 
-  return <PlanningRoom group={group} />;
+  return <PlanningRoom group={group} onGroupUpdate={handleGroupUpdate} />;
 } 

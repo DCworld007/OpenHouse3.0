@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { ListingGroup, Listing } from '@/types/listing';
-import { Activity, ActivityType } from '@/types/activity';
+import { useState, Fragment } from 'react';
+import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
+import { EMOJI_REACTIONS } from '@/types/message';
+import { PlanningMessage, ListingGroup, PlanningRoomProps } from '@/types/planning-room';
 import { 
   ChatBubbleLeftRightIcon, 
   ArrowLeftIcon, 
@@ -15,113 +16,153 @@ import Card from './Card';
 import { Switch } from '@headlessui/react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import ActivityFeed from './ActivityFeed';
+import PlanCard from './PlanCard';
+import { v4 as uuidv4 } from 'uuid';
+import { Listing } from '@/types/listing';
+import { Message, Poll } from '@/types/message';
+
+interface CustomPoll {
+  id: string;
+  question: string;
+  options: string[];
+  votes: Record<string, string[]>;
+}
+
+interface BaseActivityDetails {
+  userId: string;
+  messageId: string;
+  timestamp: number;
+}
+
+interface VoteActivity extends BaseActivityDetails {
+  type: 'vote';
+  pollId: string;
+  option: string;
+}
+
+interface CustomActivity {
+  timestamp: number;
+  userId: string;
+  messageId: string;
+}
+
+interface CustomPollActivity extends CustomActivity {
+  type: 'poll';
+  question: string;
+  options: string[];
+  pollIndex: number;
+}
+
+interface CustomReactionActivity extends CustomActivity {
+  type: 'reaction';
+  listingId: string;
+  reactionType: 'thumbsUp' | 'thumbsDown';
+}
 
 interface Message {
   id: string;
-  text: string;
-  sender: string;
-  timestamp: number;
   type: 'text' | 'poll';
-  reactions: { [key: string]: string[] }; // emoji: userIds[]
-  poll?: {
-    question: string;
-    options: string[];
-    votes: { [key: string]: string[] }; // optionIndex: userIds[]
-  };
+  content: string;
+  poll?: Poll;
+  timestamp: number;
+  userId: string;
 }
 
-const EMOJI_REACTIONS = ['👍', '❤️', '😊', '🎉', '👏', '🤔'];
+interface Poll {
+  id: string;
+  question: string;
+  options: string[];
+  votes: Record<string, string[]>;
+}
 
-export default function PlanningRoom({ group }: { group: ListingGroup }) {
+interface PlanningMessage {
+  id: string;
+  type: 'text' | 'poll';
+  content: string;
+  poll?: Poll;
+  timestamp: number;
+  sender: string;
+  reactions?: Record<string, string[]>;
+}
+
+interface PlanningRoomProps {
+  group: ListingGroup;
+  onGroupUpdate: (group: ListingGroup) => void;
+}
+
+export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
+  const [currentGroup, setCurrentGroup] = useState<ListingGroup>(group);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const [showPollCreator, setShowPollCreator] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showNewCardForm, setShowNewCardForm] = useState(false);
-  const [newCardTitle, setNewCardTitle] = useState('');
-  const [cardType, setCardType] = useState<'where' | 'what'>('where');
   const [newCardContent, setNewCardContent] = useState('');
   const [newCardNotes, setNewCardNotes] = useState('');
+  const [cardType, setCardType] = useState<'what' | 'where'>('what');
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [newCardTitle, setNewCardTitle] = useState('');
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [polls, setPolls] = useState<CustomPoll[]>([]);
+
+  // Ensure group.listings exists
+  if (!group.listings) {
+    group.listings = [];
+  }
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
     const message: Message = {
-      id: Date.now().toString(),
-      text: newMessage,
-      sender: 'You', // Replace with actual user name when auth is implemented
-      timestamp: Date.now(),
+      id: uuidv4(),
+      content: newMessage,
       type: 'text',
+      timestamp: Date.now(),
       reactions: {},
+      sender: 'currentUser'
     };
 
-    setMessages([...messages, message]);
+    setMessages(prev => [...prev, message]);
     setNewMessage('');
   };
 
-  const handleCreatePoll = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pollQuestion.trim() || pollOptions.some(opt => !opt.trim())) return;
-
-    const message: Message = {
-      id: Date.now().toString(),
-      text: pollQuestion,
-      sender: 'You',
-      timestamp: Date.now(),
-      type: 'poll',
-      reactions: {},
-      poll: {
-        question: pollQuestion,
-        options: pollOptions.filter(opt => opt.trim()),
-        votes: {},
-      },
+  const handleCreatePoll = (question: string, options: string[]) => {
+    const pollId = uuidv4();
+    const messageId = uuidv4();
+    const newPoll: CustomPoll = {
+      id: pollId,
+      question,
+      options,
+      votes: {},
     };
-
-    setMessages([...messages, message]);
-
-    // Add activity
-    addActivity('poll_create', {
-      pollQuestion: pollQuestion
-    });
-
-    setPollQuestion('');
-    setPollOptions(['', '']);
-    setShowPollCreator(false);
+    setPolls(prev => [...prev, newPoll]);
+    
+    const activity: CustomPollActivity = {
+      type: 'poll',
+      question,
+      options,
+      pollIndex: polls.length,
+      timestamp: Date.now(),
+      userId: 'currentUser',
+      messageId
+    };
+    addActivity('poll', activity as ActivityDetails);
   };
 
-  const handleVote = (messageId: string, optionIndex: number) => {
-    setMessages(messages.map(message => {
-      if (message.id === messageId && message.poll) {
-        const votes = { ...message.poll.votes };
-        const currentVotes = votes[optionIndex] || [];
-        const userId = 'currentUser';
-        votes[optionIndex] = currentVotes.includes(userId) 
-          ? currentVotes.filter(id => id !== userId)
-          : [...currentVotes, userId];
-
-        // Add activity if adding a vote (not removing)
-        if (!currentVotes.includes(userId)) {
-          addActivity('poll_vote', {
-            pollQuestion: message.poll.question,
-            pollOption: message.poll.options[optionIndex]
-          });
-        }
-
-        return {
-          ...message,
-          poll: {
-            ...message.poll,
-            votes,
-          },
-        };
-      }
-      return message;
-    }));
+  const handleVote = (messageId: string, option: string, pollId: string) => {
+    const newActivity: VoteActivity = {
+      type: 'vote',
+      userId: 'currentUser',
+      messageId,
+      timestamp: Date.now(),
+      pollId,
+      option
+    };
+    addActivity(newActivity);
   };
 
   const handleReaction = (messageId: string, emoji: string) => {
@@ -148,9 +189,9 @@ export default function PlanningRoom({ group }: { group: ListingGroup }) {
     if (!newCardContent.trim()) return;
 
     const newCard: Listing = {
-      id: crypto.randomUUID(),
+      id: uuidv4(),
       address: newCardContent,
-      cardType: cardType,
+      cardType,
       groupId: group.id,
       imageUrl: cardType === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
       sourceUrl: '',
@@ -160,472 +201,579 @@ export default function PlanningRoom({ group }: { group: ListingGroup }) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       order: group.listings.length,
-      reactions: [] // Initialize empty reactions array
+      reactions: []
     };
 
-    // Add the new card to the group's listings
-    group.listings.push(newCard);
+    // Update group with new card
+    const updatedGroup = {
+      ...group,
+      listings: [...group.listings, newCard]
+    };
+    onGroupUpdate(updatedGroup);
     
-    // Add activity
-    addActivity('card_add', {
+    // Add card creation activity
+    addActivity('card', {
+      type: 'card',
       cardId: newCard.id,
-      cardTitle: newCard.address
+      action: 'create',
+      details: `Created new ${cardType} card: ${newCardContent}`
     });
 
+    // Reset form state
     setNewCardContent('');
     setNewCardNotes('');
     setShowNewCardForm(false);
     setShowActionsMenu(false);
   };
 
-  const handleDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
-    
-    if (!destination) return;
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
 
-    const reorderedCards = Array.from(group.listings);
-    const [reorderedItem] = reorderedCards.splice(source.index, 1);
-    reorderedCards.splice(destination.index, 0, reorderedItem);
+    const sourceIndex = result.source.index;
+    const destinationIndex = result.destination.index;
 
-    // Update the order property for each card
-    const updatedCards = reorderedCards.map((card, index) => ({
-      ...card,
+    const updatedListings = Array.from(group.listings);
+    const movedCard = updatedListings[sourceIndex];
+    const [removed] = updatedListings.splice(sourceIndex, 1);
+    updatedListings.splice(destinationIndex, 0, removed);
+
+    // Update order property for all affected cards
+    const reorderedListings = updatedListings.map((listing, index) => ({
+      ...listing,
       order: index
     }));
 
-    // Update the group's listings
-    group.listings = updatedCards;
+    const updatedGroup = {
+      ...group,
+      listings: reorderedListings
+    };
+    onGroupUpdate(updatedGroup);
 
-    // Add activity
-    addActivity('card_reorder', {
-      cardId: reorderedItem.id,
-      cardTitle: reorderedItem.address,
-      fromIndex: source.index,
-      toIndex: destination.index
+    // Create a more descriptive activity message
+    const positionChange = sourceIndex < destinationIndex ? 'down' : 'up';
+    const positionDiff = Math.abs(destinationIndex - sourceIndex);
+    const positionText = positionDiff === 1 
+      ? `1 position ${positionChange}`
+      : `${positionDiff} positions ${positionChange}`;
+
+    addActivity('card', {
+      type: 'card',
+      cardId: result.draggableId,
+      action: 'move',
+      details: `Moved "${movedCard.address}" ${positionText} (from #${sourceIndex + 1} to #${destinationIndex + 1})`
     });
   };
 
-  const addActivity = (type: ActivityType, details: Activity['details']) => {
-    const newActivity: Activity = {
-      id: crypto.randomUUID(),
+  const addActivity = (type: ActivityType, details: ActivityDetails) => {
+    const activity: Activity = {
+      id: uuidv4(),
       type,
-      userId: 'temp-user-id', // TODO: Replace with actual user ID when auth is implemented
-      timestamp: new Date().toISOString(),
-      groupId: group.id,
+      timestamp: Date.now(),
+      userId: 'currentUser', // Replace with actual user ID when auth is implemented
       details
     };
-    setActivities(prev => [newActivity, ...prev]);
+    setActivities(prev => [...prev, activity]);
   };
 
-  const handleCardReaction = (cardId: string, type: 'thumbsUp' | 'thumbsDown', action: 'add' | 'remove') => {
-    const card = group.listings.find(l => l.id === cardId);
-    if (!card) return;
-
-    const currentUserId = 'temp-user-id'; // TODO: Replace with actual user ID when auth is implemented
-
-    // Initialize reactions if undefined
-    if (!card.reactions) {
-      card.reactions = [];
-    }
+  const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
+    const userId = 'currentUser'; // Replace with actual user ID
     
-    if (action === 'add') {
-      card.reactions.push({
-        type,
-        userId: currentUserId
+    setCurrentGroup(prevGroup => {
+      const updatedListings = prevGroup.listings.map(listing => {
+        if (listing.id === cardId) {
+          const reactions = listing.reactions || [];
+          const existingReactionIndex = reactions.findIndex(
+            r => r.type === reactionType && r.userId === userId
+          );
+
+          let updatedReactions = [...reactions];
+          if (existingReactionIndex >= 0) {
+            updatedReactions.splice(existingReactionIndex, 1);
+          } else {
+            updatedReactions.push({ type: reactionType, userId });
+          }
+
+          return {
+            ...listing,
+            reactions: updatedReactions
+          };
+        }
+        return listing;
       });
-      
-      // Add activity
-      addActivity('card_reaction', {
-        cardId,
-        cardTitle: card.address,
-        reactionType: type,
-        action: 'add'
-      });
-    } else {
-      card.reactions = card.reactions.filter(r => !(r.userId === currentUserId && r.type === type));
-      
-      // Add activity
-      addActivity('card_reaction', {
-        cardId,
-        cardTitle: card.address,
-        reactionType: type,
-        action: 'remove'
-      });
-    }
+
+      return {
+        ...prevGroup,
+        listings: updatedListings
+      };
+    });
+  };
+
+  const handleAddCard = (type: 'what' | 'where', content: string, notes?: string) => {
+    if (!group) return;
+
+    const newListing: Listing = {
+      id: uuidv4(),
+      address: content,
+      cardType: type,
+      groupId: group.id,
+      imageUrl: type === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
+      sourceUrl: '',
+      source: 'manual',
+      price: 0,
+      notes: notes || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      order: group.listings.length,
+      reactions: []
+    };
+
+    const updatedGroup = {
+      ...group,
+      listings: [...group.listings, newListing]
+    };
+
+    onGroupUpdate(updatedGroup);
+  };
+
+  const updateGroup = (newListings: Listing[]) => {
+    setCurrentGroup((prevGroup: ListingGroup): ListingGroup => ({
+      ...prevGroup,
+      listings: newListings
+    }));
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Link href="/" className="text-gray-500 hover:text-gray-700">
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Link href="/plans" className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100">
                 <ArrowLeftIcon className="h-5 w-5" />
               </Link>
-              <h1 className="ml-4 text-xl font-semibold text-gray-900">{group.name} - Planning Room</h1>
+              <h1 className="text-xl font-semibold text-gray-900">{group.name}</h1>
+              <span className="px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">Planning Room</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Chat and Activity Feed Section */}
-        <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-          <div className="flex gap-4 h-full">
-            {/* Chat Section */}
-            <div className="flex-1 bg-white rounded-lg shadow h-full">
-              <div className="p-4 border-b">
-                <h2 className="text-lg font-semibold flex items-center">
-                  <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-12 gap-6">
+          {/* Left Column - Cards */}
+          <div className="col-span-3">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
+                  <button
+                    onClick={() => setShowNewCardForm(true)}
+                    className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50"
+                    title="Add new card"
+                  >
+                    <PlusIcon className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4">
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <Droppable droppableId="cards" direction="vertical">
+                    {(provided) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className="space-y-4"
+                      >
+                        {group.listings.map((card, index) => (
+                          <Draggable key={card.id} draggableId={card.id} index={index}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className={`relative transition-all ${
+                                  snapshot.isDragging ? 'opacity-50' : ''
+                                }`}
+                              >
+                                <div className="bg-white rounded-lg border border-gray-200 px-6 py-5 hover:border-indigo-300 transition-colors shadow-sm">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+                                        {card.cardType === 'where' ? 'Where' : 'What'}
+                                      </div>
+                                      <div className="text-sm text-gray-900">{card.address}</div>
+                                    </div>
+                                    {card.notes && (
+                                      <div className="pt-2 border-t">
+                                        <div className="text-sm text-gray-600 leading-relaxed">{card.notes}</div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Add Card Button */}
+                                <button
+                                  onClick={() => {
+                                    setActiveCardId(card.id);
+                                    setShowNewCardForm(true);
+                                  }}
+                                  className="absolute -right-4 top-1/2 -translate-y-1/2 z-[60] transition-all duration-200 rounded-full bg-white border border-gray-200 p-2 hover:bg-indigo-50 hover:border-indigo-200 hover:scale-110 shadow-sm opacity-0 group-hover:opacity-100 cursor-pointer"
+                                >
+                                  <PlusIcon className="w-5 h-5 text-indigo-600" />
+                                </button>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                        {group.listings.length === 0 && (
+                          <div className="text-center py-8">
+                            <p className="text-gray-500 text-sm">No cards yet</p>
+                            <button
+                              onClick={() => setShowNewCardForm(true)}
+                              className="mt-2 text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                            >
+                              Add your first card
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              </div>
+            </div>
+          </div>
+
+          {/* Middle Column - Chat */}
+          <div className="col-span-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[600px] flex flex-col">
+              {/* Chat Header */}
+              <div className="p-4 border-b border-gray-200 flex-shrink-0">
+                <h2 className="text-lg font-semibold flex items-center text-gray-900">
+                  <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 text-gray-400" />
                   Group Chat
                 </h2>
               </div>
 
-              <div className="h-[calc(100vh-24rem)] flex flex-col">
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {messages.map(message => (
-                    <div key={message.id} className="relative group">
-                      <div className="flex flex-col bg-white rounded-lg shadow-sm p-3">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium">{message.sender}</span>
-                          <span className="text-sm text-gray-500">
+              {/* Messages Area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((message) => (
+                  <div key={message.id} className="group relative">
+                    <div className={`flex flex-col rounded-xl p-3 ${
+                      message.type === 'poll' ? 'bg-gray-50' : 'bg-white border border-gray-100'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                          <span className="text-sm font-medium text-indigo-700">
+                            {message.sender?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-900">{message.sender}</span>
+                          <span className="ml-2 text-sm text-gray-500">
                             {new Date(message.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
-
-                        {message.type === 'text' ? (
-                          <p className="mt-1">{message.text}</p>
-                        ) : (
-                          <div className="mt-2 space-y-2">
-                            <p className="font-medium">{message.poll?.question}</p>
-                            {message.poll?.options.map((option, index) => {
-                              const votes = message.poll?.votes[index] || [];
-                              const totalVotes = Object.values(message.poll?.votes || {}).reduce((sum, voters) => sum + voters.length, 0);
-                              const percentage = totalVotes > 0 ? (votes.length / totalVotes) * 100 : 0;
-                              const hasVoted = votes.includes('currentUser');
-
-                              return (
-                                <button
-                                  key={index}
-                                  onClick={() => handleVote(message.id, index)}
-                                  className="w-full text-left"
-                                >
-                                  <div className="relative">
-                                    <div
-                                      className={`absolute inset-0 ${hasVoted ? 'bg-indigo-100' : 'bg-gray-100'} rounded`}
-                                      style={{ width: `${percentage}%` }}
-                                    />
-                                    <div className="relative px-3 py-2 flex justify-between">
-                                      <span>{option}</span>
-                                      <span>{votes.length} votes</span>
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Reactions */}
-                        {Object.entries(message.reactions).length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {Object.entries(message.reactions).map(([emoji, users]) => (
-                              users.length > 0 && (
-                                <button
-                                  key={emoji}
-                                  onClick={() => handleReaction(message.id, emoji)}
-                                  className={`px-2 py-1 text-sm rounded-full ${
-                                    users.includes('currentUser')
-                                      ? 'bg-indigo-100 text-indigo-700'
-                                      : 'bg-gray-100 text-gray-700'
-                                  }`}
-                                >
-                                  {emoji} {users.length}
-                                </button>
-                              )
-                            ))}
-                          </div>
-                        )}
                       </div>
 
-                      {/* Reaction Button */}
-                      <button
-                        onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
-                        className="absolute right-0 top-2 p-1.5 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <FaceSmileIcon className="h-5 w-5" />
-                      </button>
+                      {message.type === 'text' ? (
+                        <p className="mt-2 text-gray-700">{message.content}</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          <h4 className="font-medium text-gray-900">{message.poll?.question}</h4>
+                          {message.poll?.options.map((option, optionIndex) => (
+                            <button
+                              key={optionIndex}
+                              onClick={() => handleVote(message.id, option, message.poll?.id || '')}
+                              className="w-full p-2 text-left text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-                      {/* Emoji Picker */}
-                      {showEmojiPicker === message.id && (
-                        <div className="absolute right-0 top-8 bg-white rounded-lg shadow-lg border p-2 z-10">
-                          <div className="flex gap-1">
-                            {EMOJI_REACTIONS.map(emoji => (
+                      {/* Reactions */}
+                      {Object.entries(message.reactions || {}).length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {Object.entries(message.reactions || {}).map(([emoji, users]) => (
+                            users.length > 0 && (
                               <button
                                 key={emoji}
                                 onClick={() => handleReaction(message.id, emoji)}
-                                className="p-1.5 hover:bg-gray-100 rounded"
+                                className={`px-2 py-1 text-sm rounded-full transition-colors ${
+                                  users.includes('currentUser')
+                                    ? 'bg-indigo-100 text-indigo-700'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
                               >
-                                {emoji}
+                                {emoji} {users.length}
                               </button>
-                            ))}
-                          </div>
+                            )
+                          ))}
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
 
-                {showPollCreator && (
-                  <div className="px-4 py-3 border-t bg-gray-50">
-                    <form onSubmit={handleCreatePoll} className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-gray-700">Create a Poll</h3>
-                        <button
-                          type="button"
-                          onClick={() => setShowPollCreator(false)}
-                          className="text-gray-400 hover:text-gray-500"
-                        >
-                          <XMarkIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        value={pollQuestion}
-                        onChange={e => setPollQuestion(e.target.value)}
-                        placeholder="Ask a question..."
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-4"
-                      />
-                      <div className="space-y-3">
-                        {pollOptions.map((option, index) => (
-                          <input
-                            key={index}
-                            type="text"
-                            value={option}
-                            onChange={e => {
-                              const newOptions = [...pollOptions];
-                              newOptions[index] = e.target.value;
-                              setPollOptions(newOptions);
-                            }}
-                            placeholder={`Option ${index + 1}`}
-                            className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-4"
-                          />
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setPollOptions([...pollOptions, ''])}
-                          className="text-sm text-indigo-600 hover:text-indigo-500"
-                        >
-                          + Add Option
-                        </button>
-                      </div>
-                      <button
-                        type="submit"
-                        className="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
-                      >
-                        Create Poll
-                      </button>
-                    </form>
-                  </div>
-                )}
-
-                {showNewCardForm && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-[480px] overflow-hidden">
-                      <div className="p-4 border-b flex justify-between items-center">
-                        <h3 className="text-lg font-semibold text-gray-900">Add New Card</h3>
-                        <div className="flex items-center gap-x-3">
-                          <span className={`text-sm ${cardType === 'what' ? 'text-gray-900' : 'text-gray-500'}`}>What</span>
-                          <Switch
-                            checked={cardType === 'where'}
-                            onChange={() => setCardType(cardType === 'where' ? 'what' : 'where')}
-                            className={`${
-                              cardType === 'where' ? 'bg-indigo-600' : 'bg-gray-200'
-                            } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2`}
-                          >
-                            <span
-                              className={`${
-                                cardType === 'where' ? 'translate-x-6' : 'translate-x-1'
-                              } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-                            />
-                          </Switch>
-                          <span className={`text-sm ${cardType === 'where' ? 'text-gray-900' : 'text-gray-500'}`}>Where</span>
-                        </div>
-                      </div>
-                      
-                      <div className="p-6">
-                        <form onSubmit={handleCreateNewCard} className="space-y-6">
-                          <div>
-                            <label htmlFor="cardContent" className="block text-sm font-medium text-gray-700">
-                              {cardType === 'where' ? 'Where' : 'What'}
-                            </label>
-                            <textarea
-                              id="cardContent"
-                              value={newCardContent}
-                              onChange={e => setNewCardContent(e.target.value)}
-                              rows={3}
-                              className="mt-1 w-full rounded-md border-0 py-2 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
-                              placeholder={cardType === 'where' ? 'Enter location or address' : 'Enter what you want to do'}
-                            />
-                          </div>
-
-                          <div>
-                            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-                              Notes (optional)
-                            </label>
-                            <input
-                              type="text"
-                              id="notes"
-                              value={newCardNotes}
-                              onChange={e => setNewCardNotes(e.target.value)}
-                              className="mt-1 w-full rounded-md border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
-                              placeholder="Add any additional notes here"
-                            />
-                          </div>
-
-                          <div className="flex justify-end space-x-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowNewCardForm(false);
-                                setShowActionsMenu(false);
-                                setNewCardContent('');
-                                setNewCardNotes('');
-                              }}
-                              className="px-4 py-2 text-gray-700 hover:text-gray-900"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={!newCardContent.trim()}
-                              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Add Card
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <form onSubmit={handleSendMessage} className="p-4 border-t">
-                  <div className="flex space-x-3 items-center">
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowActionsMenu(!showActionsMenu)}
-                        className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
-                      >
-                        <PlusIcon className="h-5 w-5" />
-                      </button>
-                      
-                      {/* Actions Menu */}
-                      {showActionsMenu && (
-                        <div className="absolute bottom-full left-0 mb-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 py-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowPollCreator(true);
-                              setShowActionsMenu(false);
-                            }}
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
-                          >
-                            <ChartBarIcon className="h-5 w-5 mr-3 text-gray-400" />
-                            Create Poll
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowNewCardForm(true);
-                              setShowActionsMenu(false);
-                            }}
-                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
-                          >
-                            <DocumentPlusIcon className="h-5 w-5 mr-3 text-gray-400" />
-                            Add New Card
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={e => setNewMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-4"
-                    />
+                    {/* Reaction Button */}
                     <button
-                      type="submit"
-                      className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm"
+                      onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
+                      className="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all rounded-full hover:bg-gray-100"
                     >
-                      Send
+                      <FaceSmileIcon className="h-5 w-5" />
                     </button>
+
+                    {/* Emoji Picker */}
+                    {showEmojiPicker === message.id && (
+                      <div className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border p-2 z-10">
+                        <div className="flex gap-1">
+                          {EMOJI_REACTIONS.map(emoji => (
+                            <button
+                              key={emoji}
+                              onClick={() => handleReaction(message.id, emoji)}
+                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
+                ))}
+                {messages.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No messages yet. Start the conversation!
+                  </div>
+                )}
+              </div>
+
+              {/* Chat Input */}
+              <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+                <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowActionsMenu(!showActionsMenu)}
+                      className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                    >
+                      <PlusIcon className="h-5 w-5" />
+                    </button>
+                    
+                    {showActionsMenu && (
+                      <div className="absolute bottom-full left-0 mb-2 w-48 rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 py-1 z-10">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPollCreator(true);
+                            setShowActionsMenu(false);
+                          }}
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                        >
+                          <ChartBarIcon className="h-5 w-5 mr-3 text-gray-400" />
+                          Create Poll
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNewCardForm(true);
+                            setShowActionsMenu(false);
+                          }}
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                        >
+                          <DocumentPlusIcon className="h-5 w-5 mr-3 text-gray-400" />
+                          Add New Card
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 rounded-xl border-0 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 text-sm py-3 px-4"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newMessage.trim()}
+                    className="px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Send
+                  </button>
                 </form>
               </div>
             </div>
-
-            {/* Activity Feed */}
-            <div className="w-80 flex-shrink-0 h-[calc(100vh-24rem)]">
-              <ActivityFeed activities={activities} />
-            </div>
           </div>
-        </div>
 
-        {/* Cards Section */}
-        <div className="border-t bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">Cards</h2>
+          {/* Right Column - Activity Feed */}
+          <div className="col-span-3">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
+              </div>
+              <div className="h-[550px] overflow-y-auto">
+                <ActivityFeed activities={activities} />
+              </div>
             </div>
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="cards" direction="horizontal">
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className="overflow-x-auto pb-4"
-                  >
-                    <div className="flex gap-4">
-                      {group.listings.map((card, index) => (
-                        <Draggable 
-                          key={card.id} 
-                          draggableId={card.id} 
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={`flex-shrink-0 w-[300px] ${
-                                snapshot.isDragging ? 'opacity-50' : ''
-                              }`}
-                            >
-                              <Card
-                                listing={card}
-                                onEdit={() => {}}
-                                onReaction={handleCardReaction}
-                              />
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      {showPollCreator && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[480px] overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Create a Poll</h3>
+              <div className="flex items-center gap-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPollCreator(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <form onSubmit={() => handleCreatePoll(pollQuestion, pollOptions)} className="space-y-6">
+                <div>
+                  <label htmlFor="pollQuestion" className="block text-sm font-medium text-gray-700">
+                    Question
+                  </label>
+                  <input
+                    type="text"
+                    id="pollQuestion"
+                    value={pollQuestion}
+                    onChange={e => setPollQuestion(e.target.value)}
+                    placeholder="Ask a question..."
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-4"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  {pollOptions.map((option, index) => (
+                    <input
+                      key={index}
+                      type="text"
+                      value={option}
+                      onChange={e => {
+                        const newOptions = [...pollOptions];
+                        newOptions[index] = e.target.value;
+                        setPollOptions(newOptions);
+                      }}
+                      placeholder={`Option ${index + 1}`}
+                      className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-4"
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPollOptions([...pollOptions, ''])}
+                    className="text-sm text-indigo-600 hover:text-indigo-500"
+                  >
+                    + Add Option
+                  </button>
+                </div>
+
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  >
+                    Create Poll
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewCardForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[480px] overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Add New Card</h3>
+              <div className="flex items-center gap-x-3">
+                <span className={`text-sm ${cardType === 'what' ? 'text-gray-900' : 'text-gray-500'}`}>What</span>
+                <Switch
+                  checked={cardType === 'where'}
+                  onChange={() => setCardType(cardType === 'where' ? 'what' : 'where')}
+                  className={`${
+                    cardType === 'where' ? 'bg-indigo-600' : 'bg-gray-200'
+                  } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2`}
+                >
+                  <span
+                    className={`${
+                      cardType === 'where' ? 'translate-x-6' : 'translate-x-1'
+                    } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                  />
+                </Switch>
+                <span className={`text-sm ${cardType === 'where' ? 'text-gray-900' : 'text-gray-500'}`}>Where</span>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <form onSubmit={handleCreateNewCard} className="space-y-6">
+                <div>
+                  <label htmlFor="cardContent" className="block text-sm font-medium text-gray-700">
+                    {cardType === 'where' ? 'Where' : 'What'}
+                  </label>
+                  <textarea
+                    id="cardContent"
+                    value={newCardContent}
+                    onChange={e => setNewCardContent(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-md border-0 py-2 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
+                    placeholder={cardType === 'where' ? 'Enter location or address' : 'Enter what you want to do'}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
+                    Notes (optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="notes"
+                    value={newCardNotes}
+                    onChange={e => setNewCardNotes(e.target.value)}
+                    className="mt-1 w-full rounded-md border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm"
+                    placeholder="Add any additional notes here"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowNewCardForm(false);
+                      setShowActionsMenu(false);
+                      setNewCardContent('');
+                      setNewCardNotes('');
+                    }}
+                    className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!newCardContent.trim()}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add Card
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

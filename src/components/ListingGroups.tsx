@@ -178,6 +178,17 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
     }
   };
 
+  const handleAddNewGroup = () => {
+    const newGroup: ListingGroup = {
+      id: crypto.randomUUID(),
+      name: 'New Group',
+      type: 'custom',
+      order: groups.length,
+      listings: []
+    };
+    onGroupsUpdate([...groups, newGroup]);
+  };
+
   const renderGroupHeader = (group: ListingGroup) => (
     <>
       <div 
@@ -301,32 +312,6 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
           </button>
         )}
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      {groupToDelete === group.id && (
-        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Delete Group</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Are you sure you want to delete this group? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setGroupToDelete(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteGroup(group.id)}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 
@@ -411,7 +396,7 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
                                           className={`${snapshot.isDragging ? 'opacity-50' : ''} flex-shrink-0`}
                                         >
                                           <Card
-                                            listing={listing}
+                                            card={listing}
                                             onEdit={() => {}}
                                             onReaction={() => {}}
                                           />
@@ -420,6 +405,14 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
                                     </Draggable>
                                   ))}
                                   {provided.placeholder}
+                                  <button
+                                    onClick={handleAddNewGroup}
+                                    className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 z-10
+                                      transition-all duration-200 rounded-full shadow-lg p-2 border border-indigo-200 
+                                      hover:border-indigo-500 hover:bg-indigo-50 bg-white opacity-0 group-hover:opacity-100"
+                                  >
+                                    <PlusIcon className="h-5 w-5 text-indigo-500 hover:text-indigo-600" />
+                                  </button>
                                 </div>
                               </div>
                             )}
@@ -439,14 +432,21 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
                 <div
                   ref={provided.innerRef}
                   {...provided.droppableProps}
-                  className={`border-2 border-dashed rounded-lg p-4 flex items-center justify-center min-h-[200px] ${
+                  className={`border-2 border-dashed rounded-lg p-4 flex items-center justify-center min-h-[200px] relative ${
                     snapshot.isDraggingOver
                       ? 'border-indigo-500 bg-indigo-50'
                       : 'border-gray-300'
                   }`}
                 >
                   <div className="text-center">
-                    <PlusIcon className="h-8 w-8 mx-auto text-gray-400" />
+                    <button
+                      onClick={handleAddNewGroup}
+                      className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 z-10
+                        transition-all duration-200 rounded-full shadow-lg p-2 border border-indigo-200 
+                        hover:border-indigo-500 hover:bg-indigo-50 bg-white"
+                    >
+                      <PlusIcon className="h-5 w-5 text-indigo-500 hover:text-indigo-600" />
+                    </button>
                     <p className="mt-2 text-sm text-gray-500">
                       Drag a card here to create a new group
                     </p>

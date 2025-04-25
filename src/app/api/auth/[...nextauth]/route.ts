@@ -1,44 +1,43 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import NextAuth from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import { prisma } from "@/lib/prisma";
+import NextAuth, { NextAuthOptions } from 'next-auth';
+import GoogleProvider from 'next-auth/providers/google';
+import { PrismaAdapter } from '@auth/prisma-adapter';
+import { prisma } from '@/lib/prisma';
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
   session: {
-    strategy: "jwt",
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    session: async ({ session, token }) => {
-      if (session?.user) {
-        session.user.id = token.sub as string;
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub!;
       }
       return session;
     },
-    jwt: async ({ token, user }) => {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
       }
+      if (account) {
+        token.accessToken = account.access_token;
+      }
       return token;
-    },
-    redirect: async ({ url, baseUrl }) => {
-      // If the url starts with the base url, allow it
-      if (url.startsWith(baseUrl)) return url;
-      // Allow relative urls
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      return baseUrl;
     },
   },
   pages: {
     signIn: '/auth/signin',
     error: '/auth/error',
   },
-});
+  secret: process.env.NEXTAUTH_SECRET,
+};
 
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST }; 

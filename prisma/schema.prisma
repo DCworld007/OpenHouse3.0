@@ -1,26 +1,28 @@
-// This is your Prisma schema file
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
-  type              String
-  provider          String
+  type             String
+  provider         String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
+  refresh_token    String? @db.Text
+  access_token     String? @db.Text
+  expires_at       Int?
+  token_type       String?
+  scope            String?
+  id_token         String? @db.Text
+  session_state    String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -41,13 +43,96 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
-  groups        GroupMember[]
+  cards         Card[]
+  ownedRooms    PlanningRoom[] @relation("RoomOwner")
+  roomMembers   RoomMember[]
   messages      Message[]
   reactions     Reaction[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Card {
+  id          String    @id @default(cuid())
+  content     String
+  notes       String?
+  cardType    String    // 'what' or 'where'
+  imageUrl    String?
+  groupId     String?
+  order       Int       @default(0)
+  userId      String    // Owner of the card
+  user        User      @relation(fields: [userId], references: [id])
+  roomLinks   CardRoomLink[]
+  reactions   Reaction[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model PlanningRoom {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User      @relation("RoomOwner", fields: [ownerId], references: [id])
+  members     RoomMember[]
+  messages    Message[]
+  cardLinks   CardRoomLink[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model RoomMember {
+  id          String    @id @default(cuid())
+  userId      String
+  roomId      String
+  role        String    // 'owner', 'editor', 'viewer'
+  user        User      @relation(fields: [userId], references: [id])
+  room        PlanningRoom @relation(fields: [roomId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, roomId])
+}
+
+model CardRoomLink {
+  id          String    @id @default(cuid())
+  cardId      String
+  roomId      String
+  order       Int       @default(0)
+  card        Card      @relation(fields: [cardId], references: [id])
+  room        PlanningRoom @relation(fields: [roomId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([cardId, roomId])
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  content     String
+  userId      String
+  roomId      String
+  user        User      @relation(fields: [userId], references: [id])
+  room        PlanningRoom @relation(fields: [roomId], references: [id])
+  reactions   Reaction[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Reaction {
+  id          String    @id @default(cuid())
+  type        String    // e.g., 'like', 'heart', 'thumbsup'
+  userId      String
+  messageId   String?
+  cardId      String?
+  user        User      @relation(fields: [userId], references: [id])
+  message     Message?  @relation(fields: [messageId], references: [id])
+  card        Card?     @relation(fields: [cardId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, messageId, cardId])
 }
 
 model VerificationToken {
@@ -56,87 +141,4 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-}
-
-// Application specific models
-model CardGroup {
-  id        String    @id @default(cuid())
-  name      String
-  type      String    // 'date' | 'custom'
-  date      String?
-  order     Int
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  members   GroupMember[]
-  cards     Card[]
-  messages  Message[]
-}
-
-model GroupMember {
-  id        String      @id @default(cuid())
-  userId    String
-  groupId   String
-  role      String      // 'owner' | 'editor' | 'viewer'
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group     CardGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, groupId])
-}
-
-model Card {
-  id        String      @id @default(cuid())
-  title     String      // Previously 'address'
-  cardType  String      // 'where' | 'what'
-  groupId   String
-  imageUrl  String
-  sourceUrl String
-  source    String
-  price     Float
-  notes     String?
-  order     Int
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  visitDate DateTime?
-  metadata  Json?       // Flexible field for additional data
-  group     CardGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  reactions Reaction[]
-}
-
-model Message {
-  id        String      @id @default(cuid())
-  text      String
-  type      String      // 'text' | 'poll'
-  userId    String
-  groupId   String
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  poll      Json?       // { question: string, options: string[], votes: Record<number, string[]> }
-  reactions MessageReaction[]
-  user      User        @relation(fields: [userId], references: [id])
-  group     CardGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-}
-
-model Reaction {
-  id        String   @id @default(cuid())
-  type      String   // 'thumbsUp' | 'thumbsDown'
-  userId    String
-  cardId    String   // Changed from listingId
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, cardId, type])
-}
-
-model MessageReaction {
-  id        String   @id @default(cuid())
-  emoji     String
-  userId    String
-  messageId String
-  createdAt DateTime @default(now())
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, messageId, emoji])
 } 

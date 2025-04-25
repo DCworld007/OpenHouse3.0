@@ -1,134 +1,135 @@
-import { Listing } from '@/types/listing';
-import { format } from 'date-fns';
-import { PencilIcon, MapPinIcon, CalendarIcon, ClockIcon, StarIcon, HandThumbUpIcon, HandThumbDownIcon } from '@heroicons/react/24/outline';
-import { HandThumbUpIcon as HandThumbUpSolidIcon, HandThumbDownIcon as HandThumbDownSolidIcon } from '@heroicons/react/24/solid';
+'use client';
+
 import { useState } from 'react';
+import { Card as CardType } from '@prisma/client';
+import { Listing } from '@/types/listing';
+import { EllipsisVerticalIcon, MapPinIcon, HeartIcon } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
+import { Menu, Transition } from '@headlessui/react';
+import { Fragment } from 'react';
 
 interface CardProps {
-  listing: Listing;
-  onEdit: () => void;
-  onReaction: (cardId: string, type: 'thumbsUp' | 'thumbsDown', action: 'add' | 'remove') => void;
-  currentUserId?: string; // TODO: Replace with actual user ID when auth is implemented
+  card?: CardType | Listing;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onReaction?: (type: string) => void;
+  showActions?: boolean;
+  isLinked?: boolean;
 }
 
-interface Reaction {
-  type: 'thumbsUp' | 'thumbsDown';
-  userId: string;
-}
+export default function Card({
+  card,
+  onEdit,
+  onDelete,
+  onReaction,
+  showActions = true,
+  isLinked = false,
+}: CardProps) {
+  const [isLiked, setIsLiked] = useState(false);
 
-export default function Card({ listing, onEdit, onReaction, currentUserId = 'temp-user-id' }: CardProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [reactions, setReactions] = useState<Reaction[]>(listing.reactions || []);
-
-  const userReaction = reactions.find(r => r.userId === currentUserId)?.type;
-  const thumbsUpCount = reactions.filter(r => r.type === 'thumbsUp').length;
-  const thumbsDownCount = reactions.filter(r => r.type === 'thumbsDown').length;
-
-  const handleReaction = (type: 'thumbsUp' | 'thumbsDown') => {
-    const hasReacted = reactions.find(r => r.userId === currentUserId && r.type === type);
-    onReaction(listing.id, type, hasReacted ? 'remove' : 'add');
+  const handleLike = () => {
+    setIsLiked(!isLiked);
+    onReaction?.('like');
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
+  if (!card) {
+    return null;
+  }
+
+  // Get the content based on the type of card
+  const content = 'content' in card ? card.content : card.address;
 
   return (
-    <div 
-      className="bg-white overflow-hidden shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl relative group"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="relative">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      {card.imageUrl && (
+        <div className="relative h-48 w-full">
         <img
-          src={listing.imageUrl}
-          alt={listing.address}
-          className="h-48 w-full object-cover"
-        />
-        {isHovered && (
+            src={card.imageUrl}
+            alt={content}
+            className="object-cover w-full h-full"
+          />
+          {card.cardType === 'where' && (
+            <div className="absolute top-2 left-2 bg-white/90 rounded-full p-1">
+              <MapPinIcon className="h-5 w-5 text-indigo-600" />
+            </div>
+          )}
+        </div>
+      )}
+      <div className="p-4">
+        <div className="flex justify-between items-start">
+          <h3 className="text-lg font-medium text-gray-900 flex-1">
+            {content}
+          </h3>
+          {showActions && (
+            <Menu as="div" className="relative inline-block text-left">
+              <Menu.Button className="flex items-center justify-center p-2 rounded-full hover:bg-gray-100">
+                <EllipsisVerticalIcon className="h-5 w-5 text-gray-400" />
+              </Menu.Button>
+              <Transition
+                as={Fragment}
+                enter="transition ease-out duration-100"
+                enterFrom="transform opacity-0 scale-95"
+                enterTo="transform opacity-100 scale-100"
+                leave="transition ease-in duration-75"
+                leaveFrom="transform opacity-100 scale-100"
+                leaveTo="transform opacity-0 scale-95"
+              >
+                <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                  <div className="px-1 py-1">
+                    {onEdit && (
+                      <Menu.Item>
+                        {({ active }) => (
           <button
             onClick={onEdit}
-            className="absolute top-4 right-4 rounded-full bg-white p-2 text-gray-600 shadow-sm hover:text-gray-900 transition-opacity opacity-0 group-hover:opacity-100"
-          >
-            <PencilIcon className="h-4 w-4" />
+                            className={`${
+                              active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700'
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </Menu.Item>
+                    )}
+                    {onDelete && (
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={onDelete}
+                            className={`${
+                              active ? 'bg-red-50 text-red-700' : 'text-gray-700'
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                          >
+                            Delete
           </button>
+                        )}
+                      </Menu.Item>
+                    )}
+        </div>
+                </Menu.Items>
+              </Transition>
+            </Menu>
+          )}
+        </div>
+        {card.notes && (
+          <p className="mt-2 text-sm text-gray-500">{card.notes}</p>
         )}
-      </div>
-      <div className="p-6">
-        <div className="flex justify-between items-start mb-4">
-          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-            listing.cardType === 'where' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-          }`}>
-            {listing.cardType === 'where' ? 'Where' : 'What'}
-          </span>
+        <div className="mt-4 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => handleReaction('thumbsUp')}
-              className={`flex items-center space-x-1 px-2 py-1 rounded-md transition-colors ${
-                userReaction === 'thumbsUp' 
-                  ? 'bg-green-100 text-green-700' 
-                  : 'hover:bg-gray-100 text-gray-500'
-              }`}
+              onClick={handleLike}
+              className="flex items-center space-x-1 text-gray-500 hover:text-indigo-600"
             >
-              {userReaction === 'thumbsUp' ? (
-                <HandThumbUpSolidIcon className="h-4 w-4" />
+              {isLiked ? (
+                <HeartIconSolid className="h-5 w-5 text-indigo-600" />
               ) : (
-                <HandThumbUpIcon className="h-4 w-4" />
+                <HeartIcon className="h-5 w-5" />
               )}
-              <span className="text-xs">{thumbsUpCount}</span>
-            </button>
-            <button
-              onClick={() => handleReaction('thumbsDown')}
-              className={`flex items-center space-x-1 px-2 py-1 rounded-md transition-colors ${
-                userReaction === 'thumbsDown' 
-                  ? 'bg-red-100 text-red-700' 
-                  : 'hover:bg-gray-100 text-gray-500'
-              }`}
-            >
-              {userReaction === 'thumbsDown' ? (
-                <HandThumbDownSolidIcon className="h-4 w-4" />
-              ) : (
-                <HandThumbDownIcon className="h-4 w-4" />
-              )}
-              <span className="text-xs">{thumbsDownCount}</span>
             </button>
           </div>
-        </div>
-        <div className="space-y-3">
-          <div className="flex items-start">
-            {listing.cardType === 'where' ? (
-              <MapPinIcon className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
-            ) : (
-              <StarIcon className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
-            )}
-            <p className="ml-2 text-sm text-gray-600">{listing.address}</p>
-          </div>
-          {listing.visitDate && (
-            <div className="flex items-center">
-              <CalendarIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
-              <p className="ml-2 text-sm text-gray-600">
-                Visit on {format(new Date(listing.visitDate), 'EEEE, MMMM d')}
-              </p>
-            </div>
-          )}
-          {listing.openHouse && (
-            <div className="flex items-center">
-              <ClockIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
-              <p className="ml-2 text-sm text-gray-600">
-                Open House: {listing.openHouse.startTime} - {listing.openHouse.endTime}
-              </p>
-            </div>
+          {isLinked && (
+            <span className="text-xs text-gray-500">Linked Card</span>
           )}
         </div>
-        {listing.notes && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <p className="text-sm text-gray-600">{listing.notes}</p>
-          </div>
-        )}
       </div>
     </div>
   );

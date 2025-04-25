@@ -1,21 +1,47 @@
-export type ActivityType = 'card_add' | 'card_edit' | 'card_reorder' | 'poll_create' | 'poll_vote' | 'card_reaction';
-
-export interface ActivityDetails {
-  cardId?: string;
-  cardTitle?: string;
-  reactionType?: 'thumbsUp' | 'thumbsDown';
-  action?: 'add' | 'remove';
-  pollQuestion?: string;
-  pollOption?: string;
-  fromIndex?: number;
-  toIndex?: number;
-}
-
 export interface Activity {
   id: string;
   type: ActivityType;
+  timestamp: number;
   userId: string;
-  timestamp: string;
-  groupId: string;
   details: ActivityDetails;
+}
+
+export type ActivityType = 'message' | 'reaction' | 'poll' | 'vote' | 'card';
+
+export type ActivityDetails = 
+  | MessageActivity 
+  | ReactionActivity 
+  | PollActivity 
+  | VoteActivity 
+  | CardActivity;
+
+interface MessageActivity {
+  type: 'message';
+  messageId: string;
+  text: string;
+}
+
+interface ReactionActivity {
+  type: 'reaction';
+  messageId: string;
+  emoji: string;
+}
+
+interface PollActivity {
+  type: 'poll';
+  messageId: string;
+  question: string;
+}
+
+interface VoteActivity {
+  type: 'vote';
+  messageId: string;
+  option: string;
+}
+
+interface CardActivity {
+  type: 'card';
+  cardId: string;
+  action: 'create' | 'move' | 'delete';
+  details?: string;
 } 

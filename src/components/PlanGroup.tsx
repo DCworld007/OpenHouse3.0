@@ -1,430 +1,318 @@
-import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
-import { TrashIcon, ArrowLeftIcon, MapPinIcon, Bars3Icon } from '@heroicons/react/24/outline';
-import { useRouter } from 'next/navigation';
-import React from 'react';
-import type { Location } from './Map/index';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+'use client';
 
-interface Listing {
+import { useState, Fragment } from 'react';
+import { 
+  PencilIcon, 
+  MapIcon, 
+  EllipsisHorizontalIcon, 
+  TrashIcon,
+  ArrowUturnLeftIcon,
+  PlusIcon,
+  XMarkIcon,
+  ChatBubbleLeftRightIcon
+} from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
+import { Menu, Transition } from '@headlessui/react';
+import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import PlanCard from './PlanCard';
+import IntakeCard from './IntakeCard';
+import { useDroppable } from '@dnd-kit/core';
+
+interface Card {
   id: string;
-  address: string;
+  type: 'what' | 'where';
+  content: string;
   notes?: string;
-  cardType: string;
-  // Add other listing properties as needed
 }
 
-interface Group {
+interface PlanGroupProps {
   id: string;
   name: string;
-  listings: Listing[];
+  cards: Card[];
+  onNameChange: (id: string, newName: string) => void;
+  onCardsChange: (id: string, newCards: Card[]) => void;
+  onDelete: (id: string) => void;
+  onUndo: () => void;
+  canUndo: boolean;
+  isFirstGroup: boolean;
+  totalGroups: number;
+  onAddGroup: (id: string) => void;
 }
 
-// Create a dynamic Map component with SSR disabled
-const ClientMap = dynamic(() => import('./Map/ClientMap'), { 
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-[400px] flex items-center justify-center bg-gray-100 rounded-lg">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
-    </div>
-  )
-});
-
-export default function PlanGroup({ group }: { group: Group }) {
+export default function PlanGroup({ 
+  id, 
+  name, 
+  cards, 
+  onNameChange, 
+  onCardsChange,
+  onDelete,
+  onUndo,
+  canUndo,
+  isFirstGroup,
+  totalGroups,
+  onAddGroup,
+}: PlanGroupProps) {
   const router = useRouter();
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
-  const [useCurrentLocation, setUseCurrentLocation] = useState(false);
-  const [isAddingLocation, setIsAddingLocation] = useState(false);
-  const [newAddress, setNewAddress] = useState('');
-  const [newNotes, setNewNotes] = useState('');
-  const [error, setError] = useState('');
-  const [isMapReady, setIsMapReady] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(name);
+  const [showIntakeModal, setShowIntakeModal] = useState(false);
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const { setNodeRef, isOver } = useDroppable({ 
+    id: `group-${id}`,
+  });
 
-  useEffect(() => {
-    // Initialize locations from group listings that have addresses and are 'where' type
-    console.log('Group listings:', group.listings);
-    const initialLocations = group.listings
-      .filter(listing => {
-        const hasAddress = Boolean(listing.address);
-        const isWhereCard = listing.cardType === 'where';
-        if (!hasAddress) {
-          console.warn('Listing without address:', listing);
-        }
-        if (!isWhereCard) {
-          console.log('Skipping non-where card:', listing);
-        }
-        return hasAddress && isWhereCard;
-      })
-      .map(listing => ({
-        address: listing.address,
-        lat: 0,
-        lng: 0,
-        notes: listing.notes
-      }));
-
-    console.log('Initial locations before geocoding:', initialLocations);
-
-    // Geocode all addresses
-    Promise.all(
-      initialLocations.map(async (location) => {
-        try {
-          console.log('Geocoding address:', location.address);
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location.address)}&limit=1`
-          );
-          const data = await response.json();
-          console.log('Geocoding response:', data);
-          
-          if (data && data[0]) {
-            return {
-              ...location,
-              lat: parseFloat(data[0].lat),
-              lng: parseFloat(data[0].lon),
-            };
-          }
-          console.warn('No geocoding results for:', location.address);
-          return location;
-        } catch (error) {
-          console.error('Error geocoding address:', location.address, error);
-          return location;
-        }
-      })
-    ).then((geocodedLocations) => {
-      const validLocations = geocodedLocations.filter(loc => loc.lat !== 0 && loc.lng !== 0);
-      console.log('Final geocoded locations:', validLocations);
-      setLocations(validLocations);
-      setIsMapReady(true);
-    });
-  }, [group]);
-
-  useEffect(() => {
-    if (useCurrentLocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCurrentLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            address: 'Current Location',
-          });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setUseCurrentLocation(false);
-        }
-      );
-    } else {
-      setCurrentLocation(null);
+  const handleSaveName = () => {
+    if (editedName.trim()) {
+      onNameChange(id, editedName);
+      setIsEditing(false);
     }
-  }, [useCurrentLocation]);
+  };
 
-  const handleAddLocation = async () => {
-    if (!newAddress) {
-      setError('Please enter a location');
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newAddress)}`
-      );
-      const data = await response.json();
-
-      if (data && data[0]) {
-        const newLocation = {
-          address: newAddress,
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-          notes: newNotes || undefined
-        } as Location;
-        
-        setLocations([...locations, newLocation]);
-        setNewAddress('');
-        setNewNotes('');
-        setIsAddingLocation(false);
-        setError('');
-
-        // Add new card to the group
-        const newListing: Listing = {
-          id: Date.now().toString(), // Generate a temporary ID
-          address: newAddress,
-          notes: newNotes || undefined,
-          cardType: 'where'
-        };
-        group.listings.push(newListing);
-
+  const handleAddCard = (data: { type: 'what' | 'where'; content: string; notes?: string }) => {
+    const newCard = { id: Date.now().toString(), ...data };
+    let newCards;
+    
+    if (activeCardId) {
+      // Find the index of the active card and insert the new card after it
+      const activeIndex = cards.findIndex(card => card.id === activeCardId);
+      if (activeIndex !== -1) {
+        newCards = [
+          ...cards.slice(0, activeIndex + 1),
+          newCard,
+          ...cards.slice(activeIndex + 1)
+        ];
       } else {
-        setError('Address not found');
+        newCards = [...cards, newCard];
       }
-    } catch (error) {
-      setError('Error geocoding address');
+    } else {
+      // If no active card (empty group), add to the end
+      newCards = [...cards, newCard];
     }
+
+    onCardsChange(id, newCards);
+    setShowIntakeModal(false);
+    setActiveCardId(null);
   };
 
-  const removeLocation = (index: number) => {
-    setLocations(locations.filter((_, i) => i !== index));
-  };
-
-  const handleDragEnd = (result: any) => {
-    if (!result.destination) return;
-
-    const items = Array.from(locations);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    setLocations(items);
-  };
-
-  if (!isMapReady) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4">Preparing your route...</h2>
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600 mx-auto"></div>
-        </div>
-      </div>
-    );
-  }
+  const hasLocations = cards.some(card => card.type === 'where');
+  const isEmpty = cards.length === 0;
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <button
-                onClick={() => router.back()}
-                className="mr-4 p-2 rounded-full hover:bg-gray-100"
-              >
-                <ArrowLeftIcon className="h-5 w-5 text-gray-600" />
-              </button>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Plan Route: {group.name}
-              </h1>
+    <>
+      <div
+        ref={setNodeRef}
+        className={`bg-white rounded-lg border border-gray-200 relative transition-all duration-300 ease-in-out ${
+          isOver ? 'ring-2 ring-indigo-500 ring-opacity-70 scale-[1.02] shadow-lg bg-indigo-50' : ''
+        }`}
+      >
+        {isOver && (
+          <div className="absolute inset-0 bg-indigo-100 opacity-20 rounded-lg animate-pulse"></div>
+        )}
+        <div className="border-b border-gray-200">
+          <div className="flex items-center gap-2 py-4 group">
+            <div className="px-4 flex-1 flex items-center gap-2">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onBlur={handleSaveName}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSaveName()}
+                  className="text-lg font-semibold text-gray-900 border-b border-gray-300 focus:border-indigo-500 focus:outline-none"
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <span className="text-sm text-gray-500 ml-2">{cards.length} cards</span>
+                  <div className="flex-1" />
+                  {isEmpty ? (
+                    !isFirstGroup && (
+                      <button
+                        onClick={() => onDelete(id)}
+                        className="p-1 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                        title="Delete empty group"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    )
+                  ) : (
+                    <Menu as="div" className="relative">
+                      <Menu.Button className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-50">
+                        <EllipsisHorizontalIcon className="h-5 w-5" />
+                      </Menu.Button>
+                      <Transition
+                        as={Fragment}
+                        enter="transition ease-out duration-100"
+                        enterFrom="transform opacity-0 scale-95"
+                        enterTo="transform opacity-100 scale-100"
+                        leave="transition ease-in duration-75"
+                        leaveFrom="transform opacity-100 scale-100"
+                        leaveTo="transform opacity-0 scale-95"
+                      >
+                        <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                          <div className="py-1">
+                            {canUndo && (
+                              <Menu.Item>
+                                {({ active }) => (
+                                  <button
+                                    onClick={onUndo}
+                                    className={`${
+                                      active ? 'bg-gray-100' : ''
+                                    } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
+                                  >
+                                    <ArrowUturnLeftIcon className="h-4 w-4 mr-2" />
+                                    Undo Last Action
+                                  </button>
+                                )}
+                              </Menu.Item>
+                            )}
+                            {hasLocations && (
+                              <>
+                                <Menu.Item>
+                                  {({ active }) => (
+                                    <button
+                                      onClick={() => router.push(`/plan/${id}`)}
+                                      className={`${
+                                        active ? 'bg-gray-100' : ''
+                                      } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
+                                    >
+                                      <MapIcon className="h-4 w-4 mr-2" />
+                                      Plan Route
+                                    </button>
+                                  )}
+                                </Menu.Item>
+                                <Menu.Item>
+                                  {({ active }) => (
+                                    <button
+                                      onClick={() => router.push(`/planning-room/${id}`)}
+                                      className={`${
+                                        active ? 'bg-gray-100' : ''
+                                      } flex w-full items-center px-4 py-2 text-sm text-gray-700`}
+                                    >
+                                      <ChatBubbleLeftRightIcon className="h-4 w-4 mr-2" />
+                                      Planning Room
+                                    </button>
+                                  )}
+                                </Menu.Item>
+                              </>
+                            )}
+                          </div>
+                        </Menu.Items>
+                      </Transition>
+                    </Menu>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
+
+        <div className="p-4 overflow-hidden group/scroll">
+          <SortableContext items={cards.map(card => card.id)} strategy={horizontalListSortingStrategy}>
+            <div className="relative">
+              <div 
+                className={`flex gap-6 overflow-x-auto ${
+                  isEmpty ? 'min-h-[200px]' : ''
+                } ${
+                  cards.length > 3 ? 'hide-scrollbar group-hover/scroll:custom-scrollbar' : ''
+                }`}
+                style={{
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                <div className="flex gap-6 pr-16">
+                  {cards.map((card, index) => (
+                    <div
+                      key={card.id}
+                      className="flex-shrink-0 w-[300px]"
+                    >
+                      <PlanCard
+                        id={card.id}
+                        what={card.type === 'what' ? card.content : ''}
+                        where={card.type === 'where' ? card.content : ''}
+                        notes={card.notes}
+                        isDragging={false}
+                        onAddCard={() => {
+                          setActiveCardId(card.id);
+                          setShowIntakeModal(true);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {isEmpty && (
+                  <div className="absolute inset-0 flex items-center">
+                    {isOver ? (
+                      <>
+                        <div className="absolute inset-0 bg-indigo-50 bg-opacity-50 rounded-lg border-2 border-dashed border-indigo-500" />
+                        <span className="text-indigo-500 z-10">Drop here</span>
+                      </>
+                    ) : (
+                      <div className="pl-20 w-[300px] h-[160px] flex items-center">
+                        <button
+                          onClick={() => {
+                            setActiveCardId(null);
+                            setShowIntakeModal(true);
+                          }}
+                          className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
+                        >
+                          <PlusIcon className="w-6 h-6 text-gray-400" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {!isEmpty && cards.length > 3 && (
+                <div className="absolute right-0 top-0 bottom-0 w-16 pointer-events-none bg-gradient-to-l from-white to-transparent group-hover/scroll:opacity-0 transition-opacity" />
+              )}
+            </div>
+          </SortableContext>
+        </div>
+
+        {/* Add Group Button - Keeping the overflow behavior */}
+        <button
+          onClick={() => onAddGroup(id)}
+          className={`absolute -bottom-3 left-1/2 transform -translate-x-1/2 
+            ${isFirstGroup && totalGroups < 3 ? 'opacity-100 animate-subtle-pulse bg-indigo-50' : 'opacity-0 group-hover:opacity-100 bg-white'} 
+            transition-all duration-200 rounded-full shadow-lg p-2 border border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50`}
+        >
+          <PlusIcon className="h-5 w-5 text-indigo-500 hover:text-indigo-600" />
+        </button>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-96 bg-white border-r overflow-y-auto">
-          <div className="p-4">
-            <label className="flex items-center justify-between p-4 bg-white rounded-lg border hover:bg-gray-50 transition-colors cursor-pointer group">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
-                  <MapPinIcon className="h-5 w-5 text-indigo-600" />
+      {/* Intake Card Modal */}
+      {showIntakeModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-50">
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                <div className="absolute right-0 top-0 pr-4 pt-4">
+                  <button
+                    onClick={() => setShowIntakeModal(false)}
+                    className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                  >
+                    <XMarkIcon className="h-6 w-6" />
+                  </button>
                 </div>
-                <div>
-                  <span className="font-medium text-gray-900">Start from current location</span>
-                  <p className="text-sm text-gray-500">Use your current location as the starting point</p>
-                </div>
-              </div>
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={useCurrentLocation}
-                  onChange={(e) => setUseCurrentLocation(e.target.checked)}
-                  className="sr-only"
-                />
-                <div
-                  className={`w-14 h-7 rounded-full transition-colors duration-200 ease-in-out ${
-                    useCurrentLocation ? 'bg-indigo-600' : 'bg-gray-200'
-                  } group-hover:${useCurrentLocation ? 'bg-indigo-500' : 'bg-gray-300'}`}
-                >
-                  <div
-                    className={`absolute w-5 h-5 rounded-full bg-white shadow transform transition-transform duration-200 ease-in-out ${
-                      useCurrentLocation ? 'translate-x-8' : 'translate-x-1'
-                    } top-1`}
+                <div className="mt-3 sm:mt-0">
+                  <IntakeCard
+                    onSubmit={handleAddCard}
+                    onCancel={() => setShowIntakeModal(false)}
                   />
                 </div>
               </div>
-            </label>
-
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-gray-900">Stops</h2>
-                <span className="text-sm text-gray-500">{locations.length} locations</span>
-              </div>
-
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="stops">
-                  {(provided) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className="space-y-3"
-                    >
-                      {locations.map((location, index) => (
-                        <Draggable
-                          key={`${location.lat}-${location.lng}-${index}`}
-                          draggableId={`${location.lat}-${location.lng}-${index}`}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              className={`flex items-center space-x-3 p-3 bg-white border rounded-lg shadow-sm 
-                                ${snapshot.isDragging ? 'shadow-lg ring-2 ring-indigo-500 ring-opacity-50' : 'hover:shadow-md'} 
-                                transition-all relative`}
-                            >
-                              <div
-                                {...provided.dragHandleProps}
-                                className="flex-shrink-0 cursor-grab active:cursor-grabbing"
-                              >
-                                <Bars3Icon className="h-5 w-5 text-gray-400" />
-                              </div>
-                              <div className="flex-shrink-0 relative">
-                                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                                  <span className="font-medium text-indigo-600">{useCurrentLocation ? index + 2 : index + 1}</span>
-                                </div>
-                                <div className="absolute -top-2 -right-2">
-                                  <MapPinIcon className="h-4 w-4 text-indigo-600" />
-                                </div>
-                              </div>
-                              <div className="flex-1">
-                                <div className="text-gray-700">{location.address}</div>
-                                {(location as Location & { notes?: string }).notes && (
-                                  <div className="text-sm text-gray-500 mt-1">
-                                    {(location as Location & { notes?: string }).notes}
-                                  </div>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => removeLocation(index)}
-                                className="p-1.5 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50"
-                              >
-                                <TrashIcon className="h-5 w-5" />
-                              </button>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
-
-              <button
-                onClick={() => {
-                  console.log('Add Another Stop button clicked');
-                  setIsAddingLocation(true);
-                  console.log('isAddingLocation set to true');
-                }}
-                className="mt-4 w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center font-medium"
-              >
-                Add Another Stop
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Map */}
-        <div className="flex-1 p-4">
-          <div className="h-full rounded-lg overflow-hidden shadow-lg relative">
-            <ClientMap
-              locations={locations}
-              currentLocation={currentLocation || undefined}
-              useCurrentLocation={useCurrentLocation}
-              enableClickSelection={true}
-              onMapClick={(location) => {
-                setLocations([...locations, location]);
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Add Location Modal */}
-      {isAddingLocation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center" style={{ zIndex: 9999 }}>
-          <div className="bg-white rounded-lg shadow-xl w-[480px] overflow-hidden relative">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">Add New Stop</h3>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-md">
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label htmlFor="where" className="block text-sm font-medium text-gray-700">
-                  Where
-                </label>
-                <input
-                  id="where"
-                  type="text"
-                  value={newAddress}
-                  onChange={(e) => setNewAddress(e.target.value)}
-                  placeholder="Enter the location"
-                  className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddLocation();
-                    }
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-                  Notes (Optional)
-                </label>
-                <textarea
-                  id="notes"
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Add any additional notes"
-                  rows={3}
-                  className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-yellow-700">
-                      Adding a stop will create a new card in this group. However, removing a stop from this screen will not remove the card.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 flex justify-end space-x-3">
-              <button
-                onClick={() => {
-                  setIsAddingLocation(false);
-                  setError('');
-                  setNewAddress('');
-                  setNewNotes('');
-                }}
-                className="px-4 py-2 text-gray-700 hover:text-gray-900"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddLocation}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-              >
-                Add Stop
-              </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 } 

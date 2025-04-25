@@ -1,9 +1,11 @@
+'use client';
+
 import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
-import { Location, MapProps } from './index';
+import { Location } from './types';
 
 const DEFAULT_CENTER = {
   lat: 37.7749,
@@ -15,7 +17,6 @@ const createNumberedIcon = (number: number, isStart: boolean = false) => {
   const size = 30;
   const fontSize = 14;
   
-  // Create a canvas element to draw the marker
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -38,7 +39,6 @@ const createNumberedIcon = (number: number, isStart: boolean = false) => {
   ctx.textBaseline = 'middle';
   ctx.fillText(number.toString(), size/2, size/2);
 
-  // Convert to data URL
   const dataUrl = canvas.toDataURL();
 
   return L.icon({
@@ -55,7 +55,7 @@ const calculateDistance = (point1: Location, point2: Location) => {
   const lat2 = point2.lat;
   const lon2 = point2.lng;
   
-  const R = 6371;
+  const R = 6371; // Earth's radius in km
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = 
@@ -93,7 +93,12 @@ const calculateOptimalRoute = (start: Location, locations: Location[]): Location
   return route;
 };
 
-const LeafletMap = ({ locations = [], currentLocation, onMapClick, enableClickSelection = false }: MapProps) => {
+interface LeafletMapProps {
+  locations: Location[];
+  currentLocation?: Location;
+}
+
+const LeafletMap = ({ locations = [], currentLocation }: LeafletMapProps) => {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const routingControlRef = useRef<any>(null);
@@ -128,7 +133,7 @@ const LeafletMap = ({ locations = [], currentLocation, onMapClick, enableClickSe
 
       const startLocation = start || locations[0];
       const remainingLocations = start ? locations : locations.slice(1);
-      const routeLocations = [startLocation, ...remainingLocations];
+      const routeLocations = calculateOptimalRoute(startLocation, remainingLocations);
 
       if (routeLocations.length < 2) return;
 
@@ -157,10 +162,6 @@ const LeafletMap = ({ locations = [], currentLocation, onMapClick, enableClickSe
         showAlternatives: false,
         useZoomParameter: false,
         addButtonClassName: ''
-      });
-
-      control.on('routesfound', (e: any) => {
-        console.log('Routes found:', e.routes);
       });
 
       control.addTo(map);
@@ -221,7 +222,7 @@ const LeafletMap = ({ locations = [], currentLocation, onMapClick, enableClickSe
         const icon = createNumberedIcon(1, true);
         if (icon) {
           const marker = L.marker([currentLocation.lat, currentLocation.lng], { icon })
-            .bindPopup('Start location')
+            .bindPopup('Current Location')
             .addTo(map);
           markersRef.current.push(marker);
         }
@@ -241,7 +242,7 @@ const LeafletMap = ({ locations = [], currentLocation, onMapClick, enableClickSe
       });
 
       // Update route
-      if (currentLocation || locations.length > 0) {
+      if (locations.length > 0) {
         updateRoute(map, currentLocation || null);
       }
 

@@ -26,9 +26,9 @@ export interface Listing {
 export interface ListingGroup {
   id: string;
   name: string;
-  type: 'date' | 'custom';
+  type?: 'date' | 'custom';
   date?: string;
-  order: number;
+  order?: number;
   listings: Listing[];
 }
 

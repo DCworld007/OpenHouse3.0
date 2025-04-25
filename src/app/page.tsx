@@ -1,139 +1,136 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Listing, ImportedListingData, ListingGroup } from '@/types/listing';
-import ListingImport from '@/components/ListingImport';
-import ListingGroups from '@/components/ListingGroups';
-import { format } from 'date-fns';
-import { Toaster } from 'react-hot-toast';
-
-const STORAGE_KEY = 'openhouse-data';
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { motion } from 'framer-motion';
 
 export default function Home() {
-  const [groups, setGroups] = useState<ListingGroup[]>([]);
-
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        setGroups(parsedData);
-      } catch (error) {
-        console.error('Error loading saved data:', error);
-      }
-    } else {
-      // Initialize with default groups
-      setGroups([
-        {
-          id: 'tbd',
-          name: 'To Be Scheduled',
-          type: 'custom',
-          order: 0,
-          listings: []
-        }
-      ]);
-    }
-  }, []);
-
-  // Save to localStorage whenever groups change
-  useEffect(() => {
-    if (groups.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
-    }
-  }, [groups]);
-
-  const handleImport = (data: ImportedListingData) => {
-    const newListing: Listing = {
-      id: crypto.randomUUID(),
-      price: data.price,
-      address: data.content,
-      imageUrl: data.imageUrl || '/placeholder-house.jpg',
-      sourceUrl: '',
-      source: 'manual',
-      openHouse: data.openHouse,
-      notes: data.notes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      groupId: 'tbd',
-      order: 0,
-      cardType: data.cardType
-    };
-
-    let updatedGroups = [...groups];
-    
-    if (data.openHouse?.date) {
-      // Create or find a group for this date
-      const dateStr = format(new Date(data.openHouse.date), 'yyyy-MM-dd');
-      const existingGroup = groups.find(g => g.type === 'date' && g.date === dateStr);
-      
-      if (existingGroup) {
-        // Add to existing date group
-        newListing.groupId = existingGroup.id;
-        updatedGroups = groups.map(group =>
-          group.id === existingGroup.id
-            ? {
-                ...group,
-                listings: [...group.listings, { ...newListing, order: group.listings.length }]
-              }
-            : group
-        );
-      } else {
-        // Create new date group
-        const newGroup: ListingGroup = {
-          id: crypto.randomUUID(),
-          name: format(new Date(data.openHouse.date), 'EEEE, MMMM d'),
-          type: 'date',
-          date: dateStr,
-          order: groups.length,
-          listings: [{ ...newListing, groupId: newListing.id }]
-        };
-        updatedGroups.push(newGroup);
-      }
-    } else {
-      // Add to TBD group
-      updatedGroups = groups.map(group =>
-        group.id === 'tbd'
-          ? {
-              ...group,
-              listings: [
-                { ...newListing, order: 0 },
-                ...group.listings.map(l => ({ ...l, order: l.order + 1 }))
-              ]
-            }
-          : group
-      );
-    }
-
-    setGroups(updatedGroups);
-  };
-
-  const handleGroupsUpdate = (updatedGroups: ListingGroup[]) => {
-    setGroups(updatedGroups);
-  };
+  const { data: session } = useSession();
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <Toaster position="top-right" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Open House Planner
-            </h1>
-            <p className="mt-2 text-sm text-gray-600">
-              Import and organize your property visits
-            </p>
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-white">
+      {/* Hero Section */}
+      <div className="relative overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="relative z-10 pb-8 sm:pb-16 md:pb-20 lg:max-w-2xl lg:w-full lg:pb-28 xl:pb-32">
+            <main className="mt-10 mx-auto max-w-7xl px-4 sm:mt-12 sm:px-6 md:mt-16 lg:mt-20 lg:px-8 xl:mt-28">
+              <div className="sm:text-center lg:text-left">
+                <motion.h1 
+                  className="text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <span className="block">Unify Your</span>{' '}
+                  <span className="block text-indigo-600">Planning Experience</span>
+                </motion.h1>
+                <motion.p 
+                  className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                >
+                  Collaborate, organize, and plan together in real-time. Whether it's house hunting, event planning, or project management - UnifyPlan brings everyone together.
+                </motion.p>
+                <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start">
+                  <div className="rounded-md shadow">
+                    <Link
+                      href={session ? "/dashboard" : "/auth/signup"}
+                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10"
+                    >
+                      {session ? "Go to Dashboard" : "Get Started"}
+                    </Link>
+                  </div>
+                  <div className="mt-3 sm:mt-0 sm:ml-3">
+                    <Link
+                      href="#features"
+                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 md:py-4 md:text-lg md:px-10"
+                    >
+                      Learn More
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </main>
           </div>
-
-          <ListingImport onImport={handleImport} />
-          
-          <ListingGroups 
-            groups={groups} 
-            onGroupsUpdate={handleGroupsUpdate}
+        </div>
+        <div className="lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
+          <img
+            className="h-56 w-full object-cover sm:h-72 md:h-96 lg:w-full lg:h-full"
+            src="/hero-image.png"
+            alt="Planning collaboration"
           />
         </div>
       </div>
-    </main>
+
+      {/* Features Section */}
+      <div id="features" className="py-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:text-center">
+            <h2 className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Features</h2>
+            <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+              Better planning, better results
+            </p>
+            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
+              Everything you need to manage your plans and collaborate with others effectively.
+            </p>
+          </div>
+
+          <div className="mt-10">
+            <div className="space-y-10 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-10">
+              {[
+                {
+                  title: 'Real-time Collaboration',
+                  description: 'Work together with your team in real-time. See changes as they happen.',
+                  icon: '🤝',
+                },
+                {
+                  title: 'Smart Organization',
+                  description: 'Keep everything organized with intelligent grouping and sorting.',
+                  icon: '📊',
+                },
+                {
+                  title: 'Interactive Planning',
+                  description: 'Create, edit, and manage plans with an intuitive interface.',
+                  icon: '✏️',
+                },
+                {
+                  title: 'Progress Tracking',
+                  description: 'Track progress and stay updated with visual progress indicators.',
+                  icon: '📈',
+                },
+              ].map((feature) => (
+                <div key={feature.title} className="relative">
+                  <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
+                    <span className="text-2xl">{feature.icon}</span>
+                  </div>
+                  <p className="ml-16 text-lg leading-6 font-medium text-gray-900">{feature.title}</p>
+                  <p className="mt-2 ml-16 text-base text-gray-500">{feature.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="bg-indigo-700">
+        <div className="max-w-2xl mx-auto text-center py-16 px-4 sm:py-20 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
+            <span className="block">Ready to get started?</span>
+            <span className="block">Start planning together today.</span>
+          </h2>
+          <p className="mt-4 text-lg leading-6 text-indigo-200">
+            Join thousands of teams who are already using UnifyPlan to collaborate and achieve their goals.
+          </p>
+          <Link
+            href={session ? "/dashboard" : "/auth/signup"}
+            className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 sm:w-auto"
+          >
+            {session ? "Go to Dashboard" : "Sign up for free"}
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 } 
