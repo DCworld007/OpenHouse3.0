@@ -12,6 +12,13 @@ const nextConfig = {
       allowedOrigins: ['*'],
     },
   },
+  // Add Cloudflare-specific settings
+  env: {
+    NEXT_PUBLIC_CLOUDFLARE_PAGES: 'true',
+  },
+  // Optimize for Cloudflare Pages
+  poweredByHeader: false,
+  generateEtags: false,
 }
 
 module.exports = nextConfig 
