@@ -1,4 +1,4 @@
-import { Activity } from '@/types/activity';
+import { Activity, ActivityType } from '@/types/activity';
 import { format } from 'date-fns';
 import { 
   HandThumbUpIcon, 
@@ -15,7 +15,7 @@ interface ActivityFeedProps {
 
 export default function ActivityFeed({ activities }: ActivityFeedProps) {
   const getActivityIcon = (type: Activity['type']) => {
-    switch (type) {
+    switch (type as ActivityType) {
       case 'card_reaction':
         return <HandThumbUpIcon className="h-5 w-5" />;
       case 'card_reorder':
@@ -32,7 +32,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
   };
 
   const getActivityMessage = (activity: Activity) => {
-    switch (activity.type) {
+    switch (activity.type as ActivityType) {
       case 'card_reaction':
         return (
           <>
