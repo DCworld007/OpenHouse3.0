@@ -8,23 +8,6 @@ const nextConfig = {
         hostname: '**',
       },
     ],
-    unoptimized: true, // Required for Cloudflare Pages
-  },
-  // Configure for Cloudflare Pages
-  output: 'export',
-  distDir: '.output',
-  // Disable certain features not supported in static export
-  experimental: {
-    appDir: true,
-    serverActions: true,
-  },
-  webpack: (config, { isServer }) => {
-    // Optimize bundle size
-    config.optimization = {
-      ...config.optimization,
-      minimize: true,
-    }
-    return config
   },
 }
 
