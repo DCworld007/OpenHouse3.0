@@ -14,24 +14,17 @@ interface ActivityFeedProps {
 }
 
 export default function ActivityFeed({ activities }: ActivityFeedProps) {
-  const getActivityIcon = (type: Activity['type']): JSX.Element => {
-    const activityType = type as ActivityType;
-    switch (activityType) {
-      case 'card_reaction':
-        return <HandThumbUpIcon className="h-5 w-5" />;
-      case 'card_reorder':
-        return <ArrowsUpDownIcon className="h-5 w-5" />;
-      case 'poll_vote':
-        return <ChartBarIcon className="h-5 w-5" />;
-      case 'card_add':
-        return <DocumentPlusIcon className="h-5 w-5" />;
-      case 'card_edit':
-        return <PencilIcon className="h-5 w-5" />;
-      case 'poll_create':
-        return <ChartBarIcon className="h-5 w-5" />;
-      default:
-        return <DocumentPlusIcon className="h-5 w-5" />;
-    }
+  const activityIcons: Record<ActivityType, JSX.Element> = {
+    'card_reaction': <HandThumbUpIcon className="h-5 w-5" />,
+    'card_reorder': <ArrowsUpDownIcon className="h-5 w-5" />,
+    'poll_vote': <ChartBarIcon className="h-5 w-5" />,
+    'card_add': <DocumentPlusIcon className="h-5 w-5" />,
+    'card_edit': <PencilIcon className="h-5 w-5" />,
+    'poll_create': <ChartBarIcon className="h-5 w-5" />
+  };
+
+  const getActivityIcon = (type: ActivityType): JSX.Element => {
+    return activityIcons[type] || <DocumentPlusIcon className="h-5 w-5" />;
   };
 
   const getActivityMessage = (activity: Activity): JSX.Element | string => {
@@ -79,7 +72,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
             >
               <div className="flex-shrink-0 mt-1">
                 <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
-                  {getActivityIcon(activity.type as Activity['type'])}
+                  {getActivityIcon(activity.type as ActivityType)}
                 </div>
               </div>
               <div className="min-w-0 flex-1">
