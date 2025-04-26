@@ -33,7 +33,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
     }
   };
 
-  const getActivityMessage = (activity: Activity) => {
+  const getActivityMessage = (activity: Activity): JSX.Element | string => {
     switch (activity.type) {
       case 'card_reaction':
         return (
@@ -57,6 +57,8 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
         return `edited card "${activity.details.cardTitle}"`;
       case 'poll_create':
         return `created a new poll "${activity.details.pollQuestion}"`;
+      default:
+        return 'performed an action';
     }
   };
 
