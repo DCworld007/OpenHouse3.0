@@ -1,10 +1,4 @@
 name = "openhouse-3"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".next"
-
-[pages]
-project_name = "unifyplan"
-
-[env.production]
-node_compat = true 
+pages_build_output_dir = ".next" 
