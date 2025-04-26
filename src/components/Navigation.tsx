@@ -1,11 +1,11 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment } from 'react';
 import { Disclosure, Menu, Transition } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 const navigation = [
   { name: 'Home', href: '/' },
@@ -16,18 +16,18 @@ function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-function UserAvatar({ user }: { user: { name: string; image?: string | null } }) {
-  if (user.image) {
+function UserAvatar({ user }: { user: { name?: string; picture?: string | null } }) {
+  if (user.picture) {
     return (
       <img
         className="h-8 w-8 rounded-full object-cover border"
-        src={user.image}
-        alt={user.name}
+        src={user.picture}
+        alt={user.name || 'User'}
       />
     );
   }
   // Fallback: initials
-  const initials = user.name
+  const initials = (user.name || '?')
     .split(' ')
     .map((n) => n[0])
     .join('')
@@ -41,7 +41,7 @@ function UserAvatar({ user }: { user: { name: string; image?: string | null } })
 
 export default function Navigation() {
   const pathname = usePathname();
-  const { user, isAuthenticated, login, logout } = useAuth();
+  const { user, isLoading } = useUser();
 
   return (
     <Disclosure as="nav" className="bg-white shadow">
@@ -71,15 +71,15 @@ export default function Navigation() {
                 </div>
               </div>
               <div className="flex items-center">
-                {!isAuthenticated && (
-                  <button
-                    onClick={login}
+                {!user && !isLoading && (
+                  <a
+                    href="/api/auth/login"
                     className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
                   >
                     Sign in
-                  </button>
+                  </a>
                 )}
-                {isAuthenticated && user && (
+                {user && (
                   <Menu as="div" className="relative ml-4">
                     <Menu.Button className="flex items-center focus:outline-none">
                       <UserAvatar user={user} />
@@ -113,15 +113,15 @@ export default function Navigation() {
                         </Menu.Item>
                         <Menu.Item>
                           {({ active }) => (
-                            <button
-                              onClick={logout}
+                            <a
+                              href="/api/auth/logout"
                               className={classNames(
                                 active ? 'bg-gray-100' : '',
                                 'block w-full text-left px-4 py-2 text-sm text-gray-700'
                               )}
                             >
                               Sign out
-                            </button>
+                            </a>
                           )}
                         </Menu.Item>
                       </Menu.Items>
@@ -150,12 +150,12 @@ export default function Navigation() {
                 </Disclosure.Button>
               ))}
             </div>
-            {!isAuthenticated && (
+            {!user && !isLoading && (
               <div className="border-t border-gray-200 pb-3 pt-4">
                 <div className="space-y-1">
                   <Disclosure.Button
-                    as="button"
-                    onClick={login}
+                    as="a"
+                    href="/api/auth/login"
                     className="block w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                   >
                     Sign in
@@ -163,7 +163,7 @@ export default function Navigation() {
                 </div>
               </div>
             )}
-            {isAuthenticated && user && (
+            {user && (
               <div className="border-t border-gray-200 pb-3 pt-4">
                 <div className="flex items-center px-4">
                   <UserAvatar user={user} />
@@ -181,8 +181,8 @@ export default function Navigation() {
                     Profile
                   </Disclosure.Button>
                   <Disclosure.Button
-                    as="button"
-                    onClick={logout}
+                    as="a"
+                    href="/api/auth/logout"
                     className="block w-full text-left px-4 py-2 text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                   >
                     Sign out

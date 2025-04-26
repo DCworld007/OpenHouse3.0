@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Navigation from '@/components/Navigation';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from '@/lib/auth-context';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,11 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full bg-gray-50">
       <body className={`${inter.className} h-full`}>
-        <AuthProvider>
-          <Navigation />
-          <main>{children}</main>
-          <Toaster />
-        </AuthProvider>
+        <Navigation />
+        <main>{children}</main>
+        <Toaster />
       </body>
     </html>
   );

@@ -9,7 +9,7 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-ki
 import { Location } from '@/components/Map/types';
 import LocationItem from '@/app/plan/[groupId]/LocationItem';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useAuth } from '@/lib/auth-context';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 const STORAGE_KEY = 'openhouse-data';
 
@@ -38,7 +38,7 @@ interface Group {
 
 export default function PlanRoutePage({ params }: { params: { groupId: string } }) {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { user, isLoading } = useUser();
   const [group, setGroup] = useState<Group | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [currentLocation, setCurrentLocation] = useState<Location | undefined>();
@@ -50,7 +50,7 @@ export default function PlanRoutePage({ params }: { params: { groupId: string } 
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !user) {
       router.push('/');
       return;
     }
@@ -119,7 +119,7 @@ export default function PlanRoutePage({ params }: { params: { groupId: string } 
       console.error('Error loading saved data:', error);
       router.push('/');
     }
-  }, [params.groupId, router, isAuthenticated]);
+  }, [params.groupId, router, isLoading, user]);
 
   useEffect(() => {
     if (!useCurrentLocation) {
@@ -330,7 +330,7 @@ export default function PlanRoutePage({ params }: { params: { groupId: string } 
     }
   }, [locations, params.groupId]); // Remove group from dependencies
 
-  if (!isAuthenticated || !group) {
+  if (!isLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
