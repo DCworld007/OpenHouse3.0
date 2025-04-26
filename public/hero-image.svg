@@ -1,42 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="800" height="600" fill="#F3F4F6"/>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .purple-shirt { fill: #7C3AED; }
+    .light-purple { fill: #C4B5FD; }
+    .navy { fill: #1E293B; }
+    .skin { fill: #FCD34D; }
+    .white { fill: #FFFFFF; }
+  </style>
   
-  <!-- Calendar/Board -->
-  <rect x="100" y="100" width="600" height="400" rx="8" fill="white" stroke="#E5E7EB" stroke-width="2"/>
+  <!-- Background elements -->
+  <rect width="1600" height="900" fill="#FFFFFF"/>
   
-  <!-- Cards -->
-  <g transform="translate(150,150)">
-    <!-- Card 1 -->
-    <rect width="150" height="100" rx="4" fill="#EEF2FF" stroke="#C7D2FE" stroke-width="2"/>
-    <rect x="10" y="10" width="100" height="10" rx="2" fill="#6366F1"/>
-    <rect x="10" y="30" width="130" height="8" rx="2" fill="#A5B4FC"/>
-    <rect x="10" y="45" width="110" height="8" rx="2" fill="#A5B4FC"/>
-  </g>
+  <!-- Screen/Board -->
+  <rect x="800" y="100" width="600" height="400" rx="20" fill="#FFFFFF" stroke="#1E293B" stroke-width="2"/>
+  <rect x="850" y="150" width="100" height="30" rx="4" fill="#C4B5FD"/>
+  <rect x="850" y="200" width="80" height="30" rx="4" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="2"/>
+  <rect x="850" y="250" width="120" height="30" rx="4" fill="#C4B5FD"/>
   
-  <g transform="translate(350,150)">
-    <!-- Card 2 -->
-    <rect width="150" height="100" rx="4" fill="#F0FDF4" stroke="#BBF7D0" stroke-width="2"/>
-    <rect x="10" y="10" width="80" height="10" rx="2" fill="#22C55E"/>
-    <rect x="10" y="30" width="130" height="8" rx="2" fill="#86EFAC"/>
-    <rect x="10" y="45" width="110" height="8" rx="2" fill="#86EFAC"/>
-  </g>
+  <!-- Map elements -->
+  <path d="M 1000 200 Q 1100 250 1200 200" stroke="#C4B5FD" stroke-width="3" fill="none"/>
+  <circle cx="1000" cy="200" r="10" fill="#7C3AED"/>
+  <circle cx="1200" cy="200" r="10" fill="#7C3AED"/>
   
-  <g transform="translate(150,300)">
-    <!-- Card 3 -->
-    <rect width="150" height="100" rx="4" fill="#FDF2F8" stroke="#FBCFE8" stroke-width="2"/>
-    <rect x="10" y="10" width="90" height="10" rx="2" fill="#EC4899"/>
-    <rect x="10" y="30" width="130" height="8" rx="2" fill="#F9A8D4"/>
-    <rect x="10" y="45" width="110" height="8" rx="2" fill="#F9A8D4"/>
-  </g>
+  <!-- People -->
+  <!-- Standing woman -->
+  <path d="M 200 300 C 180 200 220 200 200 300" fill="#1E293B"/> <!-- hair -->
+  <circle cx="200" cy="250" r="30" fill="#FCD34D"/> <!-- face -->
+  <rect x="170" y="280" width="60" height="120" rx="10" fill="#7C3AED"/> <!-- body -->
+  <rect x="170" y="400" width="30" height="100" rx="5" fill="#1E293B"/> <!-- legs -->
+  <rect x="200" y="400" width="30" height="100" rx="5" fill="#1E293B"/>
   
-  <!-- Connecting Lines -->
-  <path d="M 310 200 L 340 200" stroke="#6366F1" stroke-width="2" stroke-dasharray="4"/>
-  <path d="M 225 260 L 225 290" stroke="#EC4899" stroke-width="2" stroke-dasharray="4"/>
+  <!-- Sitting man with laptop -->
+  <circle cx="400" cy="350" r="30" fill="#FCD34D"/> <!-- face -->
+  <rect x="370" y="380" width="60" height="80" rx="10" fill="#C4B5FD"/> <!-- body -->
+  <rect x="350" y="460" width="100" height="20" rx="5" fill="#1E293B"/> <!-- legs -->
+  <rect x="360" y="420" width="80" height="50" rx="5" fill="#7C3AED"/> <!-- laptop -->
   
-  <!-- Avatars -->
-  <circle cx="650" cy="150" r="20" fill="#6366F1"/>
-  <circle cx="700" cy="150" r="20" fill="#22C55E"/>
-  <circle cx="750" cy="150" r="20" fill="#EC4899"/>
+  <!-- Standing man -->
+  <circle cx="600" cy="250" r="30" fill="#FCD34D"/> <!-- face -->
+  <rect x="570" y="280" width="60" height="120" rx="10" fill="#C4B5FD"/> <!-- body -->
+  <rect x="570" y="400" width="30" height="100" rx="5" fill="#1E293B"/> <!-- legs -->
+  <rect x="600" y="400" width="30" height="100" rx="5" fill="#1E293B"/>
+  
+  <!-- Chat bubble -->
+  <path d="M 450 300 Q 470 280 490 300 L 490 330 Q 470 350 450 330 Z" fill="#C4B5FD"/>
 </svg> 
