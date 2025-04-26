@@ -14,6 +14,9 @@ interface ActivityFeedProps {
 }
 
 export default function ActivityFeed({ activities }: ActivityFeedProps) {
+  // Debug log for activities prop
+  console.log('ActivityFeed received activities:', activities);
+
   const activityIcons: Record<ActivityType, JSX.Element> = {
     'card_reaction': <HandThumbUpIcon className="h-5 w-5" />,
     'card_reorder': <ArrowsUpDownIcon className="h-5 w-5" />,
@@ -23,11 +26,16 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
     'poll_create': <ChartBarIcon className="h-5 w-5" />
   };
 
-  const getActivityIcon = (type: ActivityType): JSX.Element => {
-    return activityIcons[type] || <DocumentPlusIcon className="h-5 w-5" />;
-  };
-
   const getActivityMessage = (activity: Activity): JSX.Element | string => {
+    // Debug log for individual activity processing
+    console.log('Processing activity:', {
+      id: activity.id,
+      type: activity.type,
+      expectedTypes: Object.keys(activityIcons),
+      isTypeValid: activity.type in activityIcons,
+      details: activity.details
+    });
+
     switch (activity.type) {
       case 'card_reaction':
         return (
@@ -52,6 +60,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
       case 'poll_create':
         return `created a new poll "${activity.details.pollQuestion}"`;
       default:
+        console.warn('Unknown activity type:', activity.type);
         return 'performed an action';
     }
   };
@@ -65,28 +74,38 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
         {activities.length === 0 ? (
           <p className="text-sm text-gray-500 p-4">No activity yet</p>
         ) : (
-          activities.map((activity) => (
-            <div
-              key={activity.id}
-              className="p-4 hover:bg-gray-50 transition-colors flex items-start space-x-3"
-            >
-              <div className="flex-shrink-0 mt-1">
-                <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
-                  {getActivityIcon(activity.type as ActivityType)}
+          activities.map((activity) => {
+            // Debug log for icon rendering
+            if (!(activity.type in activityIcons)) {
+              console.error('Invalid activity type for icons:', {
+                type: activity.type,
+                availableTypes: Object.keys(activityIcons)
+              });
+            }
+            
+            return (
+              <div
+                key={activity.id}
+                className="p-4 hover:bg-gray-50 transition-colors flex items-start space-x-3"
+              >
+                <div className="flex-shrink-0 mt-1">
+                  <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
+                    {activityIcons[activity.type]}
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-gray-900">
+                    <span className="font-medium">{activity.userId}</span>
+                    {' '}
+                    {getActivityMessage(activity)}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {format(new Date(activity.timestamp), 'MMM d, yyyy h:mm a')}
+                  </div>
                 </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-sm text-gray-900">
-                  <span className="font-medium">{activity.userId}</span>
-                  {' '}
-                  {getActivityMessage(activity)}
-                </div>
-                <div className="mt-1 text-xs text-gray-500">
-                  {format(new Date(activity.timestamp), 'MMM d, yyyy h:mm a')}
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
