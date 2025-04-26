@@ -1,12 +1,12 @@
 name = "unifyplan"
 compatibility_date = "2024-01-01"
+pages_build_output_dir = ".next"
 
 [build]
 command = "npm run build"
 
 [pages]
 project_name = "unifyplan"
-pages_build_output_dir = ".next"
 
 [env.production]
 node_compat = true 
