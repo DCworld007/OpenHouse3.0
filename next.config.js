@@ -38,14 +38,8 @@ const nextConfig = {
           },
           lib: {
             test: /[\\/]node_modules[\\/]/,
-            name(module, chunks, cacheGroupKey) {
-              const packageName = module.context.match(
-                /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-              )[1];
-              return `${cacheGroupKey}.${packageName.replace('@', '')}`;
-            },
+            name: 'vendor',
             chunks: 'all',
-            minChunks: 1,
             reuseExistingChunk: true,
             enforce: true,
             maxSize: 24000000, // Just under 25MB limit
