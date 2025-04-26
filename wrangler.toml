@@ -1,11 +1,11 @@
-name = "openhouse-3"
+name = "unifyplan"
 compatibility_date = "2024-01-01"
 
 [build]
 command = "npm run build"
 
 [pages]
-pages_build_output_dir = ".next/static"
+pages_build_output_dir = ".next"
 
 [env.production]
 node_compat = true 
