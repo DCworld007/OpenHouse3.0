@@ -6,7 +6,9 @@ const path = require('path')
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'export',
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
@@ -43,25 +45,34 @@ const nextConfig = {
           splitChunks: {
             chunks: 'all',
             minSize: 20000,
-            maxSize: 20000000, // 20MB chunks
+            maxSize: 90000, // Reduced chunk size for better caching
             cacheGroups: {
               default: false,
               vendors: false,
-              // Large third-party libraries
+              framework: {
+                name: 'framework',
+                test: /[\\/]node_modules[\\/](react|react-dom|next)[\\/]/,
+                priority: 40,
+                enforce: true,
+                chunks: 'all'
+              },
               lib: {
                 test: /[\\/]node_modules[\\/](leaflet|mapbox-gl|framer-motion|@dnd-kit)[\\/]/,
-                name: 'lib',
-                chunks: 'async',
+                name: (module) => {
+                  const match = module.context.match(/[\\/]node_modules[\\/](.*?)(?:[\\/]|$)/);
+                  return `lib-${match[1].replace('@', '')}`; 
+                },
                 priority: 30,
-                maxSize: 20000000,
+                minChunks: 1,
+                reuseExistingChunk: true,
+                chunks: 'all'
               },
-              // Common application code
               commons: {
                 name: 'commons',
                 minChunks: 2,
                 priority: 20,
                 reuseExistingChunk: true,
-                chunks: 'async',
+                chunks: 'all'
               }
             }
           }
