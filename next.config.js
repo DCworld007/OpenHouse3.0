@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
+    unoptimized: true, // Required for Cloudflare Pages
     remotePatterns: [
       {
         protocol: 'https',
@@ -9,8 +10,8 @@ const nextConfig = {
       },
     ],
   },
+  // Optimize for Cloudflare Pages
   experimental: {
-    optimizeCss: true,
     optimizePackageImports: ['@heroicons/react', '@headlessui/react'],
   },
 }
