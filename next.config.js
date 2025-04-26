@@ -1,17 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: false,
-  output: 'standalone',
   images: {
-    unoptimized: true,
-    domains: ['lh3.googleusercontent.com'], // For Google Auth profile pictures
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+    ],
   },
-  // Ensure compatibility with Cloudflare Pages
-  experimental: {
-    serverActions: {
-      allowedOrigins: ['*'],
-    },
-  }
 }
 
 module.exports = nextConfig 
