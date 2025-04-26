@@ -31,41 +31,38 @@ const nextConfig = {
         version: '1.0.0'
       }
 
-      config.optimization = {
-        ...config.optimization,
-        // Enable tree shaking
-        usedExports: true,
-        // Minimize output
-        minimize: true,
-        // Split chunks efficiently
-        splitChunks: {
-          chunks: 'all',
-          minSize: 20000,
-          maxSize: 20000000, // 20MB chunks
-          cacheGroups: {
-            // Framework chunks (React, Next.js)
-            framework: {
-              name: 'framework',
-              test: /[\\/]node_modules[\\/](react|react-dom|@react|next|@next)[\\/]/,
-              priority: 40,
-              chunks: 'all',
-              enforce: true,
-            },
-            // Large libraries
-            lib: {
-              test: /[\\/]node_modules[\\/](leaflet|mapbox-gl|framer-motion|@dnd-kit)[\\/]/,
-              name: 'lib',
-              chunks: 'async',
-              priority: 30,
-              maxSize: 20000000,
-            },
-            // Common code between pages
-            commons: {
-              name: 'commons',
-              minChunks: 2,
-              priority: 20,
-              reuseExistingChunk: true,
-              chunks: 'async',
+      if (!isServer) {
+        // Client-side optimizations
+        config.optimization = {
+          ...config.optimization,
+          // Enable tree shaking
+          usedExports: true,
+          // Minimize output
+          minimize: true,
+          // Split chunks efficiently
+          splitChunks: {
+            chunks: 'all',
+            minSize: 20000,
+            maxSize: 20000000, // 20MB chunks
+            cacheGroups: {
+              default: false,
+              vendors: false,
+              // Large third-party libraries
+              lib: {
+                test: /[\\/]node_modules[\\/](leaflet|mapbox-gl|framer-motion|@dnd-kit)[\\/]/,
+                name: 'lib',
+                chunks: 'async',
+                priority: 30,
+                maxSize: 20000000,
+              },
+              // Common application code
+              commons: {
+                name: 'commons',
+                minChunks: 2,
+                priority: 20,
+                reuseExistingChunk: true,
+                chunks: 'async',
+              }
             }
           }
         }
