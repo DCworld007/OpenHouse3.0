@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import {
@@ -53,7 +52,6 @@ const DEFAULT_GROUP: Group = {
 };
 
 export default function PlansPage() {
-  const { data: session } = useSession();
   const [groups, setGroups] = useState<Group[]>([DEFAULT_GROUP]);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);

@@ -1,41 +1,49 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
+import { verifyToken, getTokenFromRequest } from '@/lib/cloudflare-jwt';
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    // Get JWT token from request
+    const token = await getTokenFromRequest(req);
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const payload = await verifyToken(token, process.env.JWT_SECRET || '');
+    if (!payload || !payload.sub) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = payload.sub;
+
+    // Get D1 database from context
+    const db = (req as any).cf?.env?.DB;
+    if (!db) {
+      throw new Error('D1 database not found in context');
     }
 
     const data = await req.json();
     const { content, notes, cardType, imageUrl, groupId } = data;
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const cardData: Prisma.CardCreateInput = {
+    // Create card
+    const cardId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const insertStmt = db.prepare(
+      'INSERT INTO Card (id, content, notes, cardType, imageUrl, groupId, userId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+    await insertStmt.bind(
+      cardId,
       content,
       notes,
       cardType,
       imageUrl,
       groupId,
-      user: {
-        connect: { id: user.id }
-      }
-    };
+      userId,
+      now,
+      now
+    ).run();
 
-    const card = await prisma.card.create({
-      data: cardData,
-    });
+    // Fetch the created card
+    const cardStmt = db.prepare('SELECT * FROM Card WHERE id = ?');
+    const card = await cardStmt.bind(cardId).first();
 
     return NextResponse.json(card);
   } catch (error) {
@@ -49,23 +57,28 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    // Get JWT token from request
+    const token = await getTokenFromRequest(req);
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const payload = await verifyToken(token, process.env.JWT_SECRET || '');
+    if (!payload || !payload.sub) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = payload.sub;
 
-    const userWithCards = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: {
-        cards: true,
-      },
-    });
-
-    if (!userWithCards) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    // Get D1 database from context
+    const db = (req as any).cf?.env?.DB;
+    if (!db) {
+      throw new Error('D1 database not found in context');
     }
 
-    return NextResponse.json(userWithCards.cards);
+    // Fetch user's cards
+    const cardsStmt = db.prepare('SELECT * FROM Card WHERE userId = ?');
+    const cards = await cardsStmt.bind(userId).all();
+
+    return NextResponse.json(cards);
   } catch (error) {
     console.error('Error fetching cards:', error);
     return NextResponse.json(

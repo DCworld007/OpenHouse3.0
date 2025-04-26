@@ -1,12 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 
 export default function Home() {
-  const { data: session } = useSession();
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E8E7FF] via-[#F3F1FF] to-white">
       {/* Hero Section */}
@@ -35,10 +32,10 @@ export default function Home() {
                 <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start">
                   <div className="rounded-md shadow">
                     <Link
-                      href={session ? "/dashboard" : "/auth/signup"}
-                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10"
+                      href="/plans"
+                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                     >
-                      {session ? "Go to Dashboard" : "Get Started"}
+                      Get Started
                     </Link>
                   </div>
                   <div className="mt-3 sm:mt-0 sm:ml-3">
@@ -69,10 +66,10 @@ export default function Home() {
           <div className="lg:text-center">
             <h2 className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Features</h2>
             <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
-              Better planning, better results
+              Everything you need to plan together
             </p>
             <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
-              Everything you need to manage your plans and collaborate with others effectively.
+              UnifyPlan provides all the tools you need to collaborate effectively with your team.
             </p>
           </div>
 
@@ -81,23 +78,23 @@ export default function Home() {
               {[
                 {
                   title: 'Real-time Collaboration',
-                  description: 'Work together with your team in real-time. See changes as they happen.',
-                  icon: '🤝',
+                  description: 'Work together in real-time with your team, seeing changes instantly as they happen.',
+                  icon: '🔄',
                 },
                 {
-                  title: 'Smart Organization',
-                  description: 'Keep everything organized with intelligent grouping and sorting.',
-                  icon: '📊',
+                  title: 'Organized Planning',
+                  description: 'Keep all your planning tasks organized in one place with our intuitive interface.',
+                  icon: '📋',
                 },
                 {
-                  title: 'Interactive Planning',
-                  description: 'Create, edit, and manage plans with an intuitive interface.',
-                  icon: '✏️',
+                  title: 'Mobile Friendly',
+                  description: 'Access your plans from anywhere, on any device, with our responsive design.',
+                  icon: '📱',
                 },
                 {
-                  title: 'Progress Tracking',
-                  description: 'Track progress and stay updated with visual progress indicators.',
-                  icon: '📈',
+                  title: 'Secure & Private',
+                  description: 'Your data is encrypted and secure, with privacy controls you can customize.',
+                  icon: '🔒',
                 },
               ].map((feature) => (
                 <div key={feature.title} className="relative">
@@ -124,10 +121,10 @@ export default function Home() {
             Join thousands of teams who are already using UnifyPlan to collaborate and achieve their goals.
           </p>
           <Link
-            href={session ? "/dashboard" : "/auth/signup"}
+            href="/plans"
             className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 sm:w-auto"
           >
-            {session ? "Go to Dashboard" : "Sign up for free"}
+            Sign up for free
           </Link>
         </div>
       </div>

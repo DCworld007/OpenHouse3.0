@@ -1,12 +1,46 @@
-name = "openhouse-3"
+name = "openhouse3"
+main = "src/workers/index.ts"
 compatibility_date = "2024-01-01"
-compatibility_flags = ["nodejs_compat"]
-pages_build_output_dir = ".next"
 
 [build]
 command = "npm run build"
-[build.environment]
-NODE_VERSION = "18"
+
+[pages]
+build_output_dir = ".next"
+
+[env.production]
+name = "openhouse3-prod"
+route = "openhouse3.com/*"
+zone_id = "your-zone-id"
+d1_databases = [
+  { binding = "DB", database_name = "openhouse3", database_id = "your-db-id" }
+]
+kv_namespaces = [
+  { binding = "CACHE", id = "your-kv-id", preview_id = "your-preview-kv-id" }
+]
+vars = { JWT_SECRET = "your-jwt-secret" }
+
+[env.staging]
+name = "openhouse3-staging"
+route = "staging.openhouse3.com/*"
+zone_id = "your-zone-id"
+d1_databases = [
+  { binding = "DB", database_name = "openhouse3_staging", database_id = "your-staging-db-id" }
+]
+kv_namespaces = [
+  { binding = "CACHE", id = "your-staging-kv-id", preview_id = "your-preview-kv-id" }
+]
+vars = { JWT_SECRET = "your-staging-jwt-secret" }
 
 [site]
-bucket = ".next" 
+bucket = ".next/static"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "openhouse3"
+database_id = "3295d3b6-2f6e-4a92-bf51-738969a1be89"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "99b502ae72564574bb8e2041a983f287"
+preview_id = "99b502ae72564574bb8e2041a983f287" 

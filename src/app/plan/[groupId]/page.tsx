@@ -9,6 +9,7 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-ki
 import { Location } from '@/components/Map/types';
 import LocationItem from '@/app/plan/[groupId]/LocationItem';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useAuth } from '@/lib/auth-context';
 
 const STORAGE_KEY = 'openhouse-data';
 
@@ -37,6 +38,7 @@ interface Group {
 
 export default function PlanRoutePage({ params }: { params: { groupId: string } }) {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [group, setGroup] = useState<Group | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [currentLocation, setCurrentLocation] = useState<Location | undefined>();
@@ -48,6 +50,11 @@ export default function PlanRoutePage({ params }: { params: { groupId: string } 
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/');
+      return;
+    }
+
     // Load data from localStorage
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (!savedData) {
@@ -99,22 +106,20 @@ export default function PlanRoutePage({ params }: { params: { groupId: string } 
                 lng: parseFloat(data[0].lon),
               };
             }
-            console.warn('No geocoding results for:', location.address);
             return location;
           } catch (error) {
             console.error('Error geocoding address:', error);
             return location;
           }
         })
-      ).then(geocodedLocations => {
-        console.log('Final geocoded locations:', geocodedLocations);
+      ).then((geocodedLocations) => {
         setLocations(geocodedLocations);
       });
     } catch (error) {
       console.error('Error loading saved data:', error);
       router.push('/');
     }
-  }, [params.groupId, router]);
+  }, [params.groupId, router, isAuthenticated]);
 
   useEffect(() => {
     if (!useCurrentLocation) {
@@ -325,12 +330,11 @@ export default function PlanRoutePage({ params }: { params: { groupId: string } 
     }
   }, [locations, params.groupId]); // Remove group from dependencies
 
-  if (!group) {
+  if (!isAuthenticated || !group) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold mb-4">Loading route planner...</h2>
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600 mx-auto"></div>
+          <h2 className="text-lg font-semibold text-gray-900">Loading...</h2>
         </div>
       </div>
     );
