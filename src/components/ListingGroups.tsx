@@ -27,7 +27,8 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
       const defaultGroup: ListingGroup = {
         id: 'tbd',
         name: 'To Be Scheduled',
-        type: 'custom',
+        type: 'custom' as const,
+        date: new Date().toISOString().split('T')[0],
         order: 0,
         listings: []
       };
@@ -77,7 +78,8 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
       const newGroup: ListingGroup = {
         id: newGroupId,
         name: 'New Group',
-        type: 'custom',
+        type: 'custom' as const,
+        date: new Date().toISOString().split('T')[0],
         order: groups.length,
         listings: [{ ...movedListing, groupId: newGroupId }]
       };
@@ -182,7 +184,8 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
     const newGroup: ListingGroup = {
       id: crypto.randomUUID(),
       name: 'New Group',
-      type: 'custom',
+      type: 'custom' as const,
+      date: new Date().toISOString().split('T')[0],
       order: groups.length,
       listings: []
     };
