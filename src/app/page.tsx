@@ -8,7 +8,7 @@ export default function Home() {
   const { data: session } = useSession();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#E8E7FF] via-[#F3F1FF] to-white">
       {/* Hero Section */}
       <div className="relative overflow-hidden">
         <div className="max-w-7xl mx-auto">
