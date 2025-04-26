@@ -14,7 +14,7 @@ interface ActivityFeedProps {
 }
 
 export default function ActivityFeed({ activities }: ActivityFeedProps) {
-  const getActivityIcon = (type: ActivityType) => {
+  const getActivityIcon = (type: ActivityType): JSX.Element => {
     switch (type) {
       case 'card_reaction':
         return <HandThumbUpIcon className="h-5 w-5" />;
@@ -28,6 +28,8 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
         return <PencilIcon className="h-5 w-5" />;
       case 'poll_create':
         return <ChartBarIcon className="h-5 w-5" />;
+      default:
+        return <DocumentPlusIcon className="h-5 w-5" />;
     }
   };
 
