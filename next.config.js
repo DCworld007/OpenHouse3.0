@@ -1,3 +1,7 @@
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: true
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -9,61 +13,63 @@ const nextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer }) => {
-    // Enable tree shaking and optimizations
-    config.optimization = {
-      ...config.optimization,
-      minimize: true,
-      sideEffects: true,
-      usedExports: true,
-    }
+  webpack: (config, { dev, isServer }) => {
+    // Only optimize in production builds
+    if (!dev) {
+      config.cache = {
+        type: 'filesystem',
+        // Limit cache size
+        maxMemoryGenerations: 1,
+        // Store cache in .next/cache instead of node_modules
+        cacheDirectory: '.next/cache/webpack',
+        // Clean up old caches
+        compression: 'gzip',
+        // Only cache production files
+        name: isServer ? 'server' : 'client',
+        // Cache version - bump this if you change webpack config
+        version: '1.0.0'
+      }
 
-    // More aggressive code splitting
-    if (!isServer) {
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        minSize: 10000,
-        maxSize: 20000000, // 20MB to be safe
-        minChunks: 1,
-        maxAsyncRequests: 30,
-        maxInitialRequests: 30,
-        cacheGroups: {
-          default: false,
-          vendors: false,
-          framework: {
-            name: 'framework',
-            chunks: 'all',
-            test: /[\\/]node_modules[\\/](react|react-dom|@react|next|@next)[\\/]/,
-            priority: 40,
-            enforce: true,
-            reuseExistingChunk: true,
-          },
-          lib: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'lib',
-            chunks: 'async',
-            priority: 30,
-            maxSize: 20000000,
-            reuseExistingChunk: true,
-          },
-          commons: {
-            name: 'commons',
-            minChunks: 2,
-            priority: 20,
-            reuseExistingChunk: true,
-            chunks: 'async',
-          },
-          shared: {
-            name: 'shared',
-            enforce: true,
-            chunks: 'all',
-            test: /[\\/]node_modules[\\/](@?\\w+)[\\/]/,
-            priority: 10,
-          },
-        },
+      config.optimization = {
+        ...config.optimization,
+        // Enable tree shaking
+        usedExports: true,
+        // Minimize output
+        minimize: true,
+        // Split chunks efficiently
+        splitChunks: {
+          chunks: 'all',
+          minSize: 20000,
+          maxSize: 20000000, // 20MB chunks
+          cacheGroups: {
+            // Framework chunks (React, Next.js)
+            framework: {
+              name: 'framework',
+              test: /[\\/]node_modules[\\/](react|react-dom|@react|next|@next)[\\/]/,
+              priority: 40,
+              chunks: 'all',
+              enforce: true,
+            },
+            // Large libraries
+            lib: {
+              test: /[\\/]node_modules[\\/](leaflet|mapbox-gl|framer-motion|@dnd-kit)[\\/]/,
+              name: 'lib',
+              chunks: 'async',
+              priority: 30,
+              maxSize: 20000000,
+            },
+            // Common code between pages
+            commons: {
+              name: 'commons',
+              minChunks: 2,
+              priority: 20,
+              reuseExistingChunk: true,
+              chunks: 'async',
+            }
+          }
+        }
       }
     }
-
     return config
   },
   experimental: {
@@ -72,4 +78,4 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig 
+module.exports = withBundleAnalyzer(nextConfig) 
