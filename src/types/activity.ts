@@ -15,4 +15,5 @@ export type ActivityDetails = {
   toIndex?: number;
   pollOption?: string;
   pollQuestion?: string;
+  timestamp: number;
 };

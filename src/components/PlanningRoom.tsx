@@ -1,7 +1,7 @@
 import { useState, Fragment } from 'react';
 import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
-import { EMOJI_REACTIONS } from '@/types/message';
-import { PlanningMessage, ListingGroup, PlanningRoomProps } from '@/types/planning-room';
+import { EMOJI_REACTIONS, Message, Poll } from '@/types/message';
+import { ListingGroup } from '@/types/planning-room';
 import { 
   ChatBubbleLeftRightIcon, 
   ArrowLeftIcon, 
@@ -19,13 +19,17 @@ import ActivityFeed from './ActivityFeed';
 import PlanCard from './PlanCard';
 import { v4 as uuidv4 } from 'uuid';
 import { Listing } from '@/types/listing';
-import { Message, Poll } from '@/types/message';
 
 interface CustomPoll {
   id: string;
   question: string;
   options: string[];
   votes: Record<string, string[]>;
+}
+
+interface ExtendedMessage extends Message {
+  sender: string;
+  reactions: Record<string, string[]>;
 }
 
 interface BaseActivityDetails {
@@ -59,32 +63,6 @@ interface CustomReactionActivity extends CustomActivity {
   reactionType: 'thumbsUp' | 'thumbsDown';
 }
 
-interface Message {
-  id: string;
-  type: 'text' | 'poll';
-  content: string;
-  poll?: Poll;
-  timestamp: number;
-  userId: string;
-}
-
-interface Poll {
-  id: string;
-  question: string;
-  options: string[];
-  votes: Record<string, string[]>;
-}
-
-interface PlanningMessage {
-  id: string;
-  type: 'text' | 'poll';
-  content: string;
-  poll?: Poll;
-  timestamp: number;
-  sender: string;
-  reactions?: Record<string, string[]>;
-}
-
 interface PlanningRoomProps {
   group: ListingGroup;
   onGroupUpdate: (group: ListingGroup) => void;
@@ -92,7 +70,7 @@ interface PlanningRoomProps {
 
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
   const [currentGroup, setCurrentGroup] = useState<ListingGroup>(group);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -117,13 +95,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    const message: Message = {
+    const message: ExtendedMessage = {
       id: uuidv4(),
       content: newMessage,
       type: 'text',
       timestamp: Date.now(),
-      reactions: {},
-      sender: 'currentUser'
+      sender: 'currentUser',
+      reactions: {}
     };
 
     setMessages(prev => [...prev, message]);
@@ -133,36 +111,70 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const handleCreatePoll = (question: string, options: string[]) => {
     const pollId = uuidv4();
     const messageId = uuidv4();
-    const newPoll: CustomPoll = {
+    const newPoll: Poll = {
       id: pollId,
       question,
       options,
       votes: {},
     };
-    setPolls(prev => [...prev, newPoll]);
-    
-    const activity: CustomPollActivity = {
+
+    // Create a new message with the poll
+    const message: ExtendedMessage = {
+      id: messageId,
       type: 'poll',
-      question,
-      options,
-      pollIndex: polls.length,
+      content: '',
+      poll: newPoll,
       timestamp: Date.now(),
-      userId: 'currentUser',
-      messageId
+      sender: 'currentUser',
+      reactions: {}
     };
-    addActivity('poll', activity as ActivityDetails);
+
+    // Add the message to chat
+    setMessages(prev => [...prev, message]);
+    
+    // Add activity
+    addActivity('poll_create', {
+      pollQuestion: question,
+      timestamp: Date.now()
+    });
+
+    // Reset and close modal
+    setPollQuestion('');
+    setPollOptions(['', '']);
+    setShowPollCreator(false);
   };
 
   const handleVote = (messageId: string, option: string, pollId: string) => {
-    const newActivity: VoteActivity = {
-      type: 'vote',
-      userId: 'currentUser',
-      messageId,
-      timestamp: Date.now(),
-      pollId,
-      option
-    };
-    addActivity(newActivity);
+    // Update the poll votes in the message
+    setMessages(prev => prev.map(message => {
+      if (message.id === messageId && message.poll) {
+        const votes = message.poll.votes ? { ...message.poll.votes } : {};
+        const userId = 'currentUser';
+        
+        // Remove user's previous vote if any
+        Object.keys(votes).forEach(opt => {
+          votes[opt] = votes[opt]?.filter(id => id !== userId) || [];
+        });
+        
+        // Add new vote
+        votes[option] = [...(votes[option] || []), userId];
+
+        return {
+          ...message,
+          poll: {
+            ...message.poll,
+            votes
+          }
+        };
+      }
+      return message;
+    }));
+
+    // Add activity
+    addActivity('poll_vote', {
+      pollOption: option,
+      timestamp: Date.now()
+    });
   };
 
   const handleReaction = (messageId: string, emoji: string) => {
@@ -172,7 +184,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         const currentReactions = reactions[emoji] || [];
         const userId = 'currentUser'; // Replace with actual user ID when auth is implemented
         reactions[emoji] = currentReactions.includes(userId)
-          ? currentReactions.filter(id => id !== userId)
+          ? currentReactions.filter((id: string) => id !== userId)
           : [...currentReactions, userId];
         return {
           ...message,
@@ -212,11 +224,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     onGroupUpdate(updatedGroup);
     
     // Add card creation activity
-    addActivity('card', {
-      type: 'card',
-      cardId: newCard.id,
-      action: 'create',
-      details: `Created new ${cardType} card: ${newCardContent}`
+    addActivity('card_add', {
+      cardTitle: newCardContent,
+      timestamp: Date.now()
     });
 
     // Reset form state
@@ -224,44 +234,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     setNewCardNotes('');
     setShowNewCardForm(false);
     setShowActionsMenu(false);
-  };
-
-  const onDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-
-    const sourceIndex = result.source.index;
-    const destinationIndex = result.destination.index;
-
-    const updatedListings = Array.from(group.listings);
-    const movedCard = updatedListings[sourceIndex];
-    const [removed] = updatedListings.splice(sourceIndex, 1);
-    updatedListings.splice(destinationIndex, 0, removed);
-
-    // Update order property for all affected cards
-    const reorderedListings = updatedListings.map((listing, index) => ({
-      ...listing,
-      order: index
-    }));
-
-    const updatedGroup = {
-      ...group,
-      listings: reorderedListings
-    };
-    onGroupUpdate(updatedGroup);
-
-    // Create a more descriptive activity message
-    const positionChange = sourceIndex < destinationIndex ? 'down' : 'up';
-    const positionDiff = Math.abs(destinationIndex - sourceIndex);
-    const positionText = positionDiff === 1 
-      ? `1 position ${positionChange}`
-      : `${positionDiff} positions ${positionChange}`;
-
-    addActivity('card', {
-      type: 'card',
-      cardId: result.draggableId,
-      action: 'move',
-      details: `Moved "${movedCard.address}" ${positionText} (from #${sourceIndex + 1} to #${destinationIndex + 1})`
-    });
   };
 
   const addActivity = (type: ActivityType, details: ActivityDetails) => {
@@ -278,33 +250,77 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
     const userId = 'currentUser'; // Replace with actual user ID
     
-    setCurrentGroup(prevGroup => {
-      const updatedListings = prevGroup.listings.map(listing => {
-        if (listing.id === cardId) {
-          const reactions = listing.reactions || [];
-          const existingReactionIndex = reactions.findIndex(
-            r => r.type === reactionType && r.userId === userId
-          );
+    const updatedGroup = { ...currentGroup };
+    const updatedListings = updatedGroup.listings.map(listing => {
+      if (listing.id === cardId) {
+        const reactions = listing.reactions || [];
+        const existingReactionIndex = reactions.findIndex(
+          r => r.type === reactionType && r.userId === userId
+        );
 
-          let updatedReactions = [...reactions];
-          if (existingReactionIndex >= 0) {
-            updatedReactions.splice(existingReactionIndex, 1);
-          } else {
-            updatedReactions.push({ type: reactionType, userId });
-          }
-
-          return {
-            ...listing,
-            reactions: updatedReactions
-          };
+        let updatedReactions = [...reactions];
+        if (existingReactionIndex >= 0) {
+          updatedReactions.splice(existingReactionIndex, 1);
+        } else {
+          updatedReactions.push({ type: reactionType, userId });
+          // Add activity only when adding a reaction, not when removing
+          addActivity('card_reaction', {
+            cardTitle: listing.address,
+            reactionType,
+            timestamp: Date.now()
+          });
         }
-        return listing;
-      });
 
-      return {
-        ...prevGroup,
-        listings: updatedListings
-      };
+        return {
+          ...listing,
+          reactions: updatedReactions
+        };
+      }
+      return listing;
+    });
+
+    updatedGroup.listings = updatedListings;
+    setCurrentGroup(updatedGroup);
+    onGroupUpdate(updatedGroup);
+  };
+
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+
+    const sourceIndex = result.source.index;
+    const destinationIndex = result.destination.index;
+
+    const updatedListings = Array.from(currentGroup.listings);
+    const movedCard = updatedListings[sourceIndex];
+    const [removed] = updatedListings.splice(sourceIndex, 1);
+    updatedListings.splice(destinationIndex, 0, removed);
+
+    // Update order property for all affected cards
+    const reorderedListings = updatedListings.map((listing, index) => ({
+      ...listing,
+      order: index
+    }));
+
+    const updatedGroup = {
+      ...currentGroup,
+      listings: reorderedListings
+    };
+    
+    setCurrentGroup(updatedGroup);
+    onGroupUpdate(updatedGroup);
+
+    // Create a more descriptive activity message
+    const positionChange = sourceIndex < destinationIndex ? 'down' : 'up';
+    const positionDiff = Math.abs(destinationIndex - sourceIndex);
+    const positionText = positionDiff === 1 
+      ? `1 position ${positionChange}`
+      : `${positionDiff} positions ${positionChange}`;
+
+    addActivity('card_reorder', {
+      cardTitle: movedCard.address,
+      fromIndex: sourceIndex,
+      toIndex: destinationIndex,
+      timestamp: Date.now()
     });
   };
 
@@ -393,7 +409,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                                className={`relative transition-all ${
+                                className={`relative transition-all group ${
                                   snapshot.isDragging ? 'opacity-50' : ''
                                 }`}
                               >
@@ -410,8 +426,51 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                                         <div className="text-sm text-gray-600 leading-relaxed">{card.notes}</div>
                                       </div>
                                     )}
+                                    {/* Card Reactions Display */}
+                                    {(card.reactions?.some(r => r.type === 'thumbsUp') || 
+                                      card.reactions?.some(r => r.type === 'thumbsDown')) && (
+                                      <div className="flex items-center gap-2 pt-2">
+                                        {card.reactions?.some(r => r.type === 'thumbsUp') && (
+                                          <div className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                                            👍 {card.reactions?.filter(r => r.type === 'thumbsUp').length || 0}
+                                          </div>
+                                        )}
+                                        {card.reactions?.some(r => r.type === 'thumbsDown') && (
+                                          <div className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                                            👎 {card.reactions?.filter(r => r.type === 'thumbsDown').length || 0}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
+
+                                {/* Reaction Buttons - Show on Hover */}
+                                <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleCardReaction(card.id, 'thumbsUp')}
+                                    className={`p-1.5 rounded-full transition-colors ${
+                                      card.reactions?.some(r => r.type === 'thumbsUp' && r.userId === 'currentUser')
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                    title="Like"
+                                  >
+                                    👍
+                                  </button>
+                                  <button
+                                    onClick={() => handleCardReaction(card.id, 'thumbsDown')}
+                                    className={`p-1.5 rounded-full transition-colors ${
+                                      card.reactions?.some(r => r.type === 'thumbsDown' && r.userId === 'currentUser')
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                    title="Dislike"
+                                  >
+                                    👎
+                                  </button>
+                                </div>
+
                                 {/* Add Card Button */}
                                 <button
                                   onClick={() => {
@@ -483,7 +542,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                       ) : (
                         <div className="mt-2 space-y-2">
                           <h4 className="font-medium text-gray-900">{message.poll?.question}</h4>
-                          {message.poll?.options.map((option, optionIndex) => (
+                          {message.poll?.options.map((option: string, optionIndex: number) => (
                             <button
                               key={optionIndex}
                               onClick={() => handleVote(message.id, option, message.poll?.id || '')}
@@ -496,25 +555,25 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                       )}
 
                       {/* Reactions */}
-                      {Object.entries(message.reactions || {}).length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {Object.entries(message.reactions || {}).map(([emoji, users]) => (
-                            users.length > 0 && (
-                              <button
-                                key={emoji}
-                                onClick={() => handleReaction(message.id, emoji)}
-                                className={`px-2 py-1 text-sm rounded-full transition-colors ${
-                                  users.includes('currentUser')
-                                    ? 'bg-indigo-100 text-indigo-700'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                              >
-                                {emoji} {users.length}
-                              </button>
-                            )
-                          ))}
-                        </div>
-                      )}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {EMOJI_REACTIONS.map((emoji) => {
+                          const users = message.reactions?.[emoji] || [];
+                          if (users.length === 0) return null;
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => handleReaction(message.id, emoji)}
+                              className={`inline-flex items-center px-2 py-1 text-xs rounded-full transition-colors ${
+                                users.includes('currentUser')
+                                  ? 'bg-indigo-100 text-indigo-700'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              {emoji} {users.length}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Reaction Button */}
@@ -629,19 +688,25 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           <div className="bg-white rounded-lg shadow-xl w-[480px] overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900">Create a Poll</h3>
-              <div className="flex items-center gap-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowPollCreator(false)}
-                  className="text-gray-400 hover:text-gray-500"
-                >
-                  <XMarkIcon className="h-5 w-5" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowPollCreator(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
             </div>
             
             <div className="p-6">
-              <form onSubmit={() => handleCreatePoll(pollQuestion, pollOptions)} className="space-y-6">
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                if (!pollQuestion.trim() || pollOptions.some(opt => !opt.trim())) return;
+                
+                handleCreatePoll(pollQuestion, pollOptions.filter(opt => opt.trim()));
+                setPollQuestion('');
+                setPollOptions(['', '']);
+                setShowPollCreator(false);
+              }} className="space-y-6">
                 <div>
                   <label htmlFor="pollQuestion" className="block text-sm font-medium text-gray-700">
                     Question
@@ -652,7 +717,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     value={pollQuestion}
                     onChange={e => setPollQuestion(e.target.value)}
                     placeholder="Ask a question..."
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-4"
+                    className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5 px-4"
                   />
                 </div>
 
@@ -682,8 +747,20 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
                 <div className="flex justify-end space-x-3">
                   <button
+                    type="button"
+                    onClick={() => {
+                      setPollQuestion('');
+                      setPollOptions(['', '']);
+                      setShowPollCreator(false);
+                    }}
+                    className="px-4 py-2 text-gray-700 hover:text-gray-900"
+                  >
+                    Cancel
+                  </button>
+                  <button
                     type="submit"
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                    disabled={!pollQuestion.trim() || pollOptions.some(opt => !opt.trim())}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Create Poll
                   </button>
