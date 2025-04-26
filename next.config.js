@@ -8,11 +8,15 @@ const nextConfig = {
         hostname: '**',
       },
     ],
+    unoptimized: true, // Required for Cloudflare Pages
   },
-  // Optimize for Cloudflare Pages
-  output: 'standalone',
+  // Configure for Cloudflare Pages
+  output: 'export',
+  distDir: '.output',
+  // Disable certain features not supported in static export
   experimental: {
-    optimizePackageImports: ['@heroicons/react'],
+    appDir: true,
+    serverActions: true,
   },
   webpack: (config, { isServer }) => {
     // Optimize bundle size
