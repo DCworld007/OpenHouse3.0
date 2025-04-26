@@ -1,6 +1,7 @@
 const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: true
 })
+const path = require('path')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -20,8 +21,8 @@ const nextConfig = {
         type: 'filesystem',
         // Limit cache size
         maxMemoryGenerations: 1,
-        // Store cache in .next/cache instead of node_modules
-        cacheDirectory: '.next/cache/webpack',
+        // Use absolute path for cache directory
+        cacheDirectory: path.resolve('.next/cache/webpack'),
         // Clean up old caches
         compression: 'gzip',
         // Only cache production files
