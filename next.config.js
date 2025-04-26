@@ -10,7 +10,7 @@ const nextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
-    // Enable tree shaking
+    // Enable tree shaking and optimizations
     config.optimization = {
       ...config.optimization,
       minimize: true,
@@ -18,36 +18,57 @@ const nextConfig = {
       usedExports: true,
     }
 
-    // Split chunks more aggressively
+    // More aggressive code splitting
     if (!isServer) {
       config.optimization.splitChunks = {
         chunks: 'all',
-        minSize: 20000,
-        maxSize: 24000000, // Just under 25MB limit
+        minSize: 10000,
+        maxSize: 20000000, // 20MB to be safe
         minChunks: 1,
         maxAsyncRequests: 30,
         maxInitialRequests: 30,
         cacheGroups: {
           default: false,
           vendors: false,
-          commons: {
-            name: 'commons',
+          framework: {
+            name: 'framework',
             chunks: 'all',
-            minChunks: 2,
+            test: /[\\/]node_modules[\\/](react|react-dom|@react|next|@next)[\\/]/,
+            priority: 40,
+            enforce: true,
             reuseExistingChunk: true,
           },
           lib: {
             test: /[\\/]node_modules[\\/]/,
-            name: 'vendor',
-            chunks: 'all',
+            name: 'lib',
+            chunks: 'async',
+            priority: 30,
+            maxSize: 20000000,
             reuseExistingChunk: true,
+          },
+          commons: {
+            name: 'commons',
+            minChunks: 2,
+            priority: 20,
+            reuseExistingChunk: true,
+            chunks: 'async',
+          },
+          shared: {
+            name: 'shared',
             enforce: true,
-            maxSize: 24000000, // Just under 25MB limit
+            chunks: 'all',
+            test: /[\\/]node_modules[\\/](@?\\w+)[\\/]/,
+            priority: 10,
           },
         },
       }
     }
+
     return config
+  },
+  experimental: {
+    optimizeCss: true, // This will inline critical CSS
+    optimizePackageImports: ['@heroicons/react', '@headlessui/react'],
   },
 }
 
