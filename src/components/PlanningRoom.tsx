@@ -1,7 +1,7 @@
 import { useState, Fragment } from 'react';
 import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
 import { EMOJI_REACTIONS, Message, Poll } from '@/types/message';
-import { ListingGroup } from '@/types/planning-room';
+import { ListingGroup } from '@/types/listing';
 import { 
   ChatBubbleLeftRightIcon, 
   ArrowLeftIcon, 
