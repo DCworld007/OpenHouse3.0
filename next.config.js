@@ -9,6 +9,52 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config, { isServer }) => {
+    // Enable tree shaking
+    config.optimization = {
+      ...config.optimization,
+      minimize: true,
+      sideEffects: true,
+      usedExports: true,
+    }
+
+    // Split chunks more aggressively
+    if (!isServer) {
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        minSize: 20000,
+        maxSize: 24000000, // Just under 25MB limit
+        minChunks: 1,
+        maxAsyncRequests: 30,
+        maxInitialRequests: 30,
+        cacheGroups: {
+          default: false,
+          vendors: false,
+          commons: {
+            name: 'commons',
+            chunks: 'all',
+            minChunks: 2,
+            reuseExistingChunk: true,
+          },
+          lib: {
+            test: /[\\/]node_modules[\\/]/,
+            name(module, chunks, cacheGroupKey) {
+              const packageName = module.context.match(
+                /[\\/]node_modules[\\/](.*?)([\\/]|$)/
+              )[1];
+              return `${cacheGroupKey}.${packageName.replace('@', '')}`;
+            },
+            chunks: 'all',
+            minChunks: 1,
+            reuseExistingChunk: true,
+            enforce: true,
+            maxSize: 24000000, // Just under 25MB limit
+          },
+        },
+      }
+    }
+    return config
+  },
 }
 
 module.exports = nextConfig 
