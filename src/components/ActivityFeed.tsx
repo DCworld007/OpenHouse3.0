@@ -14,8 +14,9 @@ interface ActivityFeedProps {
 }
 
 export default function ActivityFeed({ activities }: ActivityFeedProps) {
-  const getActivityIcon = (type: ActivityType): JSX.Element => {
-    switch (type) {
+  const getActivityIcon = (type: Activity['type']): JSX.Element => {
+    const activityType = type as ActivityType;
+    switch (activityType) {
       case 'card_reaction':
         return <HandThumbUpIcon className="h-5 w-5" />;
       case 'card_reorder':
@@ -78,7 +79,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
             >
               <div className="flex-shrink-0 mt-1">
                 <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
-                  {getActivityIcon(activity.type as ActivityType)}
+                  {getActivityIcon(activity.type as Activity['type'])}
                 </div>
               </div>
               <div className="min-w-0 flex-1">
