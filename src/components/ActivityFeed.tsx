@@ -78,7 +78,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
             >
               <div className="flex-shrink-0 mt-1">
                 <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
-                  {getActivityIcon(activity.type)}
+                  {getActivityIcon(activity.type as ActivityType)}
                 </div>
               </div>
               <div className="min-w-0 flex-1">
