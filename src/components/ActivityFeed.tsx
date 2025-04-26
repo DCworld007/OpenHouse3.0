@@ -14,8 +14,8 @@ interface ActivityFeedProps {
 }
 
 export default function ActivityFeed({ activities }: ActivityFeedProps) {
-  const getActivityIcon = (type: Activity['type']) => {
-    switch (type as ActivityType) {
+  const getActivityIcon = (type: ActivityType) => {
+    switch (type) {
       case 'card_reaction':
         return <HandThumbUpIcon className="h-5 w-5" />;
       case 'card_reorder':
@@ -32,7 +32,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
   };
 
   const getActivityMessage = (activity: Activity) => {
-    switch (activity.type as ActivityType) {
+    switch (activity.type) {
       case 'card_reaction':
         return (
           <>

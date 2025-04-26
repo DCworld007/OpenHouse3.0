@@ -16,34 +16,3 @@ export type ActivityDetails = {
   pollOption?: string;
   pollQuestion?: string;
 };
-
-interface MessageActivity {
-  type: 'message';
-  messageId: string;
-  text: string;
-}
-
-interface ReactionActivity {
-  type: 'reaction';
-  messageId: string;
-  emoji: string;
-}
-
-interface PollActivity {
-  type: 'poll';
-  messageId: string;
-  question: string;
-}
-
-interface VoteActivity {
-  type: 'vote';
-  messageId: string;
-  option: string;
-}
-
-interface CardActivity {
-  type: 'card';
-  cardId: string;
-  action: 'create' | 'move' | 'delete';
-  details?: string;
-} 
