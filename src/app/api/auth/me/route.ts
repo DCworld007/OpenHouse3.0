@@ -18,4 +18,6 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
-} 
+}
+
+export const runtime = 'edge'; 

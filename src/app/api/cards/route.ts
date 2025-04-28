@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyToken, getTokenFromRequest } from '@/lib/cloudflare-jwt';
 
+export const runtime = 'edge';
+
 export async function POST(req: Request) {
   try {
     // Get JWT token from request

@@ -8,4 +8,6 @@ export async function GET(request: NextRequest) {
   response.cookies.set('id_token', '', { maxAge: 0, path: '/', secure: isProd });
   response.cookies.set('access_token', '', { maxAge: 0, path: '/', secure: isProd });
   return response;
-} 
+}
+
+export const runtime = 'edge'; 

@@ -33,4 +33,6 @@ export async function GET(request: NextRequest) {
   response.cookies.set('id_token', id_token, { httpOnly: true, secure: isProd, sameSite: 'lax', path: '/' });
   response.cookies.set('access_token', access_token, { httpOnly: true, secure: isProd, sameSite: 'lax', path: '/' });
   return response;
-} 
+}
+
+export const runtime = 'edge'; 
