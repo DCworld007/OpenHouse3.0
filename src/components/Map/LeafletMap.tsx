@@ -8,6 +8,14 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { Location } from './types';
 
+declare module 'leaflet' {
+  namespace Routing {
+    function control(options: any): any;
+    function plan(waypoints: any, options: any): any;
+    function mapbox(token: string, options: any): any;
+  }
+}
+
 const DEFAULT_CENTER = {
   lat: 37.7749,
   lng: -122.4194,
