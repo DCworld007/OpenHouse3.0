@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet-routing-machine';
+import 'lrm-mapbox';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import { Location } from './types';
@@ -65,6 +66,8 @@ const calculateDistance = (point1: Location, point2: Location) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 };
+
+const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiZGN3b3JsZDAwNyIsImEiOiJjbHR0Z3k4Y2gwMDNqMnFxbDZ1NXJ2OWxtIn0.U_p0otbo2P7aTHBBxS_Law';
 
 const calculateOptimalRoute = (start: Location, locations: Location[]): Location[] => {
   if (!start || locations.length === 0) return [];
@@ -143,9 +146,9 @@ const LeafletMap = ({ locations = [], currentLocation }: LeafletMapProps) => {
 
       const control = (L.Routing as any).control({
         waypoints,
-        router: (L.Routing as any).osrmv1({
-          serviceUrl: 'https://router.project-osrm.org/route/v1',
-          profile: 'driving'
+        router: L.Routing.mapbox(MAPBOX_ACCESS_TOKEN, {
+          profile: 'mapbox/driving',
+          language: 'en',
         }),
         plan: (L.Routing as any).plan(waypoints, {
           createMarker: () => null,
