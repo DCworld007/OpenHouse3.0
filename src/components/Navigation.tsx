@@ -72,21 +72,20 @@ export default function Navigation() {
               </div>
               <div className="flex items-center">
                 {!isSignedIn && isLoaded && (
-                  <div>
+                  <div className="flex space-x-4">
                     <SignInButton mode="modal">
-                      <button className="text-indigo-600 font-semibold px-4 py-2 rounded hover:bg-indigo-50">Sign In</button>
+                      <button className="text-gray-500 hover:text-gray-700 font-medium">
+                        Sign in
+                      </button>
                     </SignInButton>
+                    <SignUpButton mode="modal">
+                      <button className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 font-medium">
+                        Sign up
+                      </button>
+                    </SignUpButton>
                   </div>
                 )}
-                {isSignedIn && user && (
-                  <div className="flex items-center px-4">
-                    <UserButton afterSignOutUrl="/" />
-                    <div className="ml-3">
-                      <div className="text-base font-medium text-gray-800">{user.fullName}</div>
-                      <div className="text-sm font-medium text-gray-500">{user.primaryEmailAddress?.emailAddress}</div>
-                    </div>
-                  </div>
-                )}
+                {isSignedIn && <UserButton afterSignOutUrl="/" />}
               </div>
             </div>
           </div>
