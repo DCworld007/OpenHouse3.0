@@ -79,7 +79,15 @@ export default function PlansPage() {
   const [groups, setGroups] = useState<Group[]>(() => {
     try {
       const savedGroups = getGroups();
-      return savedGroups.length > 0 ? savedGroups : [DEFAULT_GROUP];
+      // MIGRATION: Ensure all cards have 'type' property (migrate from 'cardType' if needed)
+      const migratedGroups = savedGroups.map(group => ({
+        ...group,
+        cards: group.cards.map((card: Card & { cardType?: string }) => ({
+          ...card,
+          type: card.type || card.cardType || 'what',
+        })),
+      }));
+      return migratedGroups.length > 0 ? migratedGroups : [DEFAULT_GROUP];
     } catch (error) {
       console.error('Error loading groups:', error);
       return [DEFAULT_GROUP];
