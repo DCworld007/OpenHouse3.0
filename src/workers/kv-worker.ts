@@ -1,9 +1,9 @@
 import { verifyToken } from '@/lib/cloudflare-jwt';
 import { corsHeaders } from './cors-headers';
 
-interface Env {
-  CACHE: KVNamespace;
-  JWT_SECRET: string;
+export interface Env {
+  AUTH_SECRET: string;
+  KV: KVNamespace;
 }
 
 // Helper function to get token from request
@@ -19,7 +19,7 @@ async function handleGet(request: Request, env: Env, ctx: ExecutionContext): Pro
   try {
     const url = new URL(request.url);
     const key = url.pathname.substring(1); // Remove leading slash
-    const value = await env.CACHE.get(key);
+    const value = await env.KV.get(key);
     
     if (value === null) {
       return new Response('Key not found', { status: 404, headers: corsHeaders });
@@ -37,7 +37,7 @@ async function handlePut(request: Request, env: Env, ctx: ExecutionContext): Pro
     const key = url.pathname.substring(1);
     const value = await request.text();
     
-    await env.CACHE.put(key, value);
+    await env.KV.put(key, value);
     return new Response('Success', { status: 200, headers: corsHeaders });
   } catch (error) {
     return new Response('Internal Server Error', { status: 500, headers: corsHeaders });
@@ -49,7 +49,7 @@ async function handleDelete(request: Request, env: Env, ctx: ExecutionContext): 
     const url = new URL(request.url);
     const key = url.pathname.substring(1);
     
-    await env.CACHE.delete(key);
+    await env.KV.delete(key);
     return new Response('Success', { status: 200, headers: corsHeaders });
   } catch (error) {
     return new Response('Internal Server Error', { status: 500, headers: corsHeaders });
@@ -71,7 +71,7 @@ export default {
 
     // Verify token
     try {
-      const payload = await verifyToken(token, env.JWT_SECRET);
+      const payload = await verifyToken(token, env.AUTH_SECRET);
       if (!payload) {
         return new Response('Invalid token', { status: 401, headers: corsHeaders });
       }

@@ -1,6 +1,11 @@
 import { verifyToken } from '@/lib/cloudflare-jwt';
 import { corsHeaders } from './cors-headers';
 
+export interface Env {
+  AUTH_SECRET: string;
+  KV: KVNamespace;
+}
+
 // Define the Env interface with proper types
 interface Env {
   DB: D1Database;
