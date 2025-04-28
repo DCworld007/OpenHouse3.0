@@ -224,4 +224,6 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
       )}
     </div>
   );
-} 
+}
+
+export const runtime = 'edge'; 

@@ -6,4 +6,6 @@ export default function SignInPage() {
       <SignIn redirectUrl="/plans" />
     </div>
   );
-} 
+}
+
+export const runtime = 'edge'; 

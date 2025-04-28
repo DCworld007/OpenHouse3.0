@@ -8,6 +8,8 @@ import { getGroups, saveGroups } from '@/lib/groupStorage';
 
 const STORAGE_KEY = 'openhouse-data';
 
+export const runtime = 'edge';
+
 export default function PlanningRoomPage() {
   const router = useRouter();
   const params = useParams();
