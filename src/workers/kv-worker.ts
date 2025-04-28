@@ -1,10 +1,6 @@
 import { verifyToken } from '@/lib/cloudflare-jwt';
 import { corsHeaders } from './cors-headers';
-
-export interface Env {
-  AUTH_SECRET: string;
-  KV: KVNamespace;
-}
+import { Env } from '@/types/worker';
 
 // Helper function to get token from request
 async function getTokenFromRequest(request: Request): Promise<string | null> {
@@ -22,12 +18,12 @@ async function handleGet(request: Request, env: Env, ctx: ExecutionContext): Pro
     const value = await env.KV.get(key);
     
     if (value === null) {
-      return new Response('Key not found', { status: 404, headers: corsHeaders });
+      return new Response('Not found', { status: 404, headers: corsHeaders });
     }
     
-    return new Response(value, { headers: corsHeaders });
+    return new Response(value, { status: 200, headers: corsHeaders });
   } catch (error) {
-    return new Response('Internal Server Error', { status: 500, headers: corsHeaders });
+    return new Response('Error', { status: 500, headers: corsHeaders });
   }
 }
 
@@ -40,7 +36,7 @@ async function handlePut(request: Request, env: Env, ctx: ExecutionContext): Pro
     await env.KV.put(key, value);
     return new Response('Success', { status: 200, headers: corsHeaders });
   } catch (error) {
-    return new Response('Internal Server Error', { status: 500, headers: corsHeaders });
+    return new Response('Error', { status: 500, headers: corsHeaders });
   }
 }
 
@@ -52,7 +48,7 @@ async function handleDelete(request: Request, env: Env, ctx: ExecutionContext): 
     await env.KV.delete(key);
     return new Response('Success', { status: 200, headers: corsHeaders });
   } catch (error) {
-    return new Response('Internal Server Error', { status: 500, headers: corsHeaders });
+    return new Response('Error', { status: 500, headers: corsHeaders });
   }
 }
 
@@ -80,19 +76,14 @@ export default {
     }
 
     // Route request based on method
-    try {
-      switch (request.method) {
-        case 'GET':
-          return handleGet(request, env, ctx);
-        case 'PUT':
-          return handlePut(request, env, ctx);
-        case 'DELETE':
-          return handleDelete(request, env, ctx);
-        default:
-          return new Response('Method not allowed', { status: 405, headers: corsHeaders });
-      }
-    } catch (error) {
-      return new Response('Internal Server Error', { status: 500, headers: corsHeaders });
+    if (request.method === 'GET') {
+      return handleGet(request, env, ctx);
+    } else if (request.method === 'PUT') {
+      return handlePut(request, env, ctx);
+    } else if (request.method === 'DELETE') {
+      return handleDelete(request, env, ctx);
     }
+    
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
   }
 }; 

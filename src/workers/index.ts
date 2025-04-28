@@ -1,11 +1,7 @@
 import dataWorker from './data-worker';
 import kvWorker from './kv-worker';
 import { corsHeaders } from './cors-headers';
-
-export interface Env {
-  AUTH_SECRET: string;
-  KV: KVNamespace;
-}
+import { Env } from '@/types/worker';
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
