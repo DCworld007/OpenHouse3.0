@@ -72,10 +72,11 @@ export default function Navigation() {
               </div>
               <div className="flex items-center">
                 {!isSignedIn && isLoaded && (
-                  <div className="flex gap-2">
-                    <SignInButton mode="modal" />
-                    <SignUpButton mode="modal" />
-                        </div>
+                  <div>
+                    <SignInButton mode="modal">
+                      <button className="text-indigo-600 font-semibold px-4 py-2 rounded hover:bg-indigo-50">Sign In</button>
+                    </SignInButton>
+                  </div>
                 )}
                 {isSignedIn && user && (
                   <div className="flex items-center px-4">

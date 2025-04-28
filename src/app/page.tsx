@@ -27,7 +27,7 @@ export default function Home() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
                 >
-                  Collaborate, organize, and plan together in real-time. Whether it's house hunting, event planning, or project management - UnifyPlan brings everyone together.
+                  Collaborate, organize, and plan together in real-time. Whether it's house hunting, vacation planning, event planning, or project management - UnifyPlan brings everyone together.
                 </motion.p>
                 <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start space-x-4">
                   <div className="rounded-md shadow">
@@ -53,7 +53,7 @@ export default function Home() {
         </div>
         <div className="lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
           <img
-            className="h-56 w-full object-contain sm:h-72 md:h-96 lg:w-full lg:h-full lg:object-cover"
+            className="mx-auto object-contain h-56 w-full sm:h-72 md:h-96 lg:h-[32rem] lg:w-[40rem] xl:h-[36rem] xl:w-[48rem] 2xl:h-[40rem] 2xl:w-[56rem]"
             src="/hero-image.png"
             alt="Team collaborating on planning tasks"
           />
