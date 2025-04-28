@@ -2,12 +2,6 @@ import { verifyToken } from '@/lib/cloudflare-jwt';
 import { corsHeaders } from './cors-headers';
 import { Env } from '@/types/worker';
 
-// Define the Env interface with proper types
-interface Env {
-  DB: D1Database;
-  JWT_SECRET: string;
-}
-
 // Define types for database results
 interface D1Result<T> {
   results: T[];
@@ -105,7 +99,7 @@ async function verifyAuth(request: Request, env: Env) {
   }
 
   const token = authHeader.substring(7);
-  const payload = await verifyToken(token, env.JWT_SECRET);
+  const payload = await verifyToken(token, env.AUTH_SECRET);
   return payload;
 }
 
@@ -828,25 +822,55 @@ async function handleMessages(request: Request, env: Env) {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-      const url = new URL(request.url);
-      const path = url.pathname;
-
-    // Route to appropriate handler based on path
-      if (path.startsWith('/api/cards')) {
-      return handleCards(request, env);
-      } else if (path.startsWith('/api/rooms')) {
-      return handleRooms(request, env);
-      } else if (path.startsWith('/api/messages')) {
-      return handleMessages(request, env);
+    // Handle CORS preflight requests
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: corsHeaders,
+      });
     }
 
-    // Default response for unknown routes
-    return new Response(JSON.stringify({ error: 'Not found' }), {
-      status: 404,
-      headers: {
-        'Content-Type': 'application/json',
-        ...corsHeaders,
-      },
-    });
-  },
+    // Get token from request
+    const token = request.headers.get('Authorization')?.split(' ')[1];
+    if (!token) {
+      return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+    }
+
+    // Verify token
+    try {
+      const payload = await verifyToken(token, env.AUTH_SECRET);
+      if (!payload) {
+        return new Response('Invalid token', { status: 401, headers: corsHeaders });
+      }
+    } catch (error) {
+      return new Response('Invalid token', { status: 401, headers: corsHeaders });
+    }
+
+    // Handle request based on method
+    try {
+      const url = new URL(request.url);
+      const path = url.pathname;
+      const data = await request.json();
+
+      if (request.method === 'POST') {
+        await env.KV.put(path, JSON.stringify(data));
+        return new Response('Success', { status: 200, headers: corsHeaders });
+      } else if (request.method === 'GET') {
+        const value = await env.KV.get(path);
+        if (!value) {
+          return new Response('Not found', { status: 404, headers: corsHeaders });
+        }
+        return new Response(value, { status: 200, headers: corsHeaders });
+      } else if (request.method === 'PUT') {
+        await env.KV.put(path, JSON.stringify(data));
+        return new Response('Success', { status: 200, headers: corsHeaders });
+      } else if (request.method === 'DELETE') {
+        await env.KV.delete(path);
+        return new Response('Success', { status: 200, headers: corsHeaders });
+      }
+
+      return new Response('Method not allowed', { status: 405, headers: corsHeaders });
+    } catch (error) {
+      return new Response('Internal error', { status: 500, headers: corsHeaders });
+    }
+  }
 }; 
