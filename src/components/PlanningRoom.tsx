@@ -9,7 +9,8 @@ import {
   PlusIcon,
   ChartBarIcon,
   DocumentPlusIcon,
-  XMarkIcon
+  XMarkIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import Card from './Card';
@@ -19,6 +20,9 @@ import ActivityFeed from './ActivityFeed';
 import PlanCard from './PlanCard';
 import { v4 as uuidv4 } from 'uuid';
 import { Listing } from '@/types/listing';
+import type { DroppableProvided, DroppableStateSnapshot, DraggableProvided, DraggableStateSnapshot } from 'react-beautiful-dnd';
+
+// @ts-ignore: No type definitions for react-beautiful-dnd in this project
 
 interface CustomPoll {
   id: string;
@@ -90,6 +94,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   if (!group.listings) {
     group.listings = [];
   }
+
+  // Add debug logging in the component render
+  console.log('Rendering listings:', currentGroup.listings.map(c => c.id));
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,39 +292,27 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   const onDragEnd = (result: DropResult) => {
+    console.log('onDragEnd', result, currentGroup.listings.map(c => c.id));
     if (!result.destination) return;
-
     const sourceIndex = result.source.index;
     const destinationIndex = result.destination.index;
-
     const updatedListings = Array.from(currentGroup.listings);
-    const movedCard = updatedListings[sourceIndex];
     const [removed] = updatedListings.splice(sourceIndex, 1);
     updatedListings.splice(destinationIndex, 0, removed);
-
     // Update order property for all affected cards
     const reorderedListings = updatedListings.map((listing, index) => ({
       ...listing,
       order: index
     }));
-
     const updatedGroup = {
       ...currentGroup,
       listings: reorderedListings
     };
-    
     setCurrentGroup(updatedGroup);
     onGroupUpdate(updatedGroup);
-
-    // Create a more descriptive activity message
-    const positionChange = sourceIndex < destinationIndex ? 'down' : 'up';
-    const positionDiff = Math.abs(destinationIndex - sourceIndex);
-    const positionText = positionDiff === 1 
-      ? `1 position ${positionChange}`
-      : `${positionDiff} positions ${positionChange}`;
-
+    // Add activity
     addActivity('card_reorder', {
-      cardTitle: movedCard.address,
+      cardTitle: removed.address,
       fromIndex: sourceIndex,
       toIndex: destinationIndex,
       timestamp: Date.now()
@@ -395,25 +390,34 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               </div>
               <div className="p-4">
                 <DragDropContext onDragEnd={onDragEnd}>
-                  <Droppable droppableId="cards" direction="vertical">
-                    {(provided) => (
+                  <Droppable droppableId="cards" direction="vertical" isDropDisabled={false} isCombineEnabled={false} ignoreContainerClipping={false}>
+                    {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className="space-y-4"
                       >
-                        {group.listings.map((card, index) => (
-                          <Draggable key={card.id} draggableId={card.id} index={index}>
-                            {(provided, snapshot) => (
+                        {currentGroup.listings.map((card, index) => (
+                          <Draggable key={card.id.toString()} draggableId={card.id.toString()} index={index}>
+                            {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
                               <div
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={`relative transition-all group ${
-                                  snapshot.isDragging ? 'opacity-50' : ''
-                                }`}
+                                className={`transition-all group ${snapshot.isDragging ? 'opacity-50' : ''}`}
                               >
-                                <div className="bg-white rounded-lg border border-gray-200 px-6 py-5 hover:border-indigo-300 transition-colors shadow-sm">
+                                <div className="bg-white rounded-lg border border-gray-200 px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group">
+                                  {/* Drag Handle - always visible, left */}
+                                  <button
+                                {...provided.dragHandleProps}
+                                    className="mr-3 p-1 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing"
+                                    tabIndex={0}
+                                    aria-label="Drag to reorder"
+                                    type="button"
+                                  >
+                                    <Bars3Icon className="h-5 w-5 text-gray-600" />
+                                  </button>
+                                  {/* Card Content */}
+                                  <div className="flex-1">
                                   <div className="space-y-4">
                                     <div>
                                       <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
@@ -426,27 +430,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                                         <div className="text-sm text-gray-600 leading-relaxed">{card.notes}</div>
                                       </div>
                                     )}
-                                    {/* Card Reactions Display */}
-                                    {(card.reactions?.some(r => r.type === 'thumbsUp') || 
-                                      card.reactions?.some(r => r.type === 'thumbsDown')) && (
-                                      <div className="flex items-center gap-2 pt-2">
-                                        {card.reactions?.some(r => r.type === 'thumbsUp') && (
-                                          <div className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
-                                            👍 {card.reactions?.filter(r => r.type === 'thumbsUp').length || 0}
                                           </div>
-                                        )}
-                                        {card.reactions?.some(r => r.type === 'thumbsDown') && (
-                                          <div className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
-                                            👎 {card.reactions?.filter(r => r.type === 'thumbsDown').length || 0}
                                           </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Reaction Buttons - Show on Hover */}
-                                <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                  {/* Reactions - right, only on hover/focus */}
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ml-2">
                                   <button
                                     onClick={() => handleCardReaction(card.id, 'thumbsUp')}
                                     className={`p-1.5 rounded-full transition-colors ${
@@ -470,17 +457,18 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                                     👎
                                   </button>
                                 </div>
-
-                                {/* Add Card Button */}
+                                  {/* Plus Button - bottom center, half on/half off, only on hover */}
                                 <button
                                   onClick={() => {
                                     setActiveCardId(card.id);
                                     setShowNewCardForm(true);
                                   }}
-                                  className="absolute -right-4 top-1/2 -translate-y-1/2 z-[60] transition-all duration-200 rounded-full bg-white border border-gray-200 p-2 hover:bg-indigo-50 hover:border-indigo-200 hover:scale-110 shadow-sm opacity-0 group-hover:opacity-100 cursor-pointer"
+                                    className="absolute left-1/2 bottom-0 translate-x-[-50%] translate-y-1/2 z-10 transition-all duration-200 rounded-full bg-white border border-gray-200 p-2 hover:bg-indigo-50 hover:border-indigo-200 hover:scale-110 shadow-lg opacity-0 group-hover:opacity-100"
+                                    title="Add card"
                                 >
                                   <PlusIcon className="w-5 h-5 text-indigo-600" />
                                 </button>
+                                </div>
                               </div>
                             )}
                           </Draggable>
@@ -675,7 +663,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
               </div>
               <div className="h-[550px] overflow-y-auto">
-                <ActivityFeed activities={activities} />
+                <ActivityFeed activities={activities.slice().reverse()} />
               </div>
             </div>
           </div>

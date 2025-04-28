@@ -5,7 +5,7 @@ import { Disclosure, Menu, Transition } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useUser } from '@auth0/nextjs-auth0/client';
+import { UserButton, SignInButton, SignUpButton, useUser } from '@clerk/nextjs';
 
 const navigation = [
   { name: 'Home', href: '/' },
@@ -41,7 +41,7 @@ function UserAvatar({ user }: { user: { name?: string; picture?: string | null }
 
 export default function Navigation() {
   const pathname = usePathname();
-  const { user, isLoading } = useUser();
+  const { isSignedIn, user, isLoaded } = useUser();
 
   return (
     <Disclosure as="nav" className="bg-white shadow">
@@ -71,62 +71,20 @@ export default function Navigation() {
                 </div>
               </div>
               <div className="flex items-center">
-                {!user && !isLoading && (
-                  <a
-                    href="/api/auth/login"
-                    className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                  >
-                    Sign in
-                  </a>
-                )}
-                {user && (
-                  <Menu as="div" className="relative ml-4">
-                    <Menu.Button className="flex items-center focus:outline-none">
-                      <UserAvatar user={user} />
-                    </Menu.Button>
-                    <Transition
-                      as={Fragment}
-                      enter="transition ease-out duration-100"
-                      enterFrom="transform opacity-0 scale-95"
-                      enterTo="transform opacity-100 scale-100"
-                      leave="transition ease-in duration-75"
-                      leaveFrom="transform opacity-100 scale-100"
-                      leaveTo="transform opacity-0 scale-95"
-                    >
-                      <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                        <div className="px-4 py-2 text-sm text-gray-700 border-b">
-                          <div className="font-semibold">{user.name}</div>
-                          <div className="text-xs text-gray-500 truncate">{user.email}</div>
+                {!isSignedIn && isLoaded && (
+                  <div className="flex gap-2">
+                    <SignInButton mode="modal" />
+                    <SignUpButton mode="modal" />
                         </div>
-                        <Menu.Item>
-                          {({ active }) => (
-                            <Link
-                              href="/profile"
-                              className={classNames(
-                                active ? 'bg-gray-100' : '',
-                                'block px-4 py-2 text-sm text-gray-700'
-                              )}
-                            >
-                              Profile
-                            </Link>
-                          )}
-                        </Menu.Item>
-                        <Menu.Item>
-                          {({ active }) => (
-                            <a
-                              href="/api/auth/logout"
-                              className={classNames(
-                                active ? 'bg-gray-100' : '',
-                                'block w-full text-left px-4 py-2 text-sm text-gray-700'
-                              )}
-                            >
-                              Sign out
-                            </a>
-                          )}
-                        </Menu.Item>
-                      </Menu.Items>
-                    </Transition>
-                  </Menu>
+                )}
+                {isSignedIn && user && (
+                  <div className="flex items-center px-4">
+                    <UserButton afterSignOutUrl="/" />
+                    <div className="ml-3">
+                      <div className="text-base font-medium text-gray-800">{user.fullName}</div>
+                      <div className="text-sm font-medium text-gray-500">{user.primaryEmailAddress?.emailAddress}</div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -150,7 +108,7 @@ export default function Navigation() {
                 </Disclosure.Button>
               ))}
             </div>
-            {!user && !isLoading && (
+            {!isSignedIn && isLoaded && (
               <div className="border-t border-gray-200 pb-3 pt-4">
                 <div className="space-y-1">
                   <Disclosure.Button
@@ -163,13 +121,13 @@ export default function Navigation() {
                 </div>
               </div>
             )}
-            {user && (
+            {isSignedIn && user && (
               <div className="border-t border-gray-200 pb-3 pt-4">
                 <div className="flex items-center px-4">
-                  <UserAvatar user={user} />
+                  <UserButton afterSignOutUrl="/" />
                   <div className="ml-3">
-                    <div className="text-base font-medium text-gray-800">{user.name}</div>
-                    <div className="text-sm font-medium text-gray-500">{user.email}</div>
+                    <div className="text-base font-medium text-gray-800">{user.fullName}</div>
+                    <div className="text-sm font-medium text-gray-500">{user.primaryEmailAddress?.emailAddress}</div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-1">

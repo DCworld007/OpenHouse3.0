@@ -11,9 +11,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   useEffect(() => {
     if (typeof document !== 'undefined') {
       const isAuthenticated = document.cookie.includes('auth0');
-      if (!isAuthenticated) {
+  if (!isAuthenticated) {
         router.push('/api/auth/login');
-      }
+  }
     }
   }, [router]);
 

@@ -196,12 +196,12 @@ async function handleCards(request: Request, env: Env) {
       `);
       await insertCardStmt.bind(
         cardId,
-        content,
+          content,
         notes || null,
         cardType || 'what',
         imageUrl || null,
         groupId || null,
-        userId,
+          userId,
         now,
         now
       ).run();
@@ -454,7 +454,7 @@ async function handleRooms(request: Request, env: Env) {
       `);
       await insertRoomStmt.bind(
         roomId,
-        name,
+          name,
         description || null,
         userId,
         now,
@@ -502,7 +502,7 @@ async function handleRooms(request: Request, env: Env) {
           name: m.userName || null,
           email: m.userEmail || null,
           image: m.userImage || null
-        }
+            }
       })) as RoomMember[];
 
       // Format the response
@@ -717,9 +717,9 @@ async function handleMessages(request: Request, env: Env) {
       `);
       await insertStmt.bind(
         messageId,
-        content,
-        userId,
-        roomId,
+          content,
+          userId,
+          roomId,
         now,
         now
       ).run();
@@ -827,15 +827,15 @@ async function handleMessages(request: Request, env: Env) {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-    const path = url.pathname;
+      const url = new URL(request.url);
+      const path = url.pathname;
 
     // Route to appropriate handler based on path
-    if (path.startsWith('/api/cards')) {
+      if (path.startsWith('/api/cards')) {
       return handleCards(request, env);
-    } else if (path.startsWith('/api/rooms')) {
+      } else if (path.startsWith('/api/rooms')) {
       return handleRooms(request, env);
-    } else if (path.startsWith('/api/messages')) {
+      } else if (path.startsWith('/api/messages')) {
       return handleMessages(request, env);
     }
 
@@ -848,4 +848,4 @@ export default {
       },
     });
   },
-};
+}; 

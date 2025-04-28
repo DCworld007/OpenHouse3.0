@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Navigation from '@/components/Navigation';
 import { Toaster } from 'react-hot-toast';
+import { ClerkProvider } from '@clerk/nextjs';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -16,12 +17,22 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  if (typeof window !== 'undefined') {
+    const originalSetItem = localStorage.setItem;
+    localStorage.setItem = function(key: string, value: string) {
+      console.log('[GLOBAL localStorage.setItem]', { key, value, stack: new Error().stack });
+      return originalSetItem.call(this, key, value);
+    };
+  }
+
   return (
     <html lang="en" className="h-full bg-gray-50">
       <body className={`${inter.className} h-full`}>
-        <Navigation />
-        <main>{children}</main>
-        <Toaster />
+        <ClerkProvider>
+          <Navigation />
+          <main>{children}</main>
+          <Toaster />
+        </ClerkProvider>
       </body>
     </html>
   );

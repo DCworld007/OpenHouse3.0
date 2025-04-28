@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import {
@@ -22,6 +24,7 @@ import {
 import PlanGroup from '@/components/PlanGroup';
 import IntakeCard from '@/components/IntakeCard';
 import PlanCard from '@/components/PlanCard';
+import { getGroups, saveGroups } from '@/lib/groupStorage';
 
 const STORAGE_KEY = 'openhouse-data';
 
@@ -30,12 +33,31 @@ interface Card {
   type: 'what' | 'where';
   content: string;
   notes?: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface Group {
   id: string;
   name: string;
   cards: Card[];
+  listings?: {
+    id: string;
+    address: string;
+    cardType: 'what' | 'where';
+    groupId: string;
+    imageUrl: string;
+    sourceUrl: string;
+    source: string;
+    price: number;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+    order: number;
+    reactions: any[];
+    lat?: number;
+    lng?: number;
+  }[];
 }
 
 interface Action {
@@ -52,7 +74,17 @@ const DEFAULT_GROUP: Group = {
 };
 
 export default function PlansPage() {
-  const [groups, setGroups] = useState<Group[]>([DEFAULT_GROUP]);
+  const { isSignedIn, user, isLoaded } = useUser();
+  const router = useRouter();
+  const [groups, setGroups] = useState<Group[]>(() => {
+    try {
+      const savedGroups = getGroups();
+      return savedGroups.length > 0 ? savedGroups : [DEFAULT_GROUP];
+    } catch (error) {
+      console.error('Error loading groups:', error);
+      return [DEFAULT_GROUP];
+    }
+  });
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [actionHistory, setActionHistory] = useState<{ [groupId: string]: Action[] }>({});
@@ -65,43 +97,67 @@ export default function PlansPage() {
     })
   );
 
-  // Load data from localStorage on mount
   useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (savedData) {
-      try {
-        const parsedData = JSON.parse(savedData);
-        // Ensure each group has a cards array
-        const validatedGroups = parsedData.map((group: any) => ({
-          ...group,
-          cards: Array.isArray(group.cards) ? group.cards : [],
-        }));
-        setGroups(validatedGroups);
-      } catch (error) {
-        console.error('Error loading saved data:', error);
-        // Keep the default group if loading fails
-      }
+    if (isLoaded && !isSignedIn) {
+      window.location.href = '/sign-in';
     }
-    // If no saved data, we'll keep the default group from initial state
+  }, [isSignedIn, isLoaded]);
+
+  // Re-sync groups from storage on window focus or tab visibility
+  useEffect(() => {
+    const syncFromStorage = () => setGroups(getGroups());
+    window.addEventListener('focus', syncFromStorage);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') syncFromStorage();
+    });
+    return () => {
+      window.removeEventListener('focus', syncFromStorage);
+      document.removeEventListener('visibilitychange', syncFromStorage);
+    };
   }, []);
 
-  // Save to localStorage whenever groups change
+  // Combine storage effects into one
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+    if (groups.length === 0) return; // Skip empty state
+    console.log('[PlansPage] saveGroups', groups);
+    const synced = syncGroupsWithListings(groups);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(synced));
   }, [groups]);
 
-  // Function to add an action to history
+  // Helper to sync listings with cards for all groups
+  const syncGroupsWithListings = (groups: Group[]) => {
+    return groups.map(group => ({
+      ...group,
+      listings: group.cards.map(card => ({
+        id: card.id,
+        address: card.content,
+        cardType: card.type,
+        groupId: group.id,
+        imageUrl: card.type === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
+        sourceUrl: '',
+        source: 'manual',
+        price: 0,
+        notes: card.notes,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        order: 0,
+        reactions: [],
+        lat: card.lat,
+        lng: card.lng
+      }))
+    }));
+  };
+
   const addToHistory = (groupId: string, action: Omit<Action, 'groupId'>) => {
     setActionHistory(prev => ({
       ...prev,
       [groupId]: [
         { ...action, groupId },
-        ...(prev[groupId] || []).slice(0, 4), // Keep last 5 actions
+        ...(prev[groupId] || []).slice(0, 4),
       ],
     }));
   };
 
-  // Function to undo last action for a group
   const handleUndo = (groupId: string) => {
     const groupHistory = actionHistory[groupId];
     if (!groupHistory || groupHistory.length === 0) return;
@@ -117,43 +173,53 @@ export default function PlansPage() {
       return group;
     }));
 
-    // Remove the undone action from history
     setActionHistory(prev => ({
       ...prev,
       [groupId]: prev[groupId].slice(1),
     }));
   };
 
-  const handleAddCard = (data: { type: 'what' | 'where'; content: string; notes?: string }) => {
-    const newCard = {
+  const geocodeAddress = async (address: string) => {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0 (your@email.com)' } });
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+    return null;
+  };
+
+  const handleAddCard = async (data: { type: 'what' | 'where'; content: string; notes?: string }) => {
+    let newCard: Card = {
       id: Date.now().toString(),
       ...data,
     };
-
-    // If no groups exist, create a default group
+    if (data.type === 'where') {
+      const geo = await geocodeAddress(data.content);
+      if (geo) {
+        newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
+      }
+    }
     if (groups.length === 0) {
       const defaultGroup: Group = {
         id: Date.now().toString(),
         name: 'New Group',
         cards: [newCard],
       };
+      console.log('[PlansPage] setGroups (add card, new group)', [defaultGroup]);
       setGroups([defaultGroup]);
       toast.success('Card added to new group');
       return;
     }
-
     const targetGroupId = selectedGroupId || groups[0].id;
     const targetGroup = groups.find(g => g.id === targetGroupId);
     if (!targetGroup) return;
-
-    // Save current state before modification
     addToHistory(targetGroupId, {
       type: 'ADD_CARD',
       data: newCard,
       previousState: [...targetGroup.cards],
     });
-
-    setGroups(groups.map(group => {
+    const newGroups = groups.map(group => {
       if (group.id === targetGroupId) {
         return {
           ...group,
@@ -161,8 +227,9 @@ export default function PlansPage() {
         };
       }
       return group;
-    }));
-    
+    });
+    console.log('[PlansPage] setGroups (add card)', newGroups);
+    setGroups(newGroups);
     setSelectedGroupId(null);
     toast.success('Card added successfully!');
   };
@@ -170,33 +237,31 @@ export default function PlansPage() {
   const handleCardsChange = (groupId: string, newCards: Card[]) => {
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
-
-    // Save current state before modification
     addToHistory(groupId, {
       type: 'REORDER_CARDS',
       data: newCards,
       previousState: [...group.cards],
     });
-
-    setGroups(groups.map(group => 
+    const newGroups = groups.map(group => 
       group.id === groupId ? { ...group, cards: newCards } : group
-    ));
+    );
+    console.log('[PlansPage] setGroups (cards change)', newGroups);
+    setGroups(newGroups);
   };
 
   const handleGroupNameChange = (groupId: string, newName: string) => {
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
-
-    // Save current state before modification
     addToHistory(groupId, {
       type: 'RENAME_GROUP',
       data: { oldName: group.name, newName },
       previousState: [...group.cards],
     });
-
-    setGroups(groups.map(group => 
+    const newGroups = groups.map(group => 
       group.id === groupId ? { ...group, name: newName } : group
-    ));
+    );
+    console.log('[PlansPage] setGroups (group name change)', newGroups);
+    setGroups(newGroups);
   };
 
   const handleAddGroup = (afterGroupId: string) => {
@@ -205,28 +270,26 @@ export default function PlansPage() {
       name: 'New Group',
       cards: [],
     };
-
     const index = groups.findIndex(g => g.id === afterGroupId);
+    let newGroups;
     if (index === -1) {
-      setGroups([...groups, newGroup]);
+      newGroups = [...groups, newGroup];
     } else {
-      const newGroups = [...groups];
+      newGroups = [...groups];
       newGroups.splice(index + 1, 0, newGroup);
-      setGroups(newGroups);
     }
+    console.log('[PlansPage] setGroups (add group)', newGroups);
+    setGroups(newGroups);
   };
 
   const handleDeleteGroup = (groupId: string) => {
-    setGroups(groups.filter(g => g.id !== groupId));
+    const newGroups = groups.filter(g => g.id !== groupId);
+    console.log('[PlansPage] setGroups (delete group)', newGroups);
+    setGroups(newGroups);
   };
 
   const handleDragStart = (event: any) => {
     const { active } = event;
-    console.log('Drag Start:', { 
-      activeId: active.id,
-      activeRect: active.rect,
-      event 
-    });
     setIsDragging(true);
     const activeGroup = groups.find(g => g.cards.some(c => c.id === active.id));
     if (activeGroup) {
@@ -239,29 +302,18 @@ export default function PlansPage() {
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    console.log('Drag End:', { 
-      activeId: active.id,
-      overId: over?.id,
-      activeRect: active.rect,
-      overRect: over?.rect,
-      event 
-    });
     setActiveCard(null);
     setIsDragging(false);
 
-    // If no over target, return card to original position
     if (!over) {
       toast.error('Invalid drop location - card returned to original position');
       return;
     }
 
-    // Find the source group that has the active card
     const sourceGroup = groups.find(g => g.cards.some(c => c.id === active.id));
     if (!sourceGroup) return;
 
-    // Handle dropping in trash zone
     if (over.id === 'trash-zone') {
-      // Save current state before deletion
       const card = sourceGroup.cards.find(c => c.id === active.id);
       if (card) {
         addToHistory(sourceGroup.id, {
@@ -284,20 +336,15 @@ export default function PlansPage() {
       return;
     }
 
-    // Handle dropping on a group container
     if (over.id.startsWith('group-')) {
       const targetGroupId = over.id.replace('group-', '');
       const targetGroup = groups.find(g => g.id === targetGroupId);
-      
       if (!targetGroup) {
         toast.error('Invalid drop location - card returned to original position');
         return;
       }
-
-      // If dropping in same group, do nothing (since it would go to the end anyway)
       if (targetGroup.id === sourceGroup.id) return;
 
-      // Save current state before moving
       addToHistory(sourceGroup.id, {
         type: 'MOVE_CARD',
         data: { targetGroupId: targetGroup.id },
@@ -309,7 +356,6 @@ export default function PlansPage() {
         previousState: [...targetGroup.cards],
       });
 
-      // Move card to target group
       const movedCard = sourceGroup.cards.find(c => c.id === active.id);
       if (!movedCard) return;
 
@@ -328,19 +374,16 @@ export default function PlansPage() {
         }
         return group;
       }));
-      
       toast.success('Card moved to group');
       return;
     }
 
-    // Handle reordering within the same group or moving to another group via card
     const targetGroup = groups.find(g => g.cards.some(c => c.id === over.id));
     if (!targetGroup) {
       toast.error('Invalid drop location - card returned to original position');
       return;
     }
 
-    // Save current state before moving
     if (sourceGroup.id !== targetGroup.id) {
       addToHistory(sourceGroup.id, {
         type: 'MOVE_CARD',
@@ -362,7 +405,6 @@ export default function PlansPage() {
 
     setGroups(groups.map(group => {
       if (group.id === sourceGroup.id && group.id === targetGroup.id) {
-        // Reordering within the same group
         const oldIndex = group.cards.findIndex(c => c.id === active.id);
         const newIndex = group.cards.findIndex(c => c.id === over.id);
         const newCards = [...group.cards];
@@ -420,8 +462,45 @@ export default function PlansPage() {
     );
   };
 
+  // Consistency checker: warn if cards and listings are out of sync
+  useEffect(() => {
+    groups.forEach(group => {
+      if (group.cards && group.listings) {
+        const cardsStr = JSON.stringify(group.cards);
+        const listingsStr = JSON.stringify(
+          group.listings.map(l => ({
+            id: l.id,
+            type: l.cardType,
+            content: l.address,
+            notes: l.notes,
+            lat: l.lat,
+            lng: l.lng
+          }))
+        );
+        if (cardsStr !== listingsStr) {
+          console.warn(`Group '${group.name}' is out of sync!`, {
+            cards: group.cards,
+            listings: group.listings
+          });
+        }
+      }
+    });
+  }, [groups]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Debug: Dump State Button (removed for production) */}
+      {/*
+      <button
+        className="mb-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm font-mono"
+        onClick={() => {
+          console.log('Current groups state:', groups);
+          console.log('localStorage[openhouse-data]:', localStorage.getItem(STORAGE_KEY));
+        }}
+      >
+        Dump State to Console
+      </button>
+      */}
       <div className="md:flex md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">

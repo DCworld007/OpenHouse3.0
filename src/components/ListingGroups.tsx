@@ -366,6 +366,7 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
                             droppableId={group.id}
                             type="listing"
                             direction={isManageMode ? "vertical" : "horizontal"}
+                            isDropDisabled={false}
                           >
                             {(provided, snapshot) => (
                               <div
@@ -430,7 +431,7 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
             </Droppable>
 
             {/* New Group Drop Zone */}
-            <Droppable droppableId="new-group" type="listing">
+            <Droppable droppableId="new-group" type="listing" isDropDisabled={false}>
               {(provided, snapshot) => (
                 <div
                   ref={provided.innerRef}

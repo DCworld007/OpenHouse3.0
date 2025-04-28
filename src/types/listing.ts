@@ -21,6 +21,8 @@ export interface Listing {
     type: 'thumbsUp' | 'thumbsDown';
     userId: string;
   }>;
+  lat?: number;
+  lng?: number;
 }
 
 export interface ListingGroup {

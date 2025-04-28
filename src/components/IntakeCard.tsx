@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Switch } from '@headlessui/react';
 import { motion } from 'framer-motion';
+import { validateLocationInput } from '../lib/locationValidator';
 
 interface IntakeCardProps {
   onSubmit: (data: { type: 'what' | 'where'; content: string; notes?: string }) => void;
@@ -28,6 +29,7 @@ export default function IntakeCard({ onSubmit, onCancel }: IntakeCardProps) {
   const [content, setContent] = useState('');
   const [notes, setNotes] = useState('');
   const [autoDetectEnabled, setAutoDetectEnabled] = useState(true);
+  const [manuallySelected, setManuallySelected] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -40,25 +42,25 @@ export default function IntakeCard({ onSubmit, onCancel }: IntakeCardProps) {
     return LOCATION_PATTERNS.some(pattern => pattern.test(text));
   };
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleContentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newContent = e.target.value;
     setContent(newContent);
     
-    // Only auto-detect if enabled and there's new content
-    if (autoDetectEnabled && newContent.trim()) {
-      const shouldBeWhere = detectLocationType(newContent);
-      if (shouldBeWhere) {
-        setType('where');
-      }
+    if (autoDetectEnabled && !manuallySelected && newContent.trim()) {
+      const result = await validateLocationInput(newContent);
+      setType(result.isValid ? 'where' : 'what');
     }
   };
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!content.trim()) return;
 
-    // Final check before submission
-    const finalType = autoDetectEnabled && detectLocationType(content) ? 'where' : type;
+    let finalType = type;
+    if (autoDetectEnabled) {
+      const result = await validateLocationInput(content);
+      finalType = result.isValid ? 'where' : 'what';
+    }
 
     onSubmit({
       type: finalType,
@@ -97,6 +99,7 @@ export default function IntakeCard({ onSubmit, onCancel }: IntakeCardProps) {
                 <Switch
                   checked={type === 'where'}
                   onChange={() => {
+                    setManuallySelected(true);
                     setType(type === 'where' ? 'what' : 'where');
                   }}
                   className={`${
@@ -115,7 +118,10 @@ export default function IntakeCard({ onSubmit, onCancel }: IntakeCardProps) {
               </div>
               <button
                 type="button"
-                onClick={() => setAutoDetectEnabled(!autoDetectEnabled)}
+                onClick={() => {
+                  setAutoDetectEnabled(!autoDetectEnabled);
+                  setManuallySelected(false);
+                }}
                 className={`text-xs px-2 py-1 rounded ${
                   autoDetectEnabled 
                     ? 'bg-green-50 text-green-700' 

@@ -16,7 +16,7 @@ export default function Login() {
         <div className="text-center mt-4">
           <Link href="/auth/signup" className="text-indigo-600 hover:underline">
             Or create a new account
-          </Link>
+            </Link>
         </div>
       </div>
     </div>

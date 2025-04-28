@@ -29,16 +29,16 @@ export default function Home() {
                 >
                   Collaborate, organize, and plan together in real-time. Whether it's house hunting, event planning, or project management - UnifyPlan brings everyone together.
                 </motion.p>
-                <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start">
+                <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start space-x-4">
                   <div className="rounded-md shadow">
                     <Link
                       href="/plans"
-                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                      className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10"
                     >
                       Get Started
                     </Link>
                   </div>
-                  <div className="mt-3 sm:mt-0 sm:ml-3">
+                  <div>
                     <Link
                       href="#features"
                       className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 md:py-4 md:text-lg md:px-10"
@@ -53,7 +53,7 @@ export default function Home() {
         </div>
         <div className="lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
           <img
-            className="h-56 w-full object-cover sm:h-72 md:h-96 lg:w-full lg:h-full"
+            className="h-56 w-full object-contain sm:h-72 md:h-96 lg:w-full lg:h-full lg:object-cover"
             src="/hero-image.png"
             alt="Team collaborating on planning tasks"
           />

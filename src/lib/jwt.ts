@@ -3,11 +3,11 @@ import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-min-32-chars-long'
+  process.env.AUTH0_SECRET || 'your-secret-key-min-32-chars-long'
 );
 
-const ISSUER = 'unifyplan';
-const AUDIENCE = 'unifyplan-users';
+const ISSUER = 'openhouse3';
+const AUDIENCE = 'openhouse3-users';
 
 export async function createToken(payload: any) {
   return new SignJWT(payload)
@@ -26,7 +26,7 @@ export async function verifyToken(token: string) {
       audience: AUDIENCE,
     });
     return payload;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
