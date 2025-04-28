@@ -4,9 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && npx @cloudflare/next-on-pages",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "pages:build": "npx @cloudflare/next-on-pages",
+    "pages:deploy": "npm run pages:build && wrangler pages deploy .vercel/output/static",
+    "pages:watch": "npx @cloudflare/next-on-pages --watch",
+    "pages:dev": "npx wrangler pages dev .vercel/output/static --compatibility-date=2024-02-05"
   },
   "dependencies": {
     "@auth0/nextjs-auth0": "^4.4.2",
@@ -45,6 +49,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.12",
     "@types/leaflet": "^1.9.17",
     "@types/mapbox-gl": "^3.4.1",
     "@types/react-beautiful-dnd": "^13.1.8"

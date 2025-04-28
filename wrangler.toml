@@ -1,6 +1,6 @@
-name = "unifyplan-retry"
+name = "openhouse"
 main = "src/workers/index.ts"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-03-01"
 
 [build]
 command = "npm run build"
@@ -37,8 +37,8 @@ bucket = ".next/static"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "openhouse3"
-database_id = "3295d3b6-2f6e-4a92-bf51-738969a1be89"
+database_name = "openhouse"
+database_id = "YOUR_D1_DATABASE_ID"
 
 [[kv_namespaces]]
 binding = "CACHE"
