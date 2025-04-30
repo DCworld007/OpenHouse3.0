@@ -4,6 +4,7 @@ compatibility_date = "2024-03-01"
 
 [build]
 command = "npm run build"
+pages_build_output_dir = ".next"
 
 [pages]
 build_output_dir = ".next"

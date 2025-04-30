@@ -14,11 +14,17 @@ if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
   exit 1
 fi
 
+# Clean the cache and build directories
+echo "Cleaning cache and build directories..."
+rm -rf .next
+rm -rf .vercel
+rm -rf node_modules/.cache
+
 # Build the application
 echo "Building the application..."
 npm run build
 
-# Deploy to Cloudflare
+# Deploy to Cloudflare Pages
 echo "Deploying to Cloudflare..."
 npx wrangler pages deploy .next --project-name openhouse3 --branch main
 

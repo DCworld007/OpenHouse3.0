@@ -2,7 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    unoptimized: true, // Required for Cloudflare Pages
     remotePatterns: [
       {
         protocol: 'https',
@@ -10,7 +9,6 @@ const nextConfig = {
       },
     ],
   },
-  // Optimize for Cloudflare Pages
   experimental: {
     optimizePackageImports: ['@heroicons/react', '@headlessui/react'],
   },
@@ -20,15 +18,16 @@ const nextConfig = {
     if (!dev) {
       config.optimization = {
         ...config.optimization,
+        minimize: true,
         splitChunks: {
           chunks: 'all',
-          minSize: 20000,
-          maxSize: 244000,
+          minSize: 10000,
+          maxSize: 24000, // Keep chunks under Cloudflare's 25MB limit
           minChunks: 1,
           maxAsyncRequests: 30,
           maxInitialRequests: 30,
           cacheGroups: {
-            defaultVendors: {
+            vendor: {
               test: /[\\/]node_modules[\\/]/,
               priority: -10,
               reuseExistingChunk: true,
@@ -42,6 +41,7 @@ const nextConfig = {
         },
       };
     }
+
     return config;
   },
   // Disable source maps in production

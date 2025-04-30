@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyToken, getTokenFromRequest } from '@/lib/cloudflare-jwt';
 
-export const runtime = 'edge';
+// Remove the edge runtime directive since we're using the Cloudflare Pages adapter
+// export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     const userId = payload.sub;
 
     // Get D1 database from context
-    const db = (req as any).cf?.env?.DB;
+    const db = (req as any).env?.DB;
     if (!db) {
       throw new Error('D1 database not found in context');
     }
@@ -71,7 +72,7 @@ export async function GET(req: Request) {
     const userId = payload.sub;
 
     // Get D1 database from context
-    const db = (req as any).cf?.env?.DB;
+    const db = (req as any).env?.DB;
     if (!db) {
       throw new Error('D1 database not found in context');
     }
