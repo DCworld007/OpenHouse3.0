@@ -13,7 +13,6 @@
     "pages:dev": "npx wrangler pages dev .vercel/output/static --compatibility-date=2024-02-05"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "^4.4.2",
     "@clerk/clerk-react": "^5.30.0",
     "@clerk/nextjs": "^4.29.3",
     "@dnd-kit/core": "^6.3.1",
