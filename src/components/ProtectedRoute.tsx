@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -7,15 +8,17 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
+  const { isLoaded, isSignedIn } = useAuth();
 
   useEffect(() => {
-    if (typeof document !== 'undefined') {
-      const isAuthenticated = document.cookie.includes('auth0');
-  if (!isAuthenticated) {
-        router.push('/api/auth/login');
-  }
+    if (isLoaded && !isSignedIn) {
+      router.push('/sign-in');
     }
-  }, [router]);
+  }, [isLoaded, isSignedIn, router]);
 
-  return <>{children}</>;
+  if (!isLoaded) {
+    return <div>Loading...</div>;
+  }
+
+  return isSignedIn ? <>{children}</> : null;
 } 

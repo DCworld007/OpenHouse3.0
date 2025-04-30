@@ -89,7 +89,11 @@ export const config = {
 - Using v2 root directory strategy
 - Build Command: `npx @cloudflare/next-on-pages@1`
 - Framework: Next.js
-- Build Output Directory: Not specified in wrangler.toml
+- Build Output Directory: `.next` (configured in wrangler.toml)
+- Wrangler.toml Configuration:
+  - Added `pages_build_output_dir = ".next"` to fix build configuration
+  - Maintained D1 and KV namespace configurations
+  - Environment-specific settings for production and staging
 
 ## Version Compatibility Issues
 ### Next.js and Clerk Version Mismatch
