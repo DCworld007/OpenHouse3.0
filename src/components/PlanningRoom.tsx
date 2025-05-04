@@ -21,9 +21,6 @@ import ActivityFeed from './ActivityFeed';
 import PlanCard from './PlanCard';
 import { v4 as uuidv4 } from 'uuid';
 import { Listing } from '@/types/listing';
-import type { DroppableProvided, DroppableStateSnapshot, DraggableProvided, DraggableStateSnapshot } from 'react-beautiful-dnd';
-
-// @ts-ignore: No type definitions for react-beautiful-dnd in this project
 
 interface CustomPoll {
   id: string;
