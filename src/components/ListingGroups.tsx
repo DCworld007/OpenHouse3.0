@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { ListingGroup, Listing } from '@/types/listing';
 import Card from './Card';
 import { Menu, Transition } from '@headlessui/react';
@@ -40,107 +41,10 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
     setIsManageMode(!isManageMode);
   };
 
-  const handleDragEnd = (result: DropResult) => {
-    const { source, destination, type, draggableId } = result;
-    console.log('Drag end:', { source, destination, type, draggableId });
-
-    if (!destination) return;
-
-    // Handle group reordering (only in manage mode)
-    if (type === 'group') {
-      if (!isManageMode) return;
-      const newGroups = [...groups];
-      const [movedGroup] = newGroups.splice(source.index, 1);
-      newGroups.splice(destination.index, 0, movedGroup);
-      onGroupsUpdate(newGroups);
-      return;
-    }
-
-    // Handle new group creation
-    if (destination.droppableId === 'new-group') {
-      console.log('Creating new group');
-      const sourceGroup = groups.find(g => g.id === source.droppableId);
-      
-      if (!sourceGroup) {
-        console.error('Source group not found:', source.droppableId);
-        return;
-      }
-
-      // Find the listing being moved
-      const movedListing = sourceGroup.listings[source.index];
-      if (!movedListing) {
-        console.error('Listing not found at index:', source.index);
-        return;
-      }
-
-      // Create new group
-      const newGroupId = crypto.randomUUID();
-      const newGroup: ListingGroup = {
-        id: newGroupId,
-        name: 'New Group',
-        type: 'custom' as const,
-        date: new Date().toISOString().split('T')[0],
-        order: groups.length,
-        listings: [{ ...movedListing, groupId: newGroupId }]
-      };
-
-      // Remove listing from source group and add new group
-      const updatedGroups = groups.map(group => 
-        group.id === source.droppableId
-          ? { ...group, listings: group.listings.filter((_, idx) => idx !== source.index) }
-          : group
-      );
-
-      onGroupsUpdate([...updatedGroups, newGroup]);
-      setEditingGroupId(newGroupId);
-      setEditingName('New Group');
-      return;
-    }
-
-    // Moving within the same group
-    if (source.droppableId === destination.droppableId) {
-      const groupIndex = groups.findIndex(g => g.id === source.droppableId);
-      if (groupIndex === -1) return;
-      
-      const items = [...groups[groupIndex].listings];
-      const [reorderedItem] = items.splice(source.index, 1);
-      items.splice(destination.index, 0, reorderedItem);
-
-      const updatedGroups = [...groups];
-      updatedGroups[groupIndex] = {
-        ...groups[groupIndex],
-        listings: items
-      };
-      onGroupsUpdate(updatedGroups);
-      return;
-    }
-
-    // Moving between groups
-    const sourceGroupIndex = groups.findIndex(g => g.id === source.droppableId);
-    const destGroupIndex = groups.findIndex(g => g.id === destination.droppableId);
-    
-    if (sourceGroupIndex === -1 || destGroupIndex === -1) return;
-    
-    const updatedGroups = [...groups];
-    const sourceItems = [...groups[sourceGroupIndex].listings];
-    const destItems = [...groups[destGroupIndex].listings];
-    
-    const [movedItem] = sourceItems.splice(source.index, 1);
-    destItems.splice(destination.index, 0, {
-      ...movedItem,
-      groupId: destination.droppableId
-    });
-
-    updatedGroups[sourceGroupIndex] = {
-      ...groups[sourceGroupIndex],
-      listings: sourceItems
-    };
-    updatedGroups[destGroupIndex] = {
-      ...groups[destGroupIndex],
-      listings: destItems
-    };
-
-    onGroupsUpdate(updatedGroups);
+  const handleDragEnd = (event: any) => {
+    // TODO: Implement group and listing reordering using @dnd-kit
+    // For now, just log the event
+    console.log('Drag End Event:', event);
   };
 
   const handleEditGroup = (group: ListingGroup) => {
@@ -330,7 +234,7 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
         </button>
       </div>
 
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DndContext onDragEnd={handleDragEnd}>
         <div className="space-y-6">
           <div className="flex flex-col space-y-6">
             <Droppable
@@ -461,7 +365,7 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
             </Droppable>
           </div>
         </div>
-      </DragDropContext>
+      </DndContext>
     </div>
   );
 } 

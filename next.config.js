@@ -14,6 +14,8 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['@heroicons/react', '@headlessui/react'],
   },
+  // External packages that shouldn't be bundled in server components
+  serverExternalPackages: [],
   // Optimize bundle size
   webpack: (config, { dev, isServer }) => {
     // Only run in production
@@ -48,6 +50,10 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   // Enable compression
   compress: true,
+  // Configure trailing slash behavior
+  trailingSlash: false,
+  // Configure output mode
+  output: 'standalone',
 }
 
 module.exports = nextConfig 

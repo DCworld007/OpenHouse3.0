@@ -4,12 +4,8 @@ declare module 'leaflet-routing-machine' {
   namespace Routing {
     function control(options: any): any;
     function plan(waypoints: any, options: any): any;
-    function mapbox(token: string, options: any): any;
+    function osrmv1(options: any): any;
   }
 
   export = Routing;
-}
-
-declare module 'lrm-mapbox' {
-  export = any;
 } 

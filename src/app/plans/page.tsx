@@ -1,8 +1,7 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useRouter, usePathname } from 'next/navigation';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import {
@@ -74,8 +73,8 @@ const DEFAULT_GROUP: Group = {
 };
 
 export default function PlansPage() {
-  const { isSignedIn, user, isLoaded } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
   const [groups, setGroups] = useState<Group[]>(() => {
     try {
       const savedGroups = getGroups();
@@ -104,12 +103,6 @@ export default function PlansPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      window.location.href = '/sign-in';
-    }
-  }, [isSignedIn, isLoaded]);
 
   // Re-sync groups from storage on window focus or tab visibility
   useEffect(() => {

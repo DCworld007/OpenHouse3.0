@@ -1,28 +1,60 @@
-import { withClerkMiddleware, getAuth } from "@clerk/nextjs/server";
+// Removed: import { withClerkMiddleware, getAuth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from 'jose';
 
-// This example protects all routes including api/trpc routes
-// Please edit this to allow other routes to be public as needed.
-// See https://clerk.com/docs/references/nextjs/auth-middleware for more information about configuring your middleware
-export default withClerkMiddleware((req: NextRequest) => {
-  const { userId } = getAuth(req);
-  const publicPaths = ["/", "/plans", "/api/webhooks/clerk"];
-  const isPublic = publicPaths.some((path) => req.nextUrl.pathname.startsWith(path));
+// This function can be marked as an edge function
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+  ],
+};
 
-  if (isPublic) {
+const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup'];
+
+async function verifyJWT(token: string | undefined) {
+  if (!token) return null;
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export default async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Debug output
+  console.log('[middleware] pathname:', pathname);
+  console.log('[middleware] token:', request.cookies.get('token')?.value);
+
+  // Allow public paths (home page, login, signup)
+  if (PUBLIC_PATHS.includes(pathname)) {
     return NextResponse.next();
   }
 
-  if (!userId) {
-    const signInUrl = new URL("/sign-in", req.url);
-    signInUrl.searchParams.set("redirect_url", req.url);
-    return NextResponse.redirect(signInUrl);
+  // Check for JWT in cookies
+  const token = request.cookies.get('token')?.value;
+  const user = await verifyJWT(token);
+
+  if (!user) {
+    const url = new URL('/auth/login', request.url);
+    url.searchParams.set('callbackUrl', encodeURI(request.url));
+    return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
-});
+  // Optionally, attach user info to request (for edge API routes)
+  // request.user = user;
 
-export const config = {
-  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
-}; 
+  return NextResponse.next();
+} 
