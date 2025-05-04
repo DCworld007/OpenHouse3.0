@@ -196,9 +196,13 @@ export default function PlansPage() {
   };
 
   const handleAddCard = async (data: { type: 'what' | 'where'; content: string; notes?: string }) => {
-    let newCard: Card = {
+    let newCard: any = {
       id: Date.now().toString(),
       ...data,
+      cardType: data.type,
+      userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     if (data.type === 'where') {
       const geo = await geocodeAddress(data.content);
@@ -206,36 +210,11 @@ export default function PlansPage() {
         newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
       }
     }
-    if (groups.length === 0) {
-      const defaultGroup: Group = {
-        id: Date.now().toString(),
-        name: 'New Group',
-        cards: [newCard],
-      };
-      console.log('[PlansPage] setGroups (add card, new group)', [defaultGroup]);
-      setGroups([defaultGroup]);
-      toast.success('Card added to new group');
-      return;
-    }
     const targetGroupId = selectedGroupId || groups[0].id;
-    const targetGroup = groups.find(g => g.id === targetGroupId);
-    if (!targetGroup) return;
-    addToHistory(targetGroupId, {
-      type: 'ADD_CARD',
-      data: newCard,
-      previousState: [...targetGroup.cards],
-    });
-    const newGroups = groups.map(group => {
-      if (group.id === targetGroupId) {
-        return {
-          ...group,
-          cards: [...group.cards, newCard],
-        };
-      }
-      return group;
-    });
-    console.log('[PlansPage] setGroups (add card)', newGroups);
-    setGroups(newGroups);
+    const groupIndex = groups.findIndex(g => g.id === targetGroupId);
+    if (groupIndex !== -1) {
+      planningRoomHooks[groupIndex].addCard(newCard);
+    }
     setSelectedGroupId(null);
     toast.success('Card added successfully!');
   };
@@ -495,6 +474,25 @@ export default function PlansPage() {
 
   // For each group, set up usePlanningRoomSync and render cards from Yjs doc
   const planningRoomHooks = groups.map(group => usePlanningRoomSync(group.id, userId));
+
+  // Migration step: on first load, if Yjs doc is empty, migrate legacy cards
+  useEffect(() => {
+    planningRoomHooks.forEach((hook, index) => {
+      if (hook.linkedCards.length === 0 && groups[index].cards.length > 0) {
+        groups[index].cards.forEach(card => {
+          const yjsCard = {
+            ...card,
+            cardType: card.type,
+            userId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          hook.addCard(yjsCard);
+        });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planningRoomHooks.length]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
