@@ -571,6 +571,27 @@ export default function PlansPage() {
                 isFirstGroup={index === 0}
                 totalGroups={groups.length}
                 onAddGroup={handleAddGroup}
+                onAddCard={(_groupId, data) => {
+                  // Use Yjs-powered addCard for this group
+                  let newCard: any = {
+                    id: Date.now().toString(),
+                    ...data,
+                    cardType: data.type,
+                    userId,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  };
+                  if (data.type === 'where') {
+                    geocodeAddress(data.content).then(geo => {
+                      if (geo) {
+                        newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
+                      }
+                      planningRoomHooks[index].addCard(newCard);
+                    });
+                  } else {
+                    planningRoomHooks[index].addCard(newCard);
+                  }
+                }}
               >
                 <ClearAllCardsButton groupIndex={index} />
               </PlanGroup>

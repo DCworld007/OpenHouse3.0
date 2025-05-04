@@ -37,6 +37,7 @@ interface PlanGroupProps {
   isFirstGroup: boolean;
   totalGroups: number;
   onAddGroup: (id: string) => void;
+  onAddCard: (groupId: string, data: { type: 'what' | 'where'; content: string; notes?: string }) => void;
   children?: React.ReactNode;
 }
 
@@ -52,6 +53,7 @@ export default function PlanGroup({
   isFirstGroup,
   totalGroups,
   onAddGroup,
+  onAddCard,
   children,
 }: PlanGroupProps) {
   const router = useRouter();
@@ -68,32 +70,6 @@ export default function PlanGroup({
       onNameChange(id, editedName);
       setIsEditing(false);
     }
-  };
-
-  const handleAddCard = (data: { type: 'what' | 'where'; content: string; notes?: string }) => {
-    const newCard = { id: Date.now().toString(), ...data };
-    let newCards;
-    
-    if (activeCardId) {
-      // Find the index of the active card and insert the new card after it
-      const activeIndex = cards.findIndex(card => card.id === activeCardId);
-      if (activeIndex !== -1) {
-        newCards = [
-          ...cards.slice(0, activeIndex + 1),
-          newCard,
-          ...cards.slice(activeIndex + 1)
-        ];
-      } else {
-        newCards = [...cards, newCard];
-      }
-    } else {
-      // If no active card (empty group), add to the end
-      newCards = [...cards, newCard];
-    }
-
-    onCardsChange(id, newCards);
-    setShowIntakeModal(false);
-    setActiveCardId(null);
   };
 
   const hasLocations = cards.some(card => card.type === 'where');
@@ -307,7 +283,11 @@ export default function PlanGroup({
                 </div>
                 <div className="mt-3 sm:mt-0">
                   <IntakeCard
-                    onSubmit={handleAddCard}
+                    onSubmit={(data) => {
+                      onAddCard(id, data);
+                      setShowIntakeModal(false);
+                      setActiveCardId(null);
+                    }}
                     onCancel={() => setShowIntakeModal(false)}
                   />
                 </div>
