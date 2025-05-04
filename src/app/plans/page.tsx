@@ -24,6 +24,8 @@ import PlanGroup from '@/components/PlanGroup';
 import IntakeCard from '@/components/IntakeCard';
 import PlanCard from '@/components/PlanCard';
 import { getGroups, saveGroups } from '@/lib/groupStorage';
+import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
+import { useUser } from '@/lib/useUser';
 
 const STORAGE_KEY = 'openhouse-data';
 
@@ -103,6 +105,9 @@ export default function PlansPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  const { user } = useUser();
+  const userId = user?.id || '';
 
   // Re-sync groups from storage on window focus or tab visibility
   useEffect(() => {
@@ -488,6 +493,9 @@ export default function PlansPage() {
     });
   }, [groups]);
 
+  // For each group, set up usePlanningRoomSync and render cards from Yjs doc
+  const planningRoomHooks = groups.map(group => usePlanningRoomSync(group.id, userId));
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Debug: Dump State Button (removed for production) */}
@@ -529,7 +537,10 @@ export default function PlansPage() {
               <PlanGroup
                 id={group.id}
                 name={group.name}
-                cards={group.cards}
+                cards={planningRoomHooks[index].cardOrder
+                  .map(id => planningRoomHooks[index].linkedCards.find(card => card.id === id))
+                  .filter(Boolean)
+                  .map(card => ({ ...card!, type: card!.cardType })) as Card[]}
                 onNameChange={handleGroupNameChange}
                 onCardsChange={handleCardsChange}
                 onDelete={handleDeleteGroup}
