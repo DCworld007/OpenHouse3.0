@@ -42,9 +42,33 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
   };
 
   const handleDragEnd = (event: any) => {
-    // TODO: Implement group and listing reordering using @dnd-kit
-    // For now, just log the event
-    console.log('Drag End Event:', event);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    // Group reordering
+    const groupIds = groups.map(g => g.id);
+    const activeGroupIdx = groupIds.indexOf(active.id);
+    const overGroupIdx = groupIds.indexOf(over.id);
+    if (activeGroupIdx !== -1 && overGroupIdx !== -1) {
+      const newGroups = arrayMove(groups, activeGroupIdx, overGroupIdx);
+      onGroupsUpdate(newGroups);
+      return;
+    }
+
+    // Listing reordering within a group
+    for (const group of groups) {
+      const listingIds = group.listings.map(l => l.id);
+      const activeListingIdx = listingIds.indexOf(active.id);
+      const overListingIdx = listingIds.indexOf(over.id);
+      if (activeListingIdx !== -1 && overListingIdx !== -1) {
+        const newListings = arrayMove(group.listings, activeListingIdx, overListingIdx);
+        const newGroups = groups.map(g =>
+          g.id === group.id ? { ...g, listings: newListings } : g
+        );
+        onGroupsUpdate(newGroups);
+        return;
+      }
+    }
   };
 
   const handleEditGroup = (group: ListingGroup) => {
@@ -222,6 +246,58 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
     </>
   );
 
+  function SortableGroup({ group, index, isManageMode, renderGroupHeader, onGroupsUpdate, groups }: any) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: group.id });
+    const style = {
+      transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+      transition,
+      zIndex: isDragging ? 50 : undefined,
+    };
+    return (
+      <div ref={setNodeRef} style={style} className={`bg-white rounded-lg shadow ${isDragging ? 'ring-2 ring-indigo-500 ring-opacity-50' : ''} w-full`} {...attributes} {...listeners}>
+        <div>{renderGroupHeader(group)}</div>
+        <SortableContext items={group.listings.map((l: any) => l.id)} strategy={verticalListSortingStrategy}>
+          <div className={`p-4 bg-gray-50 min-h-[200px] rounded-b-lg ${isDragging ? 'bg-indigo-50' : ''}`}>
+            <div className={isManageMode ? 'flex flex-col space-y-4' : 'flex flex-row gap-4 overflow-x-auto'}>
+              {group.listings.map((listing: Listing, idx: number) => (
+                <SortableListing key={listing.id} listing={listing} index={idx} isManageMode={isManageMode} />
+              ))}
+            </div>
+          </div>
+        </SortableContext>
+      </div>
+    );
+  }
+
+  function SortableListing({ listing, index, isManageMode }: any) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: listing.id });
+    const style = {
+      transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+      transition,
+      zIndex: isDragging ? 50 : undefined,
+      width: isManageMode ? '100%' : '300px',
+    };
+    return (
+      <div ref={setNodeRef} style={style} className={`${isDragging ? 'opacity-50' : ''} flex-shrink-0`} {...attributes} {...listeners}>
+        <Card card={listing} onEdit={() => {}} onReaction={() => {}} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end gap-2">
@@ -233,138 +309,24 @@ export default function ListingGroups({ groups, onGroupsUpdate }: ListingGroupsP
           Switch to {isManageMode ? 'View' : 'Manage'} Mode
         </button>
       </div>
-
-      <DndContext onDragEnd={handleDragEnd}>
-        <div className="space-y-6">
-          <div className="flex flex-col space-y-6">
-            <Droppable
-              droppableId="groups"
-              type="group"
-              direction="vertical"
-            >
-              {(provided) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className="flex flex-col space-y-6"
-                >
-                  {groups.map((group, index) => (
-                    <Draggable
-                      key={group.id}
-                      draggableId={group.id}
-                      index={index}
-                      isDragDisabled={!isManageMode}
-                    >
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          className={`bg-white rounded-lg shadow ${
-                            snapshot.isDragging ? 'ring-2 ring-indigo-500 ring-opacity-50' : ''
-                          } w-full`}
-                        >
-                          <div {...provided.dragHandleProps}>
-                            {renderGroupHeader(group)}
-                          </div>
-                          <Droppable
-                            droppableId={group.id}
-                            type="listing"
-                            direction={isManageMode ? "vertical" : "horizontal"}
-                            isDropDisabled={false}
-                          >
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.droppableProps}
-                                className={`p-4 bg-gray-50 min-h-[200px] rounded-b-lg ${
-                                  snapshot.isDraggingOver ? 'bg-indigo-50' : ''
-                                }`}
-                              >
-                                <div className={`${
-                                  isManageMode
-                                    ? 'flex flex-col space-y-4'
-                                    : 'flex flex-row gap-4 overflow-x-auto'
-                                }`}>
-                                  {group.listings.map((listing, index) => (
-                                    <Draggable
-                                      key={listing.id}
-                                      draggableId={listing.id}
-                                      index={index}
-                                      isDragDisabled={false}
-                                    >
-                                      {(provided, snapshot) => (
-                                        <div
-                                          ref={provided.innerRef}
-                                          {...provided.draggableProps}
-                                          {...provided.dragHandleProps}
-                                          style={{
-                                            ...provided.draggableProps.style,
-                                            width: isManageMode ? '100%' : '300px'
-                                          }}
-                                          className={`${snapshot.isDragging ? 'opacity-50' : ''} flex-shrink-0`}
-                                        >
-                                          <Card
-                                            card={listing}
-                                            onEdit={() => {}}
-                                            onReaction={() => {}}
-                                          />
-                                        </div>
-                                      )}
-                                    </Draggable>
-                                  ))}
-                                  {provided.placeholder}
-                                  <button
-                                    onClick={handleAddNewGroup}
-                                    className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 z-10
-                                      transition-all duration-200 rounded-full shadow-lg p-2 border border-indigo-200 
-                                      hover:border-indigo-500 hover:bg-indigo-50 bg-white opacity-0 group-hover:opacity-100"
-                                  >
-                                    <PlusIcon className="h-5 w-5 text-indigo-500 hover:text-indigo-600" />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </Droppable>
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-
-            {/* New Group Drop Zone */}
-            <Droppable droppableId="new-group" type="listing" isDropDisabled={false}>
-              {(provided, snapshot) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
-                  className={`border-2 border-dashed rounded-lg p-4 flex items-center justify-center min-h-[200px] relative ${
-                    snapshot.isDraggingOver
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-300'
-                  }`}
-                >
-                  <div className="text-center">
-                    <button
-                      onClick={handleAddNewGroup}
-                      className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 z-10
-                        transition-all duration-200 rounded-full shadow-lg p-2 border border-indigo-200 
-                        hover:border-indigo-500 hover:bg-indigo-50 bg-white"
-                    >
-                      <PlusIcon className="h-5 w-5 text-indigo-500 hover:text-indigo-600" />
-                    </button>
-                    <p className="mt-2 text-sm text-gray-500">
-                      Drag a card here to create a new group
-                    </p>
-                  </div>
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
+      <DndContext onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+        <SortableContext items={groups.map(g => g.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-6">
+            <div className="flex flex-col space-y-6">
+              {groups.map((group, index) => (
+                <SortableGroup
+                  key={group.id}
+                  group={group}
+                  index={index}
+                  isManageMode={isManageMode}
+                  renderGroupHeader={renderGroupHeader}
+                  onGroupsUpdate={onGroupsUpdate}
+                  groups={groups}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        </SortableContext>
       </DndContext>
     </div>
   );
