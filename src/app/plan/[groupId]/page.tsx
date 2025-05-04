@@ -12,6 +12,8 @@ import { Switch } from '@headlessui/react';
 import IntakeCard from '@/components/IntakeCard';
 import { useRouter, usePathname } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
+import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
+import { useUser } from '@/lib/useUser';
 
 const STORAGE_KEY = 'openhouse-data';
 
@@ -27,7 +29,27 @@ const MapWithNoSSR = dynamic(() => import('../../../components/Map/LeafletMap'),
 
 export default function PlanRoutePage({ params }: { params: Promise<{ groupId: string }> }) {
   const { groupId } = use(params);
-  const [locations, setLocations] = useState<Location[]>([]);
+  const { user } = useUser();
+  const userId = user?.id || '';
+  const {
+    linkedCards,
+    cardOrder,
+    addCard,
+    reorderCards,
+    removeCard
+  } = usePlanningRoomSync(groupId, userId);
+
+  const locations: Location[] = cardOrder
+    .map(id => linkedCards.find(card => card.id === id))
+    .filter(card => card && card.cardType === 'where' && typeof card.lat === 'number' && typeof card.lng === 'number')
+    .map(card => ({
+      id: card!.id,
+      lat: card!.lat as number,
+      lng: card!.lng as number,
+      address: card!.content,
+      notes: card!.notes || ''
+    }));
+
   const [loading, setLoading] = useState(true);
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
@@ -41,28 +63,6 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
       activationConstraint: { distance: 5 }
     })
   );
-
-  useEffect(() => {
-    setLoading(true);
-    const groups = getGroups();
-    const foundGroup = groups.find((g: any) => g.id === groupId);
-    if (foundGroup) {
-      const cards = foundGroup.cards || [];
-      const whereLocations = cards
-        .filter((card: any) => card.type === 'where' && card.content && card.lat && card.lng)
-        .map((card: any) => ({
-          id: card.id || uuidv4(),
-          lat: card.lat,
-          lng: card.lng,
-          address: card.content,
-          notes: card.notes || ''
-        }));
-      setLocations(whereLocations);
-    } else {
-      setLocations([]);
-    }
-    setLoading(false);
-  }, [groupId]);
 
   // Handle current location
   useEffect(() => {
@@ -93,19 +93,12 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    console.log('Drag End Event:', event);
-    console.log('Active ID:', active?.id, 'Over ID:', over?.id);
-    console.log('Locations before:', locations.map(l => ({ id: l.id, address: l.address })));
     if (!over || active.id === over.id) return;
-
     const oldIndex = locations.findIndex((loc) => loc.id === active.id);
     const newIndex = locations.findIndex((loc) => loc.id === over.id);
-    console.log('Old Index:', oldIndex, 'New Index:', newIndex);
-
     if (oldIndex !== -1 && newIndex !== -1) {
-      const newLocations = arrayMove(locations, oldIndex, newIndex);
-      console.log('Locations after:', newLocations.map(l => ({ id: l.id, address: l.address })));
-      setLocations(newLocations);
+      const newOrder = arrayMove(locations, oldIndex, newIndex).map(l => l.id);
+      reorderCards(newOrder);
     }
   };
 
@@ -120,36 +113,23 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
         // Validate and geocode the location
         const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(data.content)}`);
         const results = await response.json();
-        
         if (results && results.length > 0) {
-          const newLocation: Location = {
+          const newLocation = {
             id: uuidv4(),
             lat: parseFloat(results[0].lat),
             lng: parseFloat(results[0].lon),
-            address: data.content,
-            notes: data.notes || ''
+            content: data.content,
+            notes: data.notes || '',
+            cardType: 'where' as 'where',
+            userId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           };
-
-          // Insert the new location after the specified index
-          const newLocations = [...locations];
-          newLocations.splice(addAfterIndex + 1, 0, newLocation);
-          setLocations(newLocations);
-
-          // Update the group in storage
-          const groups = getGroups();
-          const foundGroup = groups.find((g: any) => g.id === groupId);
-          if (foundGroup) {
-            const newCard = {
-              type: 'where',
-              content: data.content,
-              notes: data.notes,
-              lat: newLocation.lat,
-              lng: newLocation.lng
-            };
-            foundGroup.cards = foundGroup.cards || [];
-            foundGroup.cards.splice(addAfterIndex + 1, 0, newCard);
-            saveGroups(groups);
-          }
+          // Insert the new card after the specified index
+          const newOrder = [...cardOrder];
+          newOrder.splice(addAfterIndex + 1, 0, newLocation.id);
+          addCard(newLocation);
+          reorderCards(newOrder);
         }
       } catch (error) {
         console.error('Error adding location:', error);

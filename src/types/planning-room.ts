@@ -21,6 +21,8 @@ export interface PlanningRoomYjsDoc {
     userId: string;
     createdAt: string;
     updatedAt: string;
+    lat?: number;
+    lng?: number;
   }>;
   cardOrder: string[];
   chatMessages: Array<{
