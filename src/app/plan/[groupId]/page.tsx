@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import dynamic from 'next/dynamic';
 import { useEffect, useState, use } from 'react';
@@ -10,6 +10,8 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 import LocationItem from './LocationItem';
 import { Switch } from '@headlessui/react';
 import IntakeCard from '@/components/IntakeCard';
+import { useRouter, usePathname } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
 
 const STORAGE_KEY = 'openhouse-data';
 
@@ -31,6 +33,8 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [showIntakeCard, setShowIntakeCard] = useState(false);
   const [addAfterIndex, setAddAfterIndex] = useState<number | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -47,6 +51,7 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
       const whereLocations = cards
         .filter((card: any) => card.type === 'where' && card.content && card.lat && card.lng)
         .map((card: any) => ({
+          id: card.id || uuidv4(),
           lat: card.lat,
           lng: card.lng,
           address: card.content,
@@ -66,6 +71,7 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
         navigator.geolocation.getCurrentPosition(
           (position) => {
             setCurrentLocation({
+              id: 'current-location',
               lat: position.coords.latitude,
               lng: position.coords.longitude,
               address: 'Current Location'
@@ -87,13 +93,18 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
+    console.log('Drag End Event:', event);
+    console.log('Active ID:', active?.id, 'Over ID:', over?.id);
+    console.log('Locations before:', locations.map(l => ({ id: l.id, address: l.address })));
     if (!over || active.id === over.id) return;
 
-    const oldIndex = locations.findIndex((loc) => loc.address === active.id);
-    const newIndex = locations.findIndex((loc) => loc.address === over.id);
+    const oldIndex = locations.findIndex((loc) => loc.id === active.id);
+    const newIndex = locations.findIndex((loc) => loc.id === over.id);
+    console.log('Old Index:', oldIndex, 'New Index:', newIndex);
 
     if (oldIndex !== -1 && newIndex !== -1) {
       const newLocations = arrayMove(locations, oldIndex, newIndex);
+      console.log('Locations after:', newLocations.map(l => ({ id: l.id, address: l.address })));
       setLocations(newLocations);
     }
   };
@@ -112,6 +123,7 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
         
         if (results && results.length > 0) {
           const newLocation: Location = {
+            id: uuidv4(),
             lat: parseFloat(results[0].lat),
             lng: parseFloat(results[0].lon),
             address: data.content,
@@ -192,11 +204,11 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={locations.map(loc => loc.address)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={locations.map(loc => loc.id)} strategy={verticalListSortingStrategy}>
               <ol className="space-y-2">
                 {locations.map((loc, idx) => (
                   <LocationItem
-                    key={loc.address}
+                    key={loc.id}
                     location={loc}
                     index={idx + 1}
                     onAddStop={() => handleAddStop(idx)}

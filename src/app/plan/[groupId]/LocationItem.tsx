@@ -19,7 +19,7 @@ export default function LocationItem({ location, index, onAddStop }: LocationIte
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: location.address });
+  } = useSortable({ id: location.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),

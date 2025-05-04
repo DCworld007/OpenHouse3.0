@@ -15,7 +15,8 @@ import {
 import Link from 'next/link';
 import Card from './Card';
 import { Switch } from '@headlessui/react';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import ActivityFeed from './ActivityFeed';
 import PlanCard from './PlanCard';
 import { v4 as uuidv4 } from 'uuid';
@@ -291,32 +292,25 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     onGroupUpdate(updatedGroup);
   };
 
-  const onDragEnd = (result: DropResult) => {
-    console.log('onDragEnd', result, currentGroup.listings.map(c => c.id));
-    if (!result.destination) return;
-    const sourceIndex = result.source.index;
-    const destinationIndex = result.destination.index;
-    const updatedListings = Array.from(currentGroup.listings);
-    const [removed] = updatedListings.splice(sourceIndex, 1);
-    updatedListings.splice(destinationIndex, 0, removed);
-    // Update order property for all affected cards
-    const reorderedListings = updatedListings.map((listing, index) => ({
-      ...listing,
-      order: index
-    }));
-    const updatedGroup = {
-      ...currentGroup,
-      listings: reorderedListings
-    };
-    setCurrentGroup(updatedGroup);
-    onGroupUpdate(updatedGroup);
-    // Add activity
-    addActivity('card_reorder', {
-      cardTitle: removed.address,
-      fromIndex: sourceIndex,
-      toIndex: destinationIndex,
-      timestamp: Date.now()
-    });
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = currentGroup.listings.findIndex((item) => item.id === active.id);
+    const newIndex = currentGroup.listings.findIndex((item) => item.id === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newListings = arrayMove(currentGroup.listings, oldIndex, newIndex).map((listing, idx) => ({ ...listing, order: idx }));
+      const updatedGroup = { ...currentGroup, listings: newListings };
+      setCurrentGroup(updatedGroup);
+      onGroupUpdate(updatedGroup);
+      // Add activity
+      const removed = currentGroup.listings[oldIndex];
+      addActivity('card_reorder', {
+        cardTitle: removed.address,
+        fromIndex: oldIndex,
+        toIndex: newIndex,
+        timestamp: Date.now()
+      });
+    }
   };
 
   const handleAddCard = (type: 'what' | 'where', content: string, notes?: string) => {
@@ -389,106 +383,22 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 </div>
               </div>
               <div className="p-4">
-                <DragDropContext onDragEnd={onDragEnd}>
-                  <Droppable droppableId="cards" direction="vertical" isDropDisabled={false} isCombineEnabled={false} ignoreContainerClipping={false}>
-                    {(provided: DroppableProvided, snapshot: DroppableStateSnapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className="space-y-4"
-                      >
-                        {currentGroup.listings.map((card, index) => (
-                          <Draggable key={card.id.toString()} draggableId={card.id.toString()} index={index}>
-                            {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className={`transition-all group ${snapshot.isDragging ? 'opacity-50' : ''}`}
-                              >
-                                <div className="bg-white rounded-lg border border-gray-200 px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group">
-                                  {/* Drag Handle - always visible, left */}
-                                  <button
-                                {...provided.dragHandleProps}
-                                    className="mr-3 p-1 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing"
-                                    tabIndex={0}
-                                    aria-label="Drag to reorder"
-                                    type="button"
-                                  >
-                                    <Bars3Icon className="h-5 w-5 text-gray-600" />
-                                  </button>
-                                  {/* Card Content */}
-                                  <div className="flex-1">
-                                  <div className="space-y-4">
-                                    <div>
-                                      <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
-                                        {card.cardType === 'where' ? 'Where' : 'What'}
-                                      </div>
-                                      <div className="text-sm text-gray-900">{card.address}</div>
-                                    </div>
-                                    {card.notes && (
-                                      <div className="pt-2 border-t">
-                                        <div className="text-sm text-gray-600 leading-relaxed">{card.notes}</div>
-                                      </div>
-                                    )}
-                                          </div>
-                                          </div>
-                                  {/* Reactions - right, only on hover/focus */}
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ml-2">
-                                  <button
-                                    onClick={() => handleCardReaction(card.id, 'thumbsUp')}
-                                    className={`p-1.5 rounded-full transition-colors ${
-                                      card.reactions?.some(r => r.type === 'thumbsUp' && r.userId === 'currentUser')
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
-                                    title="Like"
-                                  >
-                                    👍
-                                  </button>
-                                  <button
-                                    onClick={() => handleCardReaction(card.id, 'thumbsDown')}
-                                    className={`p-1.5 rounded-full transition-colors ${
-                                      card.reactions?.some(r => r.type === 'thumbsDown' && r.userId === 'currentUser')
-                                        ? 'bg-red-100 text-red-700'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
-                                    title="Dislike"
-                                  >
-                                    👎
-                                  </button>
-                                </div>
-                                  {/* Plus Button - bottom center, half on/half off, only on hover */}
-                                <button
-                                  onClick={() => {
-                                    setActiveCardId(card.id);
-                                    setShowNewCardForm(true);
-                                  }}
-                                    className="absolute left-1/2 bottom-0 translate-x-[-50%] translate-y-1/2 z-10 transition-all duration-200 rounded-full bg-white border border-gray-200 p-2 hover:bg-indigo-50 hover:border-indigo-200 hover:scale-110 shadow-lg opacity-0 group-hover:opacity-100"
-                                    title="Add card"
-                                >
-                                  <PlusIcon className="w-5 h-5 text-indigo-600" />
-                                </button>
-                                </div>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                        {group.listings.length === 0 && (
-                          <div className="text-center py-8">
-                            <p className="text-gray-500 text-sm">No cards yet</p>
-                            <button
-                              onClick={() => setShowNewCardForm(true)}
-                              className="mt-2 text-indigo-600 hover:text-indigo-700 text-sm font-medium"
-                            >
-                              Add your first card
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
+                <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={currentGroup.listings.map(card => card.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-4">
+                      {currentGroup.listings.map((card, index) => (
+                        <SortableCard
+                          key={card.id}
+                          card={card}
+                          index={index}
+                          handleCardReaction={handleCardReaction}
+                          setActiveCardId={setActiveCardId}
+                          setShowNewCardForm={setShowNewCardForm}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
           </div>
@@ -839,6 +749,91 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Add SortableCard component for @dnd-kit
+function SortableCard({ card, index, handleCardReaction, setActiveCardId, setShowNewCardForm }: any) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: card.id });
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className={`transition-all group ${isDragging ? 'opacity-50' : ''}`} {...attributes} {...listeners}>
+      <div className="bg-white rounded-lg border border-gray-200 px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group">
+        {/* Drag Handle - always visible, left */}
+        <button
+          className="mr-3 p-1 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing"
+          tabIndex={0}
+          aria-label="Drag to reorder"
+          type="button"
+          {...listeners}
+        >
+          <Bars3Icon className="h-5 w-5 text-gray-600" />
+        </button>
+        {/* Card Content */}
+        <div className="flex-1">
+          <div className="space-y-4">
+            <div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+                {card.cardType === 'where' ? 'Where' : 'What'}
+              </div>
+              <div className="text-sm text-gray-900">{card.address}</div>
+            </div>
+            {card.notes && (
+              <div className="pt-2 border-t">
+                <div className="text-sm text-gray-600 leading-relaxed">{card.notes}</div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Reactions - right, only on hover/focus */}
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ml-2">
+          <button
+            onClick={() => handleCardReaction(card.id, 'thumbsUp')}
+            className={`p-1.5 rounded-full transition-colors ${
+              card.reactions?.some((r: any) => r.type === 'thumbsUp' && r.userId === 'currentUser')
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="Like"
+          >
+            👍
+          </button>
+          <button
+            onClick={() => handleCardReaction(card.id, 'thumbsDown')}
+            className={`p-1.5 rounded-full transition-colors ${
+              card.reactions?.some((r: any) => r.type === 'thumbsDown' && r.userId === 'currentUser')
+                ? 'bg-red-100 text-red-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="Dislike"
+          >
+            👎
+          </button>
+        </div>
+        {/* Plus Button - bottom center, half on/half off, only on hover */}
+        <button
+          onClick={() => {
+            setActiveCardId(card.id);
+            setShowNewCardForm(true);
+          }}
+          className="absolute left-1/2 bottom-0 translate-x-[-50%] translate-y-1/2 z-10 transition-all duration-200 rounded-full bg-white border border-gray-200 p-2 hover:bg-indigo-50 hover:border-indigo-200 hover:scale-110 shadow-lg opacity-0 group-hover:opacity-100"
+          title="Add card"
+        >
+          <PlusIcon className="w-5 h-5 text-indigo-600" />
+        </button>
+      </div>
     </div>
   );
 } 
