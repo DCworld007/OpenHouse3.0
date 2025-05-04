@@ -392,6 +392,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                           card={card}
                           index={index}
                           handleCardReaction={handleCardReaction}
+                          setActiveCardId={setActiveCardId}
+                          setShowNewCardForm={setShowNewCardForm}
                         />
                       ))}
                     </div>
@@ -752,7 +754,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 }
 
 // Add SortableCard component for @dnd-kit
-function SortableCard({ card, index, handleCardReaction }: any) {
+function SortableCard({ card, index, handleCardReaction, setActiveCardId, setShowNewCardForm }: any) {
   const {
     attributes,
     listeners,
