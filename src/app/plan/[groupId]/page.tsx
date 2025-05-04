@@ -50,7 +50,6 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
       notes: card!.notes || ''
     }));
 
-  const [loading, setLoading] = useState(true);
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [showIntakeCard, setShowIntakeCard] = useState(false);
@@ -143,10 +142,6 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
     setShowIntakeCard(false);
     setAddAfterIndex(null);
   };
-
-  if (loading) {
-    return <div className="text-center py-16">Loading route...</div>;
-  }
 
   return (
     <div className="w-full">
