@@ -475,10 +475,16 @@ export default function PlansPage() {
   // For each group, set up usePlanningRoomSync and render cards from Yjs doc
   const planningRoomHooks = groups.map(group => usePlanningRoomSync(group.id, userId));
 
-  // Migration step: on first load, if Yjs doc is empty, migrate legacy cards
+  // Migration step: on first load, if Yjs doc is empty, migrate legacy cards (only once per group)
   useEffect(() => {
     planningRoomHooks.forEach((hook, index) => {
-      if (hook.linkedCards.length === 0 && groups[index].cards.length > 0) {
+      const groupId = groups[index].id;
+      const migrationKey = `yjs-migrated-${groupId}`;
+      if (
+        hook.linkedCards.length === 0 &&
+        groups[index].cards.length > 0 &&
+        !localStorage.getItem(migrationKey)
+      ) {
         groups[index].cards.forEach(card => {
           const yjsCard = {
             ...card,
@@ -489,10 +495,28 @@ export default function PlansPage() {
           };
           hook.addCard(yjsCard);
         });
+        localStorage.setItem(migrationKey, 'true');
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planningRoomHooks.length]);
+
+  // Temporary: Add a 'Clear All Cards' button for each group for test cleanup
+  function ClearAllCardsButton({ groupIndex }: { groupIndex: number }) {
+    return (
+      <button
+        className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+        onClick={() => {
+          const hook = planningRoomHooks[groupIndex];
+          hook.cardOrder.forEach((id: string) => hook.removeCard(id));
+          // Also clear migration flag so migration can run again if needed
+          localStorage.removeItem(`yjs-migrated-${groups[groupIndex].id}`);
+        }}
+      >
+        Clear All Cards
+      </button>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -547,7 +571,9 @@ export default function PlansPage() {
                 isFirstGroup={index === 0}
                 totalGroups={groups.length}
                 onAddGroup={handleAddGroup}
-              />
+              >
+                <ClearAllCardsButton groupIndex={index} />
+              </PlanGroup>
             </div>
           ))}
         </div>

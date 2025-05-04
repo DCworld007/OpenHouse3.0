@@ -37,6 +37,7 @@ interface PlanGroupProps {
   isFirstGroup: boolean;
   totalGroups: number;
   onAddGroup: (id: string) => void;
+  children?: React.ReactNode;
 }
 
 export default function PlanGroup({ 
@@ -51,6 +52,7 @@ export default function PlanGroup({
   isFirstGroup,
   totalGroups,
   onAddGroup,
+  children,
 }: PlanGroupProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -124,6 +126,7 @@ export default function PlanGroup({
               ) : (
                 <>
                   <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
+                  {children}
                   <button
                     onClick={() => setIsEditing(true)}
                     className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
