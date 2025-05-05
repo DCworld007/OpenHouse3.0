@@ -21,10 +21,11 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
 }
 
 export function usePlanningRoomSync(groupId: string, userId: string) {
-  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages'>>({
+  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages' | 'reactions'>>({
     linkedCards: [],
     cardOrder: [],
     chatMessages: [],
+    reactions: {},
   });
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
@@ -69,10 +70,11 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       isNew = true;
     }
     ydocRef.current = ydoc;
-    // Always get arrays from the persistent doc
+    // Always get arrays/maps from the persistent doc
     const yLinkedCards = ydoc.getArray('linkedCards');
     const yCardOrder = ydoc.getArray('cardOrder');
     const yChatMessages = ydoc.getArray('chatMessages');
+    const yReactions = ydoc.getMap('reactions');
     if (!provider) {
       provider = new WebsocketProvider(
         Y_WEBSOCKET_URL,
@@ -100,10 +102,21 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       console.log('[Yjs] yLinkedCards:', yLinkedCards.toArray());
       console.log('[Yjs] yCardOrder:', yCardOrder.toArray());
       console.log('[Yjs] yChatMessages:', yChatMessages.toArray());
+      // Convert Y.Map to plain JS object
+      const reactionsObj: Record<string, Record<string, 'like' | 'dislike' | null>> = {};
+      yReactions.forEach((userMap, cardId) => {
+        if (userMap instanceof Y.Map) {
+          reactionsObj[cardId] = {};
+          userMap.forEach((reaction, userId) => {
+            reactionsObj[cardId][userId] = reaction;
+          });
+        }
+      });
       setDocState({
         linkedCards: yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'],
         cardOrder: yCardOrder.toArray() as PlanningRoomYjsDoc['cardOrder'],
         chatMessages: yChatMessages.toArray() as PlanningRoomYjsDoc['chatMessages'],
+        reactions: reactionsObj,
       });
       // Debounced persist to D1 on every change
       debouncedPersistToD1();
@@ -111,12 +124,14 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     yLinkedCards.observe(updateState);
     yCardOrder.observe(updateState);
     yChatMessages.observe(updateState);
+    yReactions.observeDeep(updateState);
     updateState();
     // Cleanup: only remove observers, do NOT destroy doc/provider (persist for group lifetime)
     return () => {
       yLinkedCards.unobserve(updateState);
       yCardOrder.unobserve(updateState);
       yChatMessages.unobserve(updateState);
+      yReactions.unobserveDeep(updateState);
       // Do not destroy provider or doc here!
     };
   }, [groupId]);
@@ -202,14 +217,41 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     yChatMessages.push([msg]);
   }, []);
 
+  // Add or update a reaction for a card
+  const addReaction = useCallback((cardId: string, reaction: 'like' | 'dislike' | null) => {
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+    const yReactions = ydoc.getMap('reactions');
+    let userMap = yReactions.get(cardId) as Y.Map<any> | undefined;
+    if (!(userMap instanceof Y.Map)) {
+      userMap = new Y.Map();
+      yReactions.set(cardId, userMap);
+    }
+    (userMap as Y.Map<any>).set(userId, reaction);
+  }, [userId]);
+
+  // Remove a reaction for a card
+  const removeReaction = useCallback((cardId: string) => {
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+    const yReactions = ydoc.getMap('reactions');
+    let userMap = yReactions.get(cardId) as Y.Map<any> | undefined;
+    if (userMap instanceof Y.Map) {
+      userMap.delete(userId);
+    }
+  }, [userId]);
+
   return {
     linkedCards: docState.linkedCards,
     cardOrder: docState.cardOrder,
     chatMessages: docState.chatMessages,
+    reactions: docState.reactions,
     addChatMessage,
     addCard,
     reorderCards,
     removeCard,
+    addReaction,
+    removeReaction,
     // Expose Yjs doc and provider for advanced use if needed
     ydoc: ydocRef.current,
     provider: providerRef.current,

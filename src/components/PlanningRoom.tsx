@@ -281,9 +281,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                             key={card.id}
                             card={card}
                             index={index}
-                            handleCardReaction={handleCardReaction}
                             setActiveCardId={setActiveCardId}
                             setShowNewCardForm={setShowNewCardForm}
+                            planningRoom={planningRoom}
+                            userId={userId}
                           />
                         ) : null
                       ))}
@@ -581,7 +582,26 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 }
 
 // Add SortableCard component for @dnd-kit
-function SortableCard({ card, index, handleCardReaction, setActiveCardId, setShowNewCardForm }: any) {
+function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planningRoom, userId }: any) {
+  const reactions = planningRoom.reactions?.[card.id] || {};
+  const userReaction = reactions[userId] || null;
+  const likeCount = Object.values(reactions).filter(r => r === 'like').length;
+  const dislikeCount = Object.values(reactions).filter(r => r === 'dislike').length;
+
+  // Debug logging
+  console.log('SortableCard', card.id, { reactions, userReaction, likeCount, dislikeCount });
+
+  const handleReaction = (type: 'like' | 'dislike') => {
+    if (userReaction === type) {
+      planningRoom.removeReaction(card.id);
+    } else {
+      planningRoom.addReaction(card.id, type);
+    }
+  };
+
+  // Show reactions on hover if no reactions and user hasn't reacted, otherwise always show
+  const showReactionsAlways = likeCount > 0 || dislikeCount > 0 || userReaction;
+
   const {
     attributes,
     listeners,
@@ -596,9 +616,9 @@ function SortableCard({ card, index, handleCardReaction, setActiveCardId, setSho
     zIndex: isDragging ? 50 : undefined,
   };
   return (
-    <div ref={setNodeRef} style={style} className={`transition-all group ${isDragging ? 'opacity-50' : ''}`} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} className={`transition-all group ${isDragging ? 'opacity-50' : ''}`} {...attributes}>
       <div className="bg-white rounded-lg border border-gray-200 px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group">
-        {/* Drag Handle - always visible, left */}
+        {/* Drag Handle - only this is draggable */}
         <button
           className="mr-3 p-1 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing"
           tabIndex={0}
@@ -624,29 +644,23 @@ function SortableCard({ card, index, handleCardReaction, setActiveCardId, setSho
             )}
           </div>
         </div>
-        {/* Reactions - right, only on hover/focus */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity ml-2">
+        {/* Reactions - right, show on hover if no reactions, always if there are reactions or user has reacted */}
+        <div className={`flex items-center gap-1 ml-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
           <button
-            onClick={() => handleCardReaction(card.id, 'thumbsUp')}
-            className={`p-1.5 rounded-full transition-colors ${
-              card.reactions?.some((r: any) => r.type === 'thumbsUp' && r.userId === 'currentUser')
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            onClick={() => handleReaction('like')}
+            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
+              ${userReaction === 'like' ? 'bg-blue-100 text-blue-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             title="Like"
           >
-            👍
+            👍 <span className="ml-1 text-xs">{likeCount}</span>
           </button>
           <button
-            onClick={() => handleCardReaction(card.id, 'thumbsDown')}
-            className={`p-1.5 rounded-full transition-colors ${
-              card.reactions?.some((r: any) => r.type === 'thumbsDown' && r.userId === 'currentUser')
-                ? 'bg-red-100 text-red-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            onClick={() => handleReaction('dislike')}
+            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
+              ${userReaction === 'dislike' ? 'bg-red-100 text-red-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             title="Dislike"
           >
-            👎
+            👎 <span className="ml-1 text-xs">{dislikeCount}</span>
           </button>
         </div>
         {/* Plus Button - bottom center, half on/half off, only on hover */}

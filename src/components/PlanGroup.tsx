@@ -530,18 +530,6 @@ export default function PlanGroup({
                 {cards.map((card, idx) => (
                   <DraggablePlanCard key={card.id} card={card} index={idx} />
                 ))}
-                {/* PATCH: Always show Add Card button at the end of the card list */}
-                <button
-                  onClick={() => {
-                    setActiveCardId(null);
-                    setShowIntakeModal(true);
-                  }}
-                  className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
-                  style={{ minWidth: 48, minHeight: 48 }}
-                  title="Add Card"
-                >
-                  <PlusIcon className="w-6 h-6 text-gray-400" />
-                </button>
               </div>
               {isEmpty && (
                 <div className="absolute inset-0 flex items-center">
