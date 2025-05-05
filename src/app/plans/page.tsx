@@ -1,25 +1,11 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
-import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  horizontalListSortingStrategy,
-} from '@dnd-kit/sortable';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import PlanGroup from '@/components/PlanGroup';
 import IntakeCard from '@/components/IntakeCard';
 import PlanCard from '@/components/PlanCard';
@@ -83,19 +69,30 @@ export default function PlansPage() {
   const [actionHistory, setActionHistory] = useState<{ [groupId: string]: Action[] }>({});
   const [isDragging, setIsDragging] = useState(false);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
   const { user } = useUser();
   const userId = user?.id || '';
 
   // Always call the hook in the same order to avoid React hook order errors
   const firstGroupId = groups.length > 0 ? groups[0].id : '';
   const planningRoom = usePlanningRoomSync(firstGroupId, userId);
+
+  // --- Add planningRoomRefs map ---
+  const planningRoomRefs = useRef<{ [groupId: string]: React.MutableRefObject<any> }>({});
+  // Create and clean up refs for groups in an effect
+  useEffect(() => {
+    // Add refs for new groups
+    groups.forEach(group => {
+      if (!planningRoomRefs.current[group.id]) {
+        planningRoomRefs.current[group.id] = { current: null };
+      }
+    });
+    // Remove refs for deleted groups
+    Object.keys(planningRoomRefs.current).forEach(id => {
+      if (!groups.find(g => g.id === id)) {
+        delete planningRoomRefs.current[id];
+      }
+    });
+  }, [groups]);
 
   // On mount, load groups from storage or create a default group with a unique ID
   useEffect(() => {
@@ -293,163 +290,105 @@ export default function PlansPage() {
 
   const handleDragStart = (event: any) => {
     const { active } = event;
-    setIsDragging(true);
-    const activeGroup = groups.find(g => g.cards.some(c => c.id === active.id));
-    if (activeGroup) {
-      const card = activeGroup.cards.find(c => c.id === active.id);
-      if (card) {
-        setActiveCard(card);
-      }
-    }
+    // setIsDragging(true);
+    // const activeGroup = groups.find(g => g.cards.some(c => c.id === active.id));
+    // if (activeGroup) {
+    //   const card = activeGroup.cards.find(c => c.id === active.id);
+    //   if (card) {
+    //     setActiveCard(card);
+    //   }
+    // }
   };
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    setActiveCard(null);
-    setIsDragging(false);
+    console.log('handleDragEnd', { active, over }); // DEBUG LOG
+    // setActiveCard(null);
+    // setIsDragging(false);
 
-    if (!over) {
-      toast.error('Invalid drop location - card returned to original position');
-      return;
-    }
+    // if (!over) {
+    //   toast.error('Invalid drop location - card returned to original position');
+    //   return;
+    // }
 
-    const sourceGroup = groups.find(g => g.cards.some(c => c.id === active.id));
-    if (!sourceGroup) return;
+    // const sourceGroup = groups.find(g => g.cards.some(c => c.id === active.id));
+    // if (!sourceGroup) return;
+    // const sourcePlanningRoom = planningRoomRefs.current[sourceGroup.id]?.current;
+    // if (!sourcePlanningRoom) return;
 
-    if (over.id === 'trash-zone') {
-      const card = sourceGroup.cards.find(c => c.id === active.id);
-      if (card) {
-        addToHistory(sourceGroup.id, {
-          type: 'REMOVE_CARD',
-          data: card,
-          previousState: [...sourceGroup.cards],
-        });
-      }
+    // if (over.id === 'trash-zone') {
+    //   sourcePlanningRoom.removeCard(active.id);
+    //   toast.success('Card deleted');
+    //   return;
+    // }
 
-      setGroups(groups.map(group => {
-        if (group.id === sourceGroup.id) {
-          return {
-            ...group,
-            cards: group.cards.filter(c => c.id !== active.id),
-          };
-        }
-        return group;
-      }));
-      toast.success('Card deleted');
-      return;
-    }
+    // if (over.id.startsWith('group-')) {
+    //   const targetGroupId = over.id.replace('group-', '');
+    //   const targetGroup = groups.find(g => g.id === targetGroupId);
+    //   if (!targetGroup) {
+    //     toast.error('Invalid drop location - card returned to original position');
+    //     return;
+    //   }
+    //   if (targetGroup.id === sourceGroup.id) return;
+    //   const targetPlanningRoom = planningRoomRefs.current[targetGroup.id]?.current;
+    //   if (!targetPlanningRoom) return;
+    //   // Find the card in source group
+    //   const movedCard = sourcePlanningRoom.linkedCards.find((c: any) => c.id === active.id);
+    //   if (!movedCard) return;
+    //   // Remove from source, add to target
+    //   sourcePlanningRoom.removeCard(active.id);
+    //   targetPlanningRoom.addCard(movedCard);
+    //   toast.success('Card moved to group');
+    //   return;
+    // }
 
-    if (over.id.startsWith('group-')) {
-      const targetGroupId = over.id.replace('group-', '');
-      const targetGroup = groups.find(g => g.id === targetGroupId);
-      if (!targetGroup) {
-        toast.error('Invalid drop location - card returned to original position');
-        return;
-      }
-      if (targetGroup.id === sourceGroup.id) return;
+    // const targetGroup = groups.find(g => g.cards.some(c => c.id === over.id));
+    // if (!targetGroup) {
+    //   toast.error('Invalid drop location - card returned to original position');
+    //   return;
+    // }
+    // const targetPlanningRoom = planningRoomRefs.current[targetGroup.id]?.current;
+    // if (!targetPlanningRoom) return;
 
-      addToHistory(sourceGroup.id, {
-        type: 'MOVE_CARD',
-        data: { targetGroupId: targetGroup.id },
-        previousState: [...sourceGroup.cards],
-      });
-      addToHistory(targetGroup.id, {
-        type: 'MOVE_CARD',
-        data: { sourceGroupId: sourceGroup.id },
-        previousState: [...targetGroup.cards],
-      });
-
-      const movedCard = sourceGroup.cards.find(c => c.id === active.id);
-      if (!movedCard) return;
-
-      setGroups(groups.map(group => {
-        if (group.id === sourceGroup.id) {
-          return {
-            ...group,
-            cards: group.cards.filter(c => c.id !== active.id),
-          };
-        }
-        if (group.id === targetGroup.id) {
-          return {
-            ...group,
-            cards: [...group.cards, movedCard],
-          };
-        }
-        return group;
-      }));
-      toast.success('Card moved to group');
-      return;
-    }
-
-    const targetGroup = groups.find(g => g.cards.some(c => c.id === over.id));
-    if (!targetGroup) {
-      toast.error('Invalid drop location - card returned to original position');
-      return;
-    }
-
-    if (sourceGroup.id !== targetGroup.id) {
-      addToHistory(sourceGroup.id, {
-        type: 'MOVE_CARD',
-        data: { targetGroupId: targetGroup.id },
-        previousState: [...sourceGroup.cards],
-      });
-      addToHistory(targetGroup.id, {
-        type: 'MOVE_CARD',
-        data: { sourceGroupId: sourceGroup.id },
-        previousState: [...targetGroup.cards],
-      });
-    } else {
-      addToHistory(sourceGroup.id, {
-        type: 'REORDER_CARDS',
-        data: null,
-        previousState: [...sourceGroup.cards],
-      });
-    }
-
-    setGroups(groups.map(group => {
-      if (group.id === sourceGroup.id && group.id === targetGroup.id) {
-        const oldIndex = group.cards.findIndex(c => c.id === active.id);
-        const newIndex = group.cards.findIndex(c => c.id === over.id);
-        const newCards = [...group.cards];
-        const [movedCard] = newCards.splice(oldIndex, 1);
-        newCards.splice(newIndex, 0, movedCard);
-        return {
-          ...group,
-          cards: newCards,
-        };
-      }
-      if (group.id === sourceGroup.id) {
-        return {
-          ...group,
-          cards: group.cards.filter(c => c.id !== active.id),
-        };
-      }
-      if (group.id === targetGroup.id) {
-        const overCardIndex = group.cards.findIndex(c => c.id === over.id);
-        const newCards = [...group.cards];
-        const movedCard = sourceGroup.cards.find(c => c.id === active.id);
-        if (movedCard) {
-          newCards.splice(overCardIndex, 0, movedCard);
-        }
-        return {
-          ...group,
-          cards: newCards,
-        };
-      }
-      return group;
-    }));
+    // if (sourceGroup.id !== targetGroup.id) {
+    //   // Cross-group move to specific position
+    //   const movedCard = sourcePlanningRoom.linkedCards.find((c: any) => c.id === active.id);
+    //   if (!movedCard) return;
+    //   sourcePlanningRoom.removeCard(active.id);
+    //   // Insert at the position of over.id in target group
+    //   const overIdx = targetPlanningRoom.cardOrder.findIndex((id: string) => id === over.id);
+    //   targetPlanningRoom.addCard(movedCard, over.id);
+    //   toast.success('Card moved to group');
+    // } else {
+    //   // Reorder within the same group
+    //   const oldIndex = targetPlanningRoom.cardOrder.findIndex((id: string) => id === active.id);
+    //   const newIndex = targetPlanningRoom.cardOrder.findIndex((id: string) => id === over.id);
+    //   if (oldIndex !== -1 && newIndex !== -1) {
+    //     const newOrder = Array.from(targetPlanningRoom.cardOrder);
+    //     const [moved] = newOrder.splice(oldIndex, 1);
+    //     newOrder.splice(newIndex, 0, moved);
+    //     targetPlanningRoom.reorderCards(newOrder);
+    //   }
+    // }
   };
 
   const TrashZone = () => {
-    const { setNodeRef, isOver } = useDroppable({
-      id: 'trash-zone',
+    const [{ isOver }, drop] = useDrop({
+      accept: 'CARD',
+      drop: () => {
+        // Handle drop to trash
+        console.log('Card dropped to trash');
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
     });
 
     if (!isDragging) return null;
 
     return (
       <div
-        ref={setNodeRef}
+        ref={drop}
         className={`fixed bottom-8 right-8 w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
           isOver 
             ? 'bg-red-100 border-2 border-red-500 scale-125' 
@@ -519,47 +458,79 @@ export default function PlansPage() {
         />
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
+      <DndProvider backend={HTML5Backend}>
         <div className="mt-6 space-y-4">
-          {groups.map((group, index) => (
-            <div key={group.id} className="relative group pb-4">
-              <PlanGroup
-                id={group.id}
-                name={group.name}
-                userId={userId}
-                onNameChange={handleGroupNameChange}
-                onCardsChange={handleCardsChange}
-                onDelete={handleDeleteGroup}
-                onUndo={() => handleUndo(group.id)}
-                canUndo={!!(actionHistory[group.id]?.length)}
-                isFirstGroup={index === 0}
-                totalGroups={groups.length}
-                onAddGroup={handleAddGroup}
-                legacyCards={group.cards}
-              />
-            </div>
-          ))}
+          {groups.map((group, index) => {
+            const ref = planningRoomRefs.current[group.id];
+            return (
+              <div key={group.id} className="relative group pb-4">
+                <PlanGroup
+                  id={group.id}
+                  name={group.name}
+                  userId={userId}
+                  onNameChange={handleGroupNameChange}
+                  onCardsChange={handleCardsChange}
+                  onDelete={handleDeleteGroup}
+                  onUndo={() => handleUndo(group.id)}
+                  canUndo={!!(actionHistory[group.id]?.length)}
+                  isFirstGroup={index === 0}
+                  totalGroups={groups.length}
+                  onAddGroup={handleAddGroup}
+                  legacyCards={group.cards}
+                  planningRoomRef={ref}
+                />
+              </div>
+            );
+          })}
         </div>
 
         <TrashZone />
 
-        <DragOverlay>
-          {activeCard && (
-            <PlanCard
-              id={activeCard.id}
-              what={activeCard.type === 'what' ? activeCard.content : ''}
-              where={activeCard.type === 'where' ? activeCard.content : ''}
-              notes={activeCard.notes}
-              isDragging
-            />
-          )}
-        </DragOverlay>
-      </DndContext>
+        <div className="mt-6 space-y-4">
+          {groups.map((group, index) => {
+            const ref = planningRoomRefs.current[group.id];
+            return (
+              <div key={group.id} className="relative group pb-4">
+                {group.cards.map((card, cardIndex) => (
+                  <div
+                    key={card.id}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center">
+                        {/* Placeholder for card icon */}
+                      </div>
+                      <div className="ml-4">
+                        {card.content}
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <button
+                        className="text-red-500 hover:text-red-700 mr-2"
+                        onClick={() => {
+                          // Handle remove card
+                          console.log('Removing card:', card.id);
+                        }}
+                      >
+                        Remove
+                      </button>
+                      <button
+                        className="text-blue-500 hover:text-blue-700"
+                        onClick={() => {
+                          // Handle edit card
+                          console.log('Editing card:', card.id);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </DndProvider>
     </div>
   );
 } 

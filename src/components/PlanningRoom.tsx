@@ -77,7 +77,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const { user } = useUser();
   const userId = user?.id || '';
   const planningRoom = usePlanningRoomSync(group.id, userId);
-  const [messages, setMessages] = useState<ExtendedMessage[]>([]);
+  // Use Yjs-powered chat messages
+  const messages = planningRoom.chatMessages;
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -103,17 +104,12 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-
-    const message: ExtendedMessage = {
+    planningRoom.addChatMessage({
       id: uuidv4(),
-      content: newMessage,
-      type: 'text',
+      userId,
+      text: newMessage,
       timestamp: Date.now(),
-      sender: 'currentUser',
-      reactions: {}
-    };
-
-    setMessages(prev => [...prev, message]);
+    });
     setNewMessage('');
   };
 
@@ -127,19 +123,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       votes: {},
     };
 
-    // Create a new message with the poll
-    const message: ExtendedMessage = {
-      id: messageId,
-      type: 'poll',
-      content: '',
-      poll: newPoll,
+    // Add the message to chat (Yjs-powered, only text messages for now)
+    planningRoom.addChatMessage({
+      id: uuidv4(),
+      userId,
+      text: question, // For poll creation, just store the question as text for now
       timestamp: Date.now(),
-      sender: 'currentUser',
-      reactions: {}
-    };
-
-    // Add the message to chat
-    setMessages(prev => [...prev, message]);
+    });
     
     // Add activity
     addActivity('poll_create', {
@@ -153,57 +143,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     setShowPollCreator(false);
   };
 
-  const handleVote = (messageId: string, option: string, pollId: string) => {
-    // Update the poll votes in the message
-    setMessages(prev => prev.map(message => {
-      if (message.id === messageId && message.poll) {
-        const votes = message.poll.votes ? { ...message.poll.votes } : {};
-        const userId = 'currentUser';
-        
-        // Remove user's previous vote if any
-        Object.keys(votes).forEach(opt => {
-          votes[opt] = votes[opt]?.filter(id => id !== userId) || [];
-        });
-        
-        // Add new vote
-        votes[option] = [...(votes[option] || []), userId];
+  // Poll voting not yet supported in Yjs chat
+  // (removed legacy updatePollVotes logic)
 
-        return {
-          ...message,
-          poll: {
-            ...message.poll,
-            votes
-          }
-        };
-      }
-      return message;
-    }));
-
-    // Add activity
-    addActivity('poll_vote', {
-      pollOption: option,
-      timestamp: Date.now()
-    });
-  };
-
-  const handleReaction = (messageId: string, emoji: string) => {
-    setMessages(messages.map(message => {
-      if (message.id === messageId) {
-        const reactions = { ...message.reactions };
-        const currentReactions = reactions[emoji] || [];
-        const userId = 'currentUser'; // Replace with actual user ID when auth is implemented
-        reactions[emoji] = currentReactions.includes(userId)
-          ? currentReactions.filter((id: string) => id !== userId)
-          : [...currentReactions, userId];
-        return {
-          ...message,
-          reactions,
-        };
-      }
-      return message;
-    }));
-    setShowEmojiPicker(null);
-  };
+  // Reactions not yet supported in Yjs chat
+  // (removed legacy updateReaction logic)
 
   const handleAddCard = (type: 'what' | 'where', content: string, notes?: string) => {
     const newCard = {
@@ -365,86 +309,22 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((message) => (
                   <div key={message.id} className="group relative">
-                    <div className={`flex flex-col rounded-xl p-3 ${
-                      message.type === 'poll' ? 'bg-gray-50' : 'bg-white border border-gray-100'
-                    }`}>
+                    <div className="flex flex-col rounded-xl p-3 bg-white border border-gray-100">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
                           <span className="text-sm font-medium text-indigo-700">
-                            {message.sender?.charAt(0).toUpperCase()}
+                            {message.userId?.charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div>
-                          <span className="font-medium text-gray-900">{message.sender}</span>
+                          <span className="font-medium text-gray-900">{message.userId}</span>
                           <span className="ml-2 text-sm text-gray-500">
                             {new Date(message.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
                       </div>
-
-                      {message.type === 'text' ? (
-                        <p className="mt-2 text-gray-700">{message.content}</p>
-                      ) : (
-                        <div className="mt-2 space-y-2">
-                          <h4 className="font-medium text-gray-900">{message.poll?.question}</h4>
-                          {message.poll?.options.map((option: string, optionIndex: number) => (
-                            <button
-                              key={optionIndex}
-                              onClick={() => handleVote(message.id, option, message.poll?.id || '')}
-                              className="w-full p-2 text-left text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              {option}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Reactions */}
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {EMOJI_REACTIONS.map((emoji) => {
-                          const users = message.reactions?.[emoji] || [];
-                          if (users.length === 0) return null;
-                          return (
-                            <button
-                              key={emoji}
-                              onClick={() => handleReaction(message.id, emoji)}
-                              className={`inline-flex items-center px-2 py-1 text-xs rounded-full transition-colors ${
-                                users.includes('currentUser')
-                                  ? 'bg-indigo-100 text-indigo-700'
-                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                              }`}
-                            >
-                              {emoji} {users.length}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <p className="mt-2 text-gray-700">{message.text}</p>
                     </div>
-
-                    {/* Reaction Button */}
-                    <button
-                      onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
-                      className="absolute right-2 top-2 p-1.5 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all rounded-full hover:bg-gray-100"
-                    >
-                      <FaceSmileIcon className="h-5 w-5" />
-                    </button>
-
-                    {/* Emoji Picker */}
-                    {showEmojiPicker === message.id && (
-                      <div className="absolute right-0 top-10 bg-white rounded-xl shadow-lg border p-2 z-10">
-                        <div className="flex gap-1">
-                          {EMOJI_REACTIONS.map(emoji => (
-                            <button
-                              key={emoji}
-                              onClick={() => handleReaction(message.id, emoji)}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 ))}
                 {messages.length === 0 && (

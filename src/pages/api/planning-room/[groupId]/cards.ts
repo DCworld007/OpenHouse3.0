@@ -1,32 +1,40 @@
 export const runtime = 'edge';
-import type { NextApiRequest, NextApiResponse } from 'next';
 
 // In-memory store as a stub for D1
 const yjsDocStore: Record<string, string> = {};
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { groupId } = req.query;
-  if (typeof groupId !== 'string') {
-    return res.status(400).json({ error: 'Invalid groupId' });
+export default async function handler(req: Request) {
+  // Extract groupId from the URL (works for /api/planning-room/[groupId]/cards)
+  const url = new URL(req.url);
+  // Assumes the URL ends with /planning-room/{groupId}/cards
+  const pathParts = url.pathname.split('/');
+  const groupId = pathParts[pathParts.length - 2];
+
+  if (!groupId) {
+    return new Response(JSON.stringify({ error: 'Invalid groupId' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
 
   if (req.method === 'GET') {
-    // Return the Yjs doc as a base64 string (or null if not found)
     const doc = yjsDocStore[groupId] || null;
-    return res.status(200).json({ doc });
+    return new Response(JSON.stringify({ doc }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
   if (req.method === 'POST') {
-    // Save the Yjs doc (base64 string)
-    const { doc } = req.body;
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+    const doc = body.doc;
     if (typeof doc !== 'string') {
-      return res.status(400).json({ error: 'Missing doc' });
+      return new Response(JSON.stringify({ error: 'Missing doc' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
     yjsDocStore[groupId] = doc;
-    return res.status(200).json({ ok: true });
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+  return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
 }
 
 // TODO: Replace in-memory store with D1 database logic for production. 

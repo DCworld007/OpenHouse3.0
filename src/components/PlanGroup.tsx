@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment, ReactNode, useEffect } from 'react';
+import { useState, Fragment, ReactNode, useEffect, useRef } from 'react';
 import { 
   PencilIcon, 
   MapIcon, 
@@ -13,15 +13,11 @@ import {
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { Menu, Transition } from '@headlessui/react';
-import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import PlanCard from './PlanCard';
 import IntakeCard from './IntakeCard';
-import { useDroppable } from '@dnd-kit/core';
 import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
 import toast from 'react-hot-toast';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { DndContext } from '@dnd-kit/core';
+import { useDrag, useDrop } from 'react-dnd';
 
 interface Card {
   id: string;
@@ -44,6 +40,7 @@ interface PlanGroupProps {
   onAddGroup: (id: string) => void;
   legacyCards?: Card[];
   children?: ReactNode | ((planningRoom: any) => ReactNode);
+  planningRoomRef?: React.MutableRefObject<any>;
 }
 
 interface PlanCardProps {
@@ -54,6 +51,8 @@ interface PlanCardProps {
   isDragging?: boolean;
   onAddCard?: (afterCardId?: string) => void;
 }
+
+const DND_ITEM_TYPE = 'CARD';
 
 export default function PlanGroup({ 
   id, 
@@ -69,16 +68,20 @@ export default function PlanGroup({
   onAddGroup,
   legacyCards = [],
   children,
+  planningRoomRef,
 }: PlanGroupProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(name);
   const [showIntakeModal, setShowIntakeModal] = useState(false);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
-  const { setNodeRef, isOver } = useDroppable({ 
-    id: `group-${id}`,
-  });
   const planningRoom = usePlanningRoomSync(id, userId);
+  // Only set the ref in an effect to avoid infinite render loops
+  useEffect(() => {
+    if (planningRoomRef) {
+      planningRoomRef.current = planningRoom;
+    }
+  }, [planningRoom, planningRoomRef]);
   const cards = planningRoom.cardOrder
     .map((cardId: string) => planningRoom.linkedCards.find((card: any) => card.id === cardId))
     .filter((card: any) => Boolean(card))
@@ -163,43 +166,224 @@ export default function PlanGroup({
     toast.success('Card added successfully!');
   };
 
-  // PlanSortableCard: wraps PlanCard with useSortable and drag styles
-  function PlanSortableCard({ card, onAddCard }: { card: Card; onAddCard: (afterCardId?: string) => void }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition: transition || 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
-      zIndex: isDragging ? 50 : undefined,
-    };
+  // --- DnD logic ---
+  // Drop target for the group (for dropping at end or into empty group)
+  const [, dropGroup] = useDrop({
+    accept: DND_ITEM_TYPE,
+    drop: (item: any, monitor) => {
+      if (!monitor.didDrop()) {
+        // Only handle if not already handled by a card
+        if (item.groupId !== id) {
+          // Move card from another group to end of this group
+          const sourcePlanningRoom = item.planningRoom;
+          const movedCard = sourcePlanningRoom.linkedCards.find((c: any) => c.id === item.cardId);
+          if (movedCard) {
+            sourcePlanningRoom.removeCard(item.cardId);
+            planningRoom.addCard(movedCard);
+          }
+        }
+      }
+    },
+    canDrop: (item: any) => item.groupId !== id || isEmpty,
+    collect: monitor => ({ isOver: monitor.isOver(), canDrop: monitor.canDrop() }),
+  });
+
+  // --- Card DnD logic ---
+  function DraggablePlanCard({ card, index }: { card: Card; index: number }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const [{ isDragging }, drag] = useDrag({
+      type: DND_ITEM_TYPE,
+      item: { type: DND_ITEM_TYPE, cardId: card.id, groupId: id, planningRoom, index },
+      collect: monitor => ({
+        isDragging: monitor.isDragging(),
+      }),
+    });
+
+    // Track the intended drop index and swap state
+    const [dropPosition, setDropPosition] = useState<number | null>(null);
+    const [isSwap, setIsSwap] = useState(false);
+
+    const [{ isOver }, drop] = useDrop({
+      accept: DND_ITEM_TYPE,
+      hover: (item: any, monitor) => {
+        if (!ref.current) return;
+        if (item.cardId === card.id) return;
+        const hoverBoundingRect = ref.current.getBoundingClientRect();
+        const clientOffset = monitor.getClientOffset();
+        if (!clientOffset) return;
+        const hoverMiddleX = (hoverBoundingRect.right - hoverBoundingRect.left) / 2;
+        const hoverClientX = clientOffset.x - hoverBoundingRect.left;
+        // If pointer is centered on card (within 40% of center), treat as swap
+        const centerThreshold = hoverMiddleX * 0.6;
+        if (hoverClientX > 0 && hoverClientX < hoverBoundingRect.right - hoverBoundingRect.left && Math.abs(hoverClientX - hoverMiddleX) < centerThreshold) {
+          setIsSwap(true);
+          setDropPosition(null);
+        } else {
+          setIsSwap(false);
+          setDropPosition(hoverClientX < hoverMiddleX ? index : index + 1);
+        }
+      },
+      drop: (item: any, monitor) => {
+        setIsSwap(false);
+        if (!ref.current) return;
+        if (item.cardId === card.id) {
+          setDropPosition(null);
+          return;
+        }
+        const hoverBoundingRect = ref.current.getBoundingClientRect();
+        const clientOffset = monitor.getClientOffset();
+        if (!clientOffset) return;
+        const hoverMiddleX = (hoverBoundingRect.right - hoverBoundingRect.left) / 2;
+        const hoverClientX = clientOffset.x - hoverBoundingRect.left;
+        const dragIndex = planningRoom.cardOrder.findIndex((cid: string) => cid === item.cardId);
+        const hoverIndex = planningRoom.cardOrder.findIndex((cid: string) => cid === card.id);
+        // Inter-group drop
+        if (item.groupId !== id) {
+          const sourcePlanningRoom = item.planningRoom;
+          const movedCard = sourcePlanningRoom.linkedCards.find((c: any) => c.id === item.cardId);
+          if (!movedCard) return;
+          // Remove from source group
+          sourcePlanningRoom.removeCard(item.cardId);
+          // Swap if pointer is centered on card
+          const centerThreshold = hoverMiddleX * 0.6;
+          if (hoverClientX > 0 && hoverClientX < hoverBoundingRect.right - hoverBoundingRect.left && Math.abs(hoverClientX - hoverMiddleX) < centerThreshold) {
+            // Swap: remove target card, add movedCard at target's position, add target card to source group
+            const targetCard = planningRoom.linkedCards.find((c: any) => c.id === card.id);
+            if (targetCard) {
+              planningRoom.removeCard(card.id);
+              planningRoom.addCard(movedCard);
+              sourcePlanningRoom.addCard(targetCard);
+            }
+            setDropPosition(null);
+            return;
+          }
+          // Otherwise, insert at gap
+          let insertIndex = hoverClientX < hoverMiddleX ? hoverIndex : hoverIndex + 1;
+          const newOrder = Array.from(planningRoom.cardOrder);
+          newOrder.splice(insertIndex, 0, item.cardId);
+          planningRoom.addCard(movedCard);
+          planningRoom.reorderCards(newOrder);
+          setDropPosition(null);
+          return;
+        }
+        // Intra-group drop
+        if (dragIndex === -1 || hoverIndex === -1) return;
+        if (hoverClientX > 0 && hoverClientX < hoverBoundingRect.right - hoverBoundingRect.left) {
+          // If pointer is centered on card (within 40% of center), treat as swap
+          const centerThreshold = hoverMiddleX * 0.6;
+          if (Math.abs(hoverClientX - hoverMiddleX) < centerThreshold) {
+            // Swap
+            const newOrder = Array.from(planningRoom.cardOrder);
+            [newOrder[dragIndex], newOrder[hoverIndex]] = [newOrder[hoverIndex], newOrder[dragIndex]];
+            planningRoom.reorderCards(newOrder);
+            setDropPosition(null);
+            return;
+          }
+        }
+        // Otherwise, treat as insert at gap
+        let insertIndex = hoverClientX < hoverMiddleX ? hoverIndex : hoverIndex + 1;
+        if (dragIndex < insertIndex) insertIndex--;
+        const newOrder = Array.from(planningRoom.cardOrder);
+        newOrder.splice(dragIndex, 1);
+        newOrder.splice(insertIndex, 0, item.cardId);
+        planningRoom.reorderCards(newOrder);
+        setDropPosition(null);
+      },
+      collect: monitor => ({
+        isOver: monitor.isOver({ shallow: true }),
+      }),
+    });
+
+    drag(drop(ref));
+
     return (
       <div
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        {...listeners}
-        className="flex-shrink-0 w-[300px]"
+        ref={ref}
+        style={{
+          opacity: isDragging ? 0.5 : 1,
+          transform: isSwap && isOver ? 'scale(1.06)' : undefined,
+          boxShadow: isSwap && isOver ? '0 0 0 4px #2563eb, 0 4px 16px rgba(37,99,235,0.18)' : undefined,
+          border: isSwap && isOver ? '3px solid #2563eb' : undefined,
+          background: isSwap && isOver ? 'rgba(37,99,235,0.08)' : undefined,
+          transition: 'box-shadow 0.15s, transform 0.15s, border 0.15s, background 0.15s',
+        }}
+        className="flex-shrink-0 w-[300px] relative"
       >
+        {/* Gap indicator (left/right/top/bottom) - only show if not swap and isOver */}
+        {dropPosition === index && isOver && !isSwap && (
+          <>
+            <div className="absolute -left-3 top-2 bottom-2 w-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+            <div className="absolute left-2 -top-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+            <div className="absolute left-2 -bottom-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+          </>
+        )}
         <PlanCard
           id={card.id}
           what={card.type === 'what' ? card.content : ''}
           where={card.type === 'where' ? card.content : ''}
           notes={card.notes}
           isDragging={isDragging}
-          onAddCard={() => onAddCard(card.id)}
+          onAddCard={() => {
+            setActiveCardId(card.id);
+            setShowIntakeModal(true);
+          }}
         />
+        {/* Gap indicator (right/top/bottom) - only show if not swap and isOver */}
+        {dropPosition === index + 1 && isOver && !isSwap && (
+          <>
+            <div className="absolute -right-3 top-2 bottom-2 w-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+            <div className="absolute left-2 -top-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+            <div className="absolute left-2 -bottom-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+          </>
+        )}
+        {/* Swap indicator (all four sides) - only show if swap and isOver */}
+        {isSwap && isOver && (
+          <>
+            <div className="absolute -left-3 top-2 bottom-2 w-2 rounded bg-blue-600 shadow-xl animate-pulse z-40" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+            <div className="absolute -right-3 top-2 bottom-2 w-2 rounded bg-blue-600 shadow-xl animate-pulse z-40" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+            <div className="absolute left-2 -top-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-40" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+            <div className="absolute left-2 -bottom-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-40" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+          </>
+        )}
       </div>
     );
   }
 
+  // Ref for the scrollable card container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logic during drag
+  useEffect(() => {
+    if (!isAnyDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const scrollThreshold = 60; // px from edge to start scrolling
+      const scrollAmount = 20; // px per event
+      if (e.clientX - rect.left < scrollThreshold) {
+        // Near left edge
+        container.scrollLeft -= scrollAmount;
+      } else if (rect.right - e.clientX < scrollThreshold) {
+        // Near right edge
+        container.scrollLeft += scrollAmount;
+      }
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [isAnyDragging]);
+
   return (
     <>
       <div
-        ref={setNodeRef}
+        ref={dropGroup}
         className={`bg-white rounded-lg border border-gray-200 relative transition-all duration-300 ease-in-out ${
-          isOver ? 'ring-2 ring-indigo-500 ring-opacity-70 scale-[1.02] shadow-lg bg-indigo-50' : ''
+          isAnyDragging ? 'ring-2 ring-indigo-500 ring-opacity-70 scale-[1.02] shadow-lg bg-indigo-50' : ''
         }`}
       >
-        {isOver && (
+        {isAnyDragging && (
           <div className="absolute inset-0 bg-indigo-100 opacity-20 rounded-lg animate-pulse"></div>
         )}
         <div className="border-b border-gray-200">
@@ -333,79 +517,59 @@ export default function PlanGroup({
         </div>
 
         <div className="p-4 overflow-hidden group/scroll">
-          <DndContext
-            onDragStart={event => {
-              setDraggedCardId(event.active.id as string);
-            }}
-            onDragEnd={() => {
-              setDraggedCardId(null);
-            }}
-          >
-            <SortableContext items={cards.map(card => card.id)} strategy={horizontalListSortingStrategy}>
-              <div className="relative">
-                <div
-                  className={`flex gap-6 ${isAnyDragging ? 'overflow-visible' : 'overflow-x-auto'} ${
-                    isEmpty ? 'min-h-[200px]' : ''
-                  } ${
-                    cards.length > 3 ? 'hide-scrollbar group-hover/scroll:custom-scrollbar' : ''
-                  }`}
-                  style={{
-                    WebkitOverflowScrolling: 'touch'
+          <div className="relative">
+            <div
+              ref={scrollContainerRef}
+              className={`flex gap-6 ${isAnyDragging ? 'overflow-visible' : 'overflow-x-auto'} ${
+                isEmpty ? 'min-h-[200px]' : ''
+              } ${
+                cards.length > 3 ? 'hide-scrollbar group-hover/scroll:custom-scrollbar' : ''
+              }`}
+            >
+              <div className="flex gap-6 pr-16">
+                {cards.map((card, idx) => (
+                  <DraggablePlanCard key={card.id} card={card} index={idx} />
+                ))}
+                {/* PATCH: Always show Add Card button at the end of the card list */}
+                <button
+                  onClick={() => {
+                    setActiveCardId(null);
+                    setShowIntakeModal(true);
                   }}
+                  className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
+                  style={{ minWidth: 48, minHeight: 48 }}
+                  title="Add Card"
                 >
-                  <div className="flex gap-6 pr-16">
-                    {cards.map((card) => (
-                      <PlanSortableCard
-                        key={card.id}
-                        card={card}
-                        onAddCard={(afterCardId?: string) => {
-                          setActiveCardId(afterCardId || null);
+                  <PlusIcon className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+              {isEmpty && (
+                <div className="absolute inset-0 flex items-center">
+                  {isAnyDragging ? (
+                    <>
+                      <div className="absolute inset-0 bg-indigo-50 bg-opacity-50 rounded-lg border-2 border-dashed border-indigo-500" />
+                      <span className="text-indigo-500 z-10">Drop here</span>
+                    </>
+                  ) : (
+                    <div className="pl-20 w-[300px] h-[160px] flex items-center">
+                      <button
+                        onClick={() => {
+                          setActiveCardId(null);
                           setShowIntakeModal(true);
                         }}
-                      />
-                    ))}
-                    {/* PATCH: Always show Add Card button at the end of the card list */}
-                    <button
-                      onClick={() => {
-                        setActiveCardId(null);
-                        setShowIntakeModal(true);
-                      }}
-                      className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
-                      style={{ minWidth: 48, minHeight: 48 }}
-                      title="Add Card"
-                    >
-                      <PlusIcon className="w-6 h-6 text-gray-400" />
-                    </button>
-                  </div>
-                  {isEmpty && (
-                    <div className="absolute inset-0 flex items-center">
-                      {isOver ? (
-                        <>
-                          <div className="absolute inset-0 bg-indigo-50 bg-opacity-50 rounded-lg border-2 border-dashed border-indigo-500" />
-                          <span className="text-indigo-500 z-10">Drop here</span>
-                        </>
-                      ) : (
-                        <div className="pl-20 w-[300px] h-[160px] flex items-center">
-                          <button
-                            onClick={() => {
-                              setActiveCardId(null);
-                              setShowIntakeModal(true);
-                            }}
-                            className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
-                          >
-                            <PlusIcon className="w-6 h-6 text-gray-400" />
-                          </button>
-                        </div>
-                      )}
+                        className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
+                      >
+                        <PlusIcon className="w-6 h-6 text-gray-400" />
+                      </button>
                     </div>
                   )}
                 </div>
-                {!isEmpty && cards.length > 3 && (
-                  <div className="absolute right-0 top-0 bottom-0 w-16 pointer-events-none bg-gradient-to-l from-white to-transparent group-hover/scroll:opacity-0 transition-opacity" />
-                )}
-              </div>
-            </SortableContext>
-          </DndContext>
+              )}
+            </div>
+            {!isEmpty && cards.length > 3 && (
+              <div className="absolute right-0 top-0 bottom-0 w-16 pointer-events-none bg-gradient-to-l from-white to-transparent group-hover/scroll:opacity-0 transition-opacity" />
+            )}
+          </div>
         </div>
 
         {/* Add Group Button - Keeping the overflow behavior */}

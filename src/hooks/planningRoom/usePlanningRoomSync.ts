@@ -21,9 +21,10 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
 }
 
 export function usePlanningRoomSync(groupId: string, userId: string) {
-  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder'>>({
+  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages'>>({
     linkedCards: [],
     cardOrder: [],
+    chatMessages: [],
   });
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
@@ -71,6 +72,7 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     // Always get arrays from the persistent doc
     const yLinkedCards = ydoc.getArray('linkedCards');
     const yCardOrder = ydoc.getArray('cardOrder');
+    const yChatMessages = ydoc.getArray('chatMessages');
     if (!provider) {
       provider = new WebsocketProvider(
         Y_WEBSOCKET_URL,
@@ -97,20 +99,24 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       console.log('[Yjs] updateState called');
       console.log('[Yjs] yLinkedCards:', yLinkedCards.toArray());
       console.log('[Yjs] yCardOrder:', yCardOrder.toArray());
+      console.log('[Yjs] yChatMessages:', yChatMessages.toArray());
       setDocState({
         linkedCards: yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'],
         cardOrder: yCardOrder.toArray() as PlanningRoomYjsDoc['cardOrder'],
+        chatMessages: yChatMessages.toArray() as PlanningRoomYjsDoc['chatMessages'],
       });
       // Debounced persist to D1 on every change
       debouncedPersistToD1();
     };
     yLinkedCards.observe(updateState);
     yCardOrder.observe(updateState);
+    yChatMessages.observe(updateState);
     updateState();
     // Cleanup: only remove observers, do NOT destroy doc/provider (persist for group lifetime)
     return () => {
       yLinkedCards.unobserve(updateState);
       yCardOrder.unobserve(updateState);
+      yChatMessages.unobserve(updateState);
       // Do not destroy provider or doc here!
     };
   }, [groupId]);
@@ -188,9 +194,19 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     // TODO: Track userId for analytics
   }, []);
 
+  // Add chat message (Yjs-powered)
+  const addChatMessage = useCallback((msg: PlanningRoomYjsDoc['chatMessages'][0]) => {
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+    const yChatMessages = ydoc.getArray('chatMessages');
+    yChatMessages.push([msg]);
+  }, []);
+
   return {
     linkedCards: docState.linkedCards,
     cardOrder: docState.cardOrder,
+    chatMessages: docState.chatMessages,
+    addChatMessage,
     addCard,
     reorderCards,
     removeCard,
