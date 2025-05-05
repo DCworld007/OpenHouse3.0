@@ -511,6 +511,10 @@ export default function PlansPage() {
           hook.cardOrder.forEach((id: string) => hook.removeCard(id));
           // Also clear migration flag so migration can run again if needed
           localStorage.removeItem(`yjs-migrated-${groups[groupIndex].id}`);
+          // Also clear legacy cards in local groups state for this group
+          setGroups(prevGroups => prevGroups.map((g, i) =>
+            i === groupIndex ? { ...g, cards: [] } : g
+          ));
         }}
       >
         Clear All Cards
