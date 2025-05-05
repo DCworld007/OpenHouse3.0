@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment, ReactNode } from 'react';
+import { useState, Fragment, ReactNode, useEffect } from 'react';
 import { 
   PencilIcon, 
   MapIcon, 
@@ -39,6 +39,7 @@ interface PlanGroupProps {
   totalGroups: number;
   onAddGroup: (id: string) => void;
   onAddCard: (groupId: string, data: { type: 'what' | 'where'; content: string; notes?: string }) => void;
+  legacyCards?: Card[];
   children?: ReactNode | ((planningRoom: any) => ReactNode);
 }
 
@@ -55,6 +56,7 @@ export default function PlanGroup({
   totalGroups,
   onAddGroup,
   onAddCard,
+  legacyCards = [],
   children,
 }: PlanGroupProps) {
   const router = useRouter();
@@ -70,6 +72,29 @@ export default function PlanGroup({
     .map((cardId: string) => planningRoom.linkedCards.find((card: any) => card.id === cardId))
     .filter((card: any) => Boolean(card))
     .map((card: any) => ({ ...card, type: card.cardType })) as Card[];
+
+  // Migration: On mount, if Yjs doc is empty and there are legacy cards, migrate them (only once per group)
+  useEffect(() => {
+    const migrationKey = `yjs-migrated-${id}`;
+    if (
+      planningRoom.linkedCards.length === 0 &&
+      legacyCards.length > 0 &&
+      !localStorage.getItem(migrationKey)
+    ) {
+      legacyCards.forEach(card => {
+        const yjsCard = {
+          ...card,
+          cardType: card.type,
+          userId,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        planningRoom.addCard(yjsCard);
+      });
+      localStorage.setItem(migrationKey, 'true');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSaveName = () => {
     if (editedName.trim()) {

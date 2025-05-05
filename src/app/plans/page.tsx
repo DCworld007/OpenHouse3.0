@@ -213,7 +213,7 @@ export default function PlansPage() {
     const targetGroupId = selectedGroupId || groups[0].id;
     const groupIndex = groups.findIndex(g => g.id === targetGroupId);
     if (groupIndex !== -1) {
-      planningRoomHooks[groupIndex].addCard(newCard);
+      // planningRoomHooks[groupIndex].addCard(newCard);
     }
     setSelectedGroupId(null);
     toast.success('Card added successfully!');
@@ -251,7 +251,7 @@ export default function PlansPage() {
 
   const handleAddGroup = (afterGroupId: string) => {
     const newGroup: Group = {
-      id: Date.now().toString(),
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
       name: 'New Group',
       cards: [],
     };
@@ -472,35 +472,6 @@ export default function PlansPage() {
     });
   }, [groups]);
 
-  // For each group, set up usePlanningRoomSync and render cards from Yjs doc
-  const planningRoomHooks = groups.map(group => usePlanningRoomSync(group.id, userId));
-
-  // Migration step: on first load, if Yjs doc is empty, migrate legacy cards (only once per group)
-  useEffect(() => {
-    planningRoomHooks.forEach((hook, index) => {
-      const groupId = groups[index].id;
-      const migrationKey = `yjs-migrated-${groupId}`;
-      if (
-        hook.linkedCards.length === 0 &&
-        groups[index].cards.length > 0 &&
-        !localStorage.getItem(migrationKey)
-      ) {
-        groups[index].cards.forEach(card => {
-          const yjsCard = {
-            ...card,
-            cardType: card.type,
-            userId,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          hook.addCard(yjsCard);
-        });
-        localStorage.setItem(migrationKey, 'true');
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planningRoomHooks.length]);
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Debug: Dump State Button (removed for production) */}
@@ -554,13 +525,14 @@ export default function PlansPage() {
                 onAddCard={(_groupId, data) => {
                   // Only used for IntakeCard modal, actual addCard logic is now in PlanGroup
                 }}
+                legacyCards={group.cards}
               >
                 {(planningRoom) => (
                   <button
                     className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
                     onClick={() => {
-                      planningRoom.cardOrder.forEach((id: string) => planningRoom.removeCard(id));
-                      localStorage.removeItem(`yjs-migrated-${group.id}`);
+                      // planningRoom.cardOrder.forEach((id: string) => planningRoom.removeCard(id));
+                      // localStorage.removeItem(`yjs-migrated-${group.id}`);
                       setGroups(prevGroups => prevGroups.map((g, i) =>
                         i === index ? { ...g, cards: [] } : g
                       ));
