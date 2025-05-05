@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Fragment } from 'react';
+import { useState, Fragment, ReactNode } from 'react';
 import { 
   PencilIcon, 
   MapIcon, 
@@ -17,6 +17,7 @@ import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortabl
 import PlanCard from './PlanCard';
 import IntakeCard from './IntakeCard';
 import { useDroppable } from '@dnd-kit/core';
+import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
 
 interface Card {
   id: string;
@@ -28,7 +29,7 @@ interface Card {
 interface PlanGroupProps {
   id: string;
   name: string;
-  cards: Card[];
+  userId: string;
   onNameChange: (id: string, newName: string) => void;
   onCardsChange: (id: string, newCards: Card[]) => void;
   onDelete: (id: string) => void;
@@ -38,13 +39,13 @@ interface PlanGroupProps {
   totalGroups: number;
   onAddGroup: (id: string) => void;
   onAddCard: (groupId: string, data: { type: 'what' | 'where'; content: string; notes?: string }) => void;
-  children?: React.ReactNode;
+  children?: ReactNode | ((planningRoom: any) => ReactNode);
 }
 
 export default function PlanGroup({ 
   id, 
   name, 
-  cards, 
+  userId,
   onNameChange, 
   onCardsChange,
   onDelete,
@@ -64,6 +65,11 @@ export default function PlanGroup({
   const { setNodeRef, isOver } = useDroppable({ 
     id: `group-${id}`,
   });
+  const planningRoom = usePlanningRoomSync(id, userId);
+  const cards = planningRoom.cardOrder
+    .map((cardId: string) => planningRoom.linkedCards.find((card: any) => card.id === cardId))
+    .filter((card: any) => Boolean(card))
+    .map((card: any) => ({ ...card, type: card.cardType })) as Card[];
 
   const handleSaveName = () => {
     if (editedName.trim()) {
@@ -102,7 +108,7 @@ export default function PlanGroup({
               ) : (
                 <>
                   <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
-                  {children}
+                  {children && typeof children === 'function' ? (children as (planningRoom: any) => ReactNode)(planningRoom) : children}
                   <button
                     onClick={() => setIsEditing(true)}
                     className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"

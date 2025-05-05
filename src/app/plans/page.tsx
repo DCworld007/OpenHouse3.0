@@ -501,27 +501,6 @@ export default function PlansPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planningRoomHooks.length]);
 
-  // Temporary: Add a 'Clear All Cards' button for each group for test cleanup
-  function ClearAllCardsButton({ groupIndex }: { groupIndex: number }) {
-    return (
-      <button
-        className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
-        onClick={() => {
-          const hook = planningRoomHooks[groupIndex];
-          hook.cardOrder.forEach((id: string) => hook.removeCard(id));
-          // Also clear migration flag so migration can run again if needed
-          localStorage.removeItem(`yjs-migrated-${groups[groupIndex].id}`);
-          // Also clear legacy cards in local groups state for this group
-          setGroups(prevGroups => prevGroups.map((g, i) =>
-            i === groupIndex ? { ...g, cards: [] } : g
-          ));
-        }}
-      >
-        Clear All Cards
-      </button>
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Debug: Dump State Button (removed for production) */}
@@ -563,10 +542,7 @@ export default function PlansPage() {
               <PlanGroup
                 id={group.id}
                 name={group.name}
-                cards={planningRoomHooks[index].cardOrder
-                  .map(id => planningRoomHooks[index].linkedCards.find(card => card.id === id))
-                  .filter(Boolean)
-                  .map(card => ({ ...card!, type: card!.cardType })) as Card[]}
+                userId={userId}
                 onNameChange={handleGroupNameChange}
                 onCardsChange={handleCardsChange}
                 onDelete={handleDeleteGroup}
@@ -576,28 +552,23 @@ export default function PlansPage() {
                 totalGroups={groups.length}
                 onAddGroup={handleAddGroup}
                 onAddCard={(_groupId, data) => {
-                  // Use Yjs-powered addCard for this group
-                  let newCard: any = {
-                    id: Date.now().toString(),
-                    ...data,
-                    cardType: data.type,
-                    userId,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                  };
-                  if (data.type === 'where') {
-                    geocodeAddress(data.content).then(geo => {
-                      if (geo) {
-                        newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
-                      }
-                      planningRoomHooks[index].addCard(newCard);
-                    });
-                  } else {
-                    planningRoomHooks[index].addCard(newCard);
-                  }
+                  // Only used for IntakeCard modal, actual addCard logic is now in PlanGroup
                 }}
               >
-                <ClearAllCardsButton groupIndex={index} />
+                {(planningRoom) => (
+                  <button
+                    className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                    onClick={() => {
+                      planningRoom.cardOrder.forEach((id: string) => planningRoom.removeCard(id));
+                      localStorage.removeItem(`yjs-migrated-${group.id}`);
+                      setGroups(prevGroups => prevGroups.map((g, i) =>
+                        i === index ? { ...g, cards: [] } : g
+                      ));
+                    }}
+                  >
+                    Clear All Cards
+                  </button>
+                )}
               </PlanGroup>
             </div>
           ))}
