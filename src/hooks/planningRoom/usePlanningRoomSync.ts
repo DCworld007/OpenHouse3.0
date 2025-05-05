@@ -21,11 +21,13 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
 }
 
 export function usePlanningRoomSync(groupId: string, userId: string) {
-  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages' | 'reactions'>>({
+  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages' | 'reactions' | 'polls' | 'activityFeed'>>({
     linkedCards: [],
     cardOrder: [],
     chatMessages: [],
     reactions: {},
+    polls: [],
+    activityFeed: [],
   });
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
@@ -75,6 +77,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     const yCardOrder = ydoc.getArray('cardOrder');
     const yChatMessages = ydoc.getArray('chatMessages');
     const yReactions = ydoc.getMap('reactions');
+    const yPolls = ydoc.getArray('polls');
+    const yActivityFeed = ydoc.getArray('activityFeed');
     if (!provider) {
       provider = new WebsocketProvider(
         Y_WEBSOCKET_URL,
@@ -117,6 +121,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
         cardOrder: yCardOrder.toArray() as PlanningRoomYjsDoc['cardOrder'],
         chatMessages: yChatMessages.toArray() as PlanningRoomYjsDoc['chatMessages'],
         reactions: reactionsObj,
+        polls: yPolls.toArray() as PlanningRoomYjsDoc['polls'],
+        activityFeed: yActivityFeed.toArray() as PlanningRoomYjsDoc['activityFeed'],
       });
       // Debounced persist to D1 on every change
       debouncedPersistToD1();
@@ -125,6 +131,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     yCardOrder.observe(updateState);
     yChatMessages.observe(updateState);
     yReactions.observeDeep(updateState);
+    yPolls.observe(updateState);
+    yActivityFeed.observe(updateState);
     updateState();
     // Cleanup: only remove observers, do NOT destroy doc/provider (persist for group lifetime)
     return () => {
@@ -132,6 +140,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       yCardOrder.unobserve(updateState);
       yChatMessages.unobserve(updateState);
       yReactions.unobserveDeep(updateState);
+      yPolls.unobserve(updateState);
+      yActivityFeed.unobserve(updateState);
       // Do not destroy provider or doc here!
     };
   }, [groupId]);
@@ -241,17 +251,41 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     }
   }, [userId]);
 
+  /**
+   * Add a poll to the planning room (Yjs-powered)
+   */
+  const addPoll = useCallback((poll: PlanningRoomYjsDoc['polls'][0]) => {
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+    const yPolls = ydoc.getArray('polls');
+    yPolls.push([poll]);
+  }, []);
+
+  /**
+   * Add an activity to the planning room activity feed (Yjs-powered)
+   */
+  const addActivity = useCallback((activity: PlanningRoomYjsDoc['activityFeed'][0]) => {
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+    const yActivityFeed = ydoc.getArray('activityFeed');
+    yActivityFeed.push([activity]);
+  }, []);
+
   return {
     linkedCards: docState.linkedCards,
     cardOrder: docState.cardOrder,
     chatMessages: docState.chatMessages,
     reactions: docState.reactions,
+    polls: docState.polls,
+    activityFeed: docState.activityFeed,
     addChatMessage,
     addCard,
     reorderCards,
     removeCard,
     addReaction,
     removeReaction,
+    addPoll,
+    addActivity,
     // Expose Yjs doc and provider for advanced use if needed
     ydoc: ydocRef.current,
     provider: providerRef.current,

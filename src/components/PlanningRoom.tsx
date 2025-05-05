@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, Fragment, useEffect, useRef } from 'react';
 import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
 import { EMOJI_REACTIONS, Message, Poll } from '@/types/message';
 import { ListingGroup } from '@/types/listing';
@@ -23,13 +23,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Listing } from '@/types/listing';
 import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
 import { useUser } from '@/lib/useUser';
-
-interface CustomPoll {
-  id: string;
-  question: string;
-  options: string[];
-  votes: Record<string, string[]>;
-}
+import { PlanningRoomYjsDoc } from '@/types/planning-room';
 
 interface ExtendedMessage extends Message {
   sender: string;
@@ -88,11 +82,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const [newCardNotes, setNewCardNotes] = useState('');
   const [cardType, setCardType] = useState<'what' | 'where'>('what');
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
-  const [polls, setPolls] = useState<CustomPoll[]>([]);
 
   // Map Yjs cardOrder to linkedCards for display, filter out undefined
   const cards = planningRoom.cardOrder
@@ -101,6 +93,37 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   // Add debug logging in the component render
   console.log('Rendering Yjs cards:', cards.map(c => c.id));
 
+  // --- Unread marker, jump-to-unread, and auto-scroll logic ---
+  const chatRef = useRef<HTMLDivElement>(null);
+  const [showJumpToUnread, setShowJumpToUnread] = useState(false);
+  const [unreadIndex, setUnreadIndex] = useState<number | null>(null);
+  const roomKey = `planning-room-last-seen-${group.id}`;
+  // Find last seen timestamp from localStorage
+  useEffect(() => {
+    const lastSeen = Number(localStorage.getItem(roomKey) || 0);
+    // Find first unread message index
+    const idx = messages.findIndex(m => m.timestamp > lastSeen);
+    setUnreadIndex(idx !== -1 ? idx : null);
+    // On mount, scroll to unread marker or bottom
+    setTimeout(() => {
+      const chat = chatRef.current;
+      if (!chat) return;
+      if (idx !== -1 && chat.children[idx]) {
+        (chat.children[idx] as HTMLElement).scrollIntoView({ behavior: 'auto', block: 'start' });
+      } else {
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }, 0);
+  }, [group.id, messages.length]);
+  // Update last seen on unmount or when sending a message
+  useEffect(() => {
+    return () => {
+      if (messages.length > 0) {
+        localStorage.setItem(roomKey, String(messages[messages.length - 1].timestamp));
+      }
+    };
+  }, [group.id, messages.length]);
+  // When sending a message, update last seen
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -111,32 +134,65 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       timestamp: Date.now(),
     });
     setNewMessage('');
+    // Update last seen
+    setTimeout(() => {
+      if (messages.length > 0) {
+        localStorage.setItem(roomKey, String(Date.now()));
+      }
+    }, 100);
+  };
+  // Show jump-to-unread button if user scrolls away from unread marker
+  useEffect(() => {
+    const chat = chatRef.current;
+    if (!chat || unreadIndex === null) return;
+    const onScroll = () => {
+      const unreadElem = chat.children[unreadIndex] as HTMLElement | undefined;
+      if (!unreadElem) return;
+      const unreadTop = unreadElem.getBoundingClientRect().top;
+      const chatTop = chat.getBoundingClientRect().top;
+      setShowJumpToUnread(Math.abs(unreadTop - chatTop) > 60);
+    };
+    chat.addEventListener('scroll', onScroll);
+    return () => chat.removeEventListener('scroll', onScroll);
+  }, [unreadIndex]);
+  const jumpToUnread = () => {
+    const chat = chatRef.current;
+    if (!chat || unreadIndex === null) return;
+    const unreadElem = chat.children[unreadIndex] as HTMLElement | undefined;
+    if (unreadElem) unreadElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  /**
+   * Create a new poll and add it to the Yjs doc (real-time, persistent)
+   */
   const handleCreatePoll = (question: string, options: string[]) => {
     const pollId = uuidv4();
-    const messageId = uuidv4();
-    const newPoll: Poll = {
+    const newPoll: PlanningRoomYjsDoc['polls'][0] = {
       id: pollId,
       question,
       options,
       votes: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-
-    // Add the message to chat (Yjs-powered, only text messages for now)
+    planningRoom.addPoll(newPoll);
+    // Add poll as a special chat message
     planningRoom.addChatMessage({
       id: uuidv4(),
       userId,
-      text: question, // For poll creation, just store the question as text for now
+      text: '', // Not used for poll
+      timestamp: Date.now(),
+      pollId,
+      type: 'poll',
+    } as any);
+    // Log to activity feed with poll question
+    planningRoom.addActivity({
+      id: uuidv4(),
+      type: 'poll_created',
+      userId,
+      context: { pollId, pollQuestion: question },
       timestamp: Date.now(),
     });
-    
-    // Add activity
-    addActivity('poll_create', {
-      pollQuestion: question,
-      timestamp: Date.now()
-    });
-
     // Reset and close modal
     setPollQuestion('');
     setPollOptions(['', '']);
@@ -174,15 +230,17 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     // All resets are now handled in handleAddCard for instant feedback
   };
 
-  const addActivity = (type: ActivityType, details: ActivityDetails) => {
-    const activity: Activity = {
+  /**
+   * Add an activity to the Yjs-powered activity feed
+   */
+  const addActivity = (type: string, details: any) => {
+    planningRoom.addActivity({
       id: uuidv4(),
-      type,
+      type: type as any,
+      userId,
+      context: details,
       timestamp: Date.now(),
-      userId: 'currentUser', // Replace with actual user ID when auth is implemented
-      details
-    };
-    setActivities(prev => [...prev, activity]);
+    });
   };
 
   const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
@@ -235,6 +293,111 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       // addActivity('card_reorder', { ... });
     }
   };
+
+  // --- Poll Voting Logic ---
+  /**
+   * Cast or change a vote for a poll (Yjs-powered, real-time)
+   */
+  const handleVote = (pollId: string, option: string) => {
+    // Find poll in Yjs doc
+    const pollIdx = planningRoom.polls.findIndex(p => p.id === pollId);
+    if (pollIdx === -1) return;
+    // Update poll in Yjs doc
+    const ydoc = planningRoom.ydoc;
+    if (!ydoc) return;
+    const yPolls = ydoc.getArray('polls');
+    const poll = yPolls.get(pollIdx) as PlanningRoomYjsDoc['polls'][0];
+    if (!poll) return;
+    // Update votes
+    poll.votes = { ...poll.votes, [userId]: option };
+    yPolls.delete(pollIdx, 1);
+    yPolls.insert(pollIdx, [poll]);
+    // Log to activity feed with poll question and option label
+    planningRoom.addActivity({
+      id: uuidv4(),
+      type: 'vote_cast',
+      userId,
+      context: { pollId, pollOption: option, pollQuestion: poll.question },
+      timestamp: Date.now(),
+    });
+  };
+
+  // --- Render Poll as Chat Message ---
+  function PollMessage({ poll, senderId, timestamp }: { poll: PlanningRoomYjsDoc['polls'][0], senderId: string, timestamp: number }) {
+    const userVote = poll.votes[userId];
+    const totalVotes = Object.keys(poll.votes).length;
+    const isMe = senderId === userId;
+    return (
+      <div className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
+        <div className="mb-0.5 flex items-center gap-2">
+          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : senderId}</span>
+          <span className="text-xs text-gray-400">{new Date(timestamp).toLocaleTimeString()}</span>
+        </div>
+        <div className={`bg-indigo-50 border border-indigo-200 rounded-lg p-4 my-1 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}> 
+          <div className="font-medium text-indigo-900 mb-2">{poll.question}</div>
+          <div className="space-y-2">
+            {poll.options.map((option, idx) => {
+              const optionVotes = Object.values(poll.votes).filter(v => v === option).length;
+              const percent = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
+              const isUserVote = userVote === option;
+              return (
+                <button
+                  key={option}
+                  onClick={() => handleVote(poll.id, option)}
+                  className={`w-full flex items-center justify-between px-4 py-2 rounded-lg border transition-colors
+                    ${isUserVote ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-semibold' : 'bg-white border-gray-200 hover:bg-indigo-50 hover:border-indigo-300'}
+                  `}
+                >
+                  <span>{option}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">{optionVotes} vote{optionVotes !== 1 ? 's' : ''}</span>
+                    <span className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden ml-2">
+                      <span
+                        className="block h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${percent}%`, background: isUserVote ? '#6366f1' : '#a5b4fc' }}
+                      />
+                    </span>
+                    <span className="ml-2 text-xs font-medium text-gray-500">{percent}%</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {userVote && (
+            <div className="mt-2 text-xs text-indigo-600 font-medium">You voted: {userVote}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  // --- End Poll Voting Logic ---
+
+  // --- Auto-scroll chat to bottom (handled in unread logic above) ---
+
+  // --- Helper to render a message or poll ---
+  function renderMessage(message: any) {
+    if ((message as any).type === 'poll' && (message as any).pollId) {
+      const poll = planningRoom.polls.find(p => p.id === (message as any).pollId);
+      if (poll) {
+        return <PollMessage key={message.id} poll={poll} senderId={message.userId} timestamp={message.timestamp} />;
+      } else {
+        return null;
+      }
+    } else {
+      const isMe = message.userId === userId;
+      return (
+        <div key={message.id} className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
+          <div className="mb-0.5 flex items-center gap-2">
+            <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : message.userId}</span>
+            <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
+          </div>
+          <div className={`flex flex-col rounded-xl p-3 bg-white border border-gray-100 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}>
+            <p className="text-gray-700">{message.text}</p>
+          </div>
+        </div>
+      );
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -295,7 +458,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
             </div>
           </div>
 
-          {/* Middle Column - Chat */}
+          {/* Middle Column - Chat (with Polls inline) */}
           <div className="col-span-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[600px] flex flex-col">
               {/* Chat Header */}
@@ -307,31 +470,34 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               </div>
 
               {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id} className="group relative">
-                    <div className="flex flex-col rounded-xl p-3 bg-white border border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                          <span className="text-sm font-medium text-indigo-700">
-                            {message.userId?.charAt(0).toUpperCase()}
-                          </span>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatRef}>
+                {messages.map((message, i) => {
+                  if (unreadIndex === i) {
+                    return (
+                      <Fragment key={message.id}>
+                        <div className="flex items-center my-2">
+                          <div className="flex-1 border-t border-gray-300" />
+                          <span className="mx-3 text-xs text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full">New messages</span>
+                          <div className="flex-1 border-t border-gray-300" />
                         </div>
-                        <div>
-                          <span className="font-medium text-gray-900">{message.userId}</span>
-                          <span className="ml-2 text-sm text-gray-500">
-                            {new Date(message.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="mt-2 text-gray-700">{message.text}</p>
-                    </div>
-                  </div>
-                ))}
+                        {renderMessage(message)}
+                      </Fragment>
+                    );
+                  }
+                  return renderMessage(message);
+                })}
                 {messages.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     No messages yet. Start the conversation!
                   </div>
+                )}
+                {showJumpToUnread && unreadIndex !== null && (
+                  <button
+                    onClick={jumpToUnread}
+                    className="fixed bottom-24 right-1/2 translate-x-1/2 z-20 bg-indigo-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-indigo-700 transition-all"
+                  >
+                    Jump to Unread
+                  </button>
                 )}
               </div>
 
@@ -401,7 +567,22 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
               </div>
               <div className="h-[550px] overflow-y-auto">
-                <ActivityFeed activities={activities.slice().reverse()} />
+                <ActivityFeed activities={planningRoom.activityFeed.slice().reverse().map(a => {
+                  // Map Yjs type to ActivityType
+                  let type: any = a.type;
+                  if (type === 'poll_created') type = 'poll_create';
+                  if (type === 'card_linked') type = 'card_add';
+                  if (type === 'card_reordered') type = 'card_reorder';
+                  if (type === 'vote_cast') type = 'poll_vote';
+                  // Only allow valid ActivityType values
+                  const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
+                  if (!validTypes.includes(type)) return null;
+                  return {
+                    ...a,
+                    type,
+                    details: a.context || {},
+                  };
+                }).filter(Boolean) as Activity[]} />
               </div>
             </div>
           </div>
