@@ -11,6 +11,15 @@ const Y_WEBSOCKET_URL = process.env.NEXT_PUBLIC_Y_WEBSOCKET_URL || 'wss://y-webs
 const yDocMap: Map<string, Y.Doc> = new Map();
 const providerMap: Map<string, any> = new Map();
 
+// Debounce helper
+function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
+  let timeout: ReturnType<typeof setTimeout>;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn(...args), delay);
+  };
+}
+
 export function usePlanningRoomSync(groupId: string, userId: string) {
   const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder'>>({
     linkedCards: [],
@@ -18,11 +27,34 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
   });
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
+  const hasLoadedFromD1 = useRef(false);
 
-  // Load initial state from D1 (stub)
+  // Load initial state from D1 (Phase 1)
   useEffect(() => {
-    // TODO: Fetch initial state from D1 via API and apply to Yjs doc
-    // Example: fetch(`/api/planning-room/${groupId}/cards`)
+    let cancelled = false;
+    async function loadFromD1() {
+      if (!groupId) return;
+      try {
+        const res = await fetch(`/api/planning-room/${groupId}/cards`);
+        const data = await res.json();
+        if (data.doc) {
+          const ydoc = yDocMap.get(groupId) || new Y.Doc();
+          // Use atob to decode base64 to binary string, then to Uint8Array
+          const binary = atob(data.doc);
+          const update = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            update[i] = binary.charCodeAt(i);
+          }
+          Y.applyUpdate(ydoc, update);
+          yDocMap.set(groupId, ydoc);
+          hasLoadedFromD1.current = true;
+        }
+      } catch (e) {
+        console.error('[Yjs] Failed to load from D1:', e);
+      }
+    }
+    loadFromD1();
+    return () => { cancelled = true; };
   }, [groupId]);
 
   useEffect(() => {
@@ -69,6 +101,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
         linkedCards: yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'],
         cardOrder: yCardOrder.toArray() as PlanningRoomYjsDoc['cardOrder'],
       });
+      // Debounced persist to D1 on every change
+      debouncedPersistToD1();
     };
     yLinkedCards.observe(updateState);
     yCardOrder.observe(updateState);
@@ -80,6 +114,24 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       // Do not destroy provider or doc here!
     };
   }, [groupId]);
+
+  // Debounced persist function
+  const persistToD1 = useCallback(() => {
+    const ydoc = ydocRef.current;
+    if (!ydoc || !groupId) return;
+    const update = Y.encodeStateAsUpdate(ydoc);
+    let binary = '';
+    for (let i = 0; i < update.length; i++) {
+      binary += String.fromCharCode(update[i]);
+    }
+    const base64 = btoa(binary);
+    fetch(`/api/planning-room/${groupId}/cards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doc: base64 }),
+    }).catch(e => console.error('[Yjs] Failed to persist to D1:', e));
+  }, [groupId]);
+  const debouncedPersistToD1 = useCallback(debounce(persistToD1, 1000), [persistToD1]);
 
   // PATCH: Support inserting after a specific card
   const addCard = useCallback((card: PlanningRoomYjsDoc['linkedCards'][0], afterCardId?: string) => {

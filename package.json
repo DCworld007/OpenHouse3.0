@@ -32,6 +32,7 @@
     "framer-motion": "^12.9.2",
     "fuzzysort": "^3.1.0",
     "jose": "^4.15.4",
+    "js-base64": "^3.7.7",
     "leaflet": "^1.9.4",
     "leaflet-routing-machine": "^3.2.12",
     "next": "^15.3.1",
