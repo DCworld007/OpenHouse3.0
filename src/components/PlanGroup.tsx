@@ -18,6 +18,10 @@ import PlanCard from './PlanCard';
 import IntakeCard from './IntakeCard';
 import { useDroppable } from '@dnd-kit/core';
 import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
+import toast from 'react-hot-toast';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { DndContext } from '@dnd-kit/core';
 
 interface Card {
   id: string;
@@ -38,9 +42,17 @@ interface PlanGroupProps {
   isFirstGroup: boolean;
   totalGroups: number;
   onAddGroup: (id: string) => void;
-  onAddCard: (groupId: string, data: { type: 'what' | 'where'; content: string; notes?: string }) => void;
   legacyCards?: Card[];
   children?: ReactNode | ((planningRoom: any) => ReactNode);
+}
+
+interface PlanCardProps {
+  id: string;
+  what?: string;
+  where?: string;
+  notes?: string;
+  isDragging?: boolean;
+  onAddCard?: (afterCardId?: string) => void;
 }
 
 export default function PlanGroup({ 
@@ -55,7 +67,6 @@ export default function PlanGroup({
   isFirstGroup,
   totalGroups,
   onAddGroup,
-  onAddCard,
   legacyCards = [],
   children,
 }: PlanGroupProps) {
@@ -72,6 +83,10 @@ export default function PlanGroup({
     .map((cardId: string) => planningRoom.linkedCards.find((card: any) => card.id === cardId))
     .filter((card: any) => Boolean(card))
     .map((card: any) => ({ ...card, type: card.cardType })) as Card[];
+
+  // Track if any card is being dragged in this group
+  const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+  const isAnyDragging = !!draggedCardId;
 
   // Migration: On mount, if Yjs doc is empty and there are legacy cards, migrate them (only once per group)
   useEffect(() => {
@@ -106,6 +121,76 @@ export default function PlanGroup({
   const hasLocations = cards.some(card => card.type === 'where');
   const isEmpty = cards.length === 0;
 
+  // Geocode helper
+  const geocodeAddress = async (address: string) => {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+    const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0 (your@email.com)' } });
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+    return null;
+  };
+
+  // Add card logic
+  const handleAddCard = async (
+    data: { type: 'what' | 'where'; content: string; notes?: string },
+    afterCardId?: string | null
+  ) => {
+    console.log('[PlanGroup] handleAddCard', data, 'after', afterCardId);
+    let newCard: any = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      ...data,
+      cardType: data.type,
+      userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (data.type === 'where') {
+      const geo = await geocodeAddress(data.content);
+      if (geo) {
+        newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
+      }
+    }
+    // Insert after the specified card in cardOrder
+    if (afterCardId) {
+      planningRoom.addCard(newCard, afterCardId);
+    } else {
+      planningRoom.addCard(newCard);
+    }
+    console.log('[PlanGroup] After addCard, cardOrder:', planningRoom.cardOrder);
+    console.log('[PlanGroup] After addCard, linkedCards:', planningRoom.linkedCards);
+    toast.success('Card added successfully!');
+  };
+
+  // PlanSortableCard: wraps PlanCard with useSortable and drag styles
+  function PlanSortableCard({ card, onAddCard }: { card: Card; onAddCard: (afterCardId?: string) => void }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition: transition || 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+      zIndex: isDragging ? 50 : undefined,
+    };
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className="flex-shrink-0 w-[300px]"
+      >
+        <PlanCard
+          id={card.id}
+          what={card.type === 'what' ? card.content : ''}
+          where={card.type === 'where' ? card.content : ''}
+          notes={card.notes}
+          isDragging={isDragging}
+          onAddCard={() => onAddCard(card.id)}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <div
@@ -133,6 +218,29 @@ export default function PlanGroup({
               ) : (
                 <>
                   <h2 className="text-lg font-semibold text-gray-900">{name}</h2>
+                  {/* Clear All Cards Button */}
+                  <button
+                    className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
+                    onClick={() => {
+                      planningRoom.cardOrder.forEach((id: string) => planningRoom.removeCard(id));
+                      localStorage.removeItem(`yjs-migrated-${id}`);
+                      // PATCH: Also update localStorage for this group to have empty cards
+                      const groupsRaw = localStorage.getItem('openhouse-data');
+                      if (groupsRaw) {
+                        try {
+                          const groups = JSON.parse(groupsRaw);
+                          const updatedGroups = Array.isArray(groups)
+                            ? groups.map((g) => g.id === id ? { ...g, cards: [] } : g)
+                            : groups;
+                          localStorage.setItem('openhouse-data', JSON.stringify(updatedGroups));
+                        } catch (e) {
+                          console.error('Failed to update localStorage after clearing cards:', e);
+                        }
+                      }
+                    }}
+                  >
+                    Clear All Cards
+                  </button>
                   {children && typeof children === 'function' ? (children as (planningRoom: any) => ReactNode)(planningRoom) : children}
                   <button
                     onClick={() => setIsEditing(true)}
@@ -225,66 +333,79 @@ export default function PlanGroup({
         </div>
 
         <div className="p-4 overflow-hidden group/scroll">
-          <SortableContext items={cards.map(card => card.id)} strategy={horizontalListSortingStrategy}>
-            <div className="relative">
-              <div 
-                className={`flex gap-6 overflow-x-auto ${
-                  isEmpty ? 'min-h-[200px]' : ''
-                } ${
-                  cards.length > 3 ? 'hide-scrollbar group-hover/scroll:custom-scrollbar' : ''
-                }`}
-                style={{
-                  WebkitOverflowScrolling: 'touch'
-                }}
-              >
-                <div className="flex gap-6 pr-16">
-                  {cards.map((card, index) => (
-                    <div
-                      key={card.id}
-                      className="flex-shrink-0 w-[300px]"
-                    >
-                      <PlanCard
-                        id={card.id}
-                        what={card.type === 'what' ? card.content : ''}
-                        where={card.type === 'where' ? card.content : ''}
-                        notes={card.notes}
-                        isDragging={false}
-                        onAddCard={() => {
-                          setActiveCardId(card.id);
+          <DndContext
+            onDragStart={event => {
+              setDraggedCardId(event.active.id as string);
+            }}
+            onDragEnd={() => {
+              setDraggedCardId(null);
+            }}
+          >
+            <SortableContext items={cards.map(card => card.id)} strategy={horizontalListSortingStrategy}>
+              <div className="relative">
+                <div
+                  className={`flex gap-6 ${isAnyDragging ? 'overflow-visible' : 'overflow-x-auto'} ${
+                    isEmpty ? 'min-h-[200px]' : ''
+                  } ${
+                    cards.length > 3 ? 'hide-scrollbar group-hover/scroll:custom-scrollbar' : ''
+                  }`}
+                  style={{
+                    WebkitOverflowScrolling: 'touch'
+                  }}
+                >
+                  <div className="flex gap-6 pr-16">
+                    {cards.map((card) => (
+                      <PlanSortableCard
+                        key={card.id}
+                        card={card}
+                        onAddCard={(afterCardId?: string) => {
+                          setActiveCardId(afterCardId || null);
                           setShowIntakeModal(true);
                         }}
                       />
-                    </div>
-                  ))}
-                </div>
-                {isEmpty && (
-                  <div className="absolute inset-0 flex items-center">
-                    {isOver ? (
-                      <>
-                        <div className="absolute inset-0 bg-indigo-50 bg-opacity-50 rounded-lg border-2 border-dashed border-indigo-500" />
-                        <span className="text-indigo-500 z-10">Drop here</span>
-                      </>
-                    ) : (
-                      <div className="pl-20 w-[300px] h-[160px] flex items-center">
-                        <button
-                          onClick={() => {
-                            setActiveCardId(null);
-                            setShowIntakeModal(true);
-                          }}
-                          className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
-                        >
-                          <PlusIcon className="w-6 h-6 text-gray-400" />
-                        </button>
-                      </div>
-                    )}
+                    ))}
+                    {/* PATCH: Always show Add Card button at the end of the card list */}
+                    <button
+                      onClick={() => {
+                        setActiveCardId(null);
+                        setShowIntakeModal(true);
+                      }}
+                      className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
+                      style={{ minWidth: 48, minHeight: 48 }}
+                      title="Add Card"
+                    >
+                      <PlusIcon className="w-6 h-6 text-gray-400" />
+                    </button>
                   </div>
+                  {isEmpty && (
+                    <div className="absolute inset-0 flex items-center">
+                      {isOver ? (
+                        <>
+                          <div className="absolute inset-0 bg-indigo-50 bg-opacity-50 rounded-lg border-2 border-dashed border-indigo-500" />
+                          <span className="text-indigo-500 z-10">Drop here</span>
+                        </>
+                      ) : (
+                        <div className="pl-20 w-[300px] h-[160px] flex items-center">
+                          <button
+                            onClick={() => {
+                              setActiveCardId(null);
+                              setShowIntakeModal(true);
+                            }}
+                            className="rounded-full bg-gray-100 p-3 transition-colors hover:bg-gray-200"
+                          >
+                            <PlusIcon className="w-6 h-6 text-gray-400" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {!isEmpty && cards.length > 3 && (
+                  <div className="absolute right-0 top-0 bottom-0 w-16 pointer-events-none bg-gradient-to-l from-white to-transparent group-hover/scroll:opacity-0 transition-opacity" />
                 )}
               </div>
-              {!isEmpty && cards.length > 3 && (
-                <div className="absolute right-0 top-0 bottom-0 w-16 pointer-events-none bg-gradient-to-l from-white to-transparent group-hover/scroll:opacity-0 transition-opacity" />
-              )}
-            </div>
-          </SortableContext>
+            </SortableContext>
+          </DndContext>
         </div>
 
         {/* Add Group Button - Keeping the overflow behavior */}
@@ -314,8 +435,8 @@ export default function PlanGroup({
                 </div>
                 <div className="mt-3 sm:mt-0">
                   <IntakeCard
-                    onSubmit={(data) => {
-                      onAddCard(id, data);
+                    onSubmit={async (data) => {
+                      await handleAddCard(data, activeCardId);
                       setShowIntakeModal(false);
                       setActiveCardId(null);
                     }}

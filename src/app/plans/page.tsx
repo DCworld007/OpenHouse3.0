@@ -77,23 +77,7 @@ const DEFAULT_GROUP: Group = {
 export default function PlansPage() {
   const router = useRouter();
   const pathname = usePathname();
-  const [groups, setGroups] = useState<Group[]>(() => {
-    try {
-      const savedGroups = getGroups();
-      // MIGRATION: Ensure all cards have 'type' property (migrate from 'cardType' if needed)
-      const migratedGroups = savedGroups.map(group => ({
-        ...group,
-        cards: group.cards.map((card: Card & { cardType?: string }) => ({
-          ...card,
-          type: card.type || card.cardType || 'what',
-        })),
-      }));
-      return migratedGroups.length > 0 ? migratedGroups : [DEFAULT_GROUP];
-    } catch (error) {
-      console.error('Error loading groups:', error);
-      return [DEFAULT_GROUP];
-    }
-  });
+  const [groups, setGroups] = useState<Group[]>([]);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [actionHistory, setActionHistory] = useState<{ [groupId: string]: Action[] }>({});
@@ -108,6 +92,42 @@ export default function PlansPage() {
 
   const { user } = useUser();
   const userId = user?.id || '';
+
+  // Always call the hook in the same order to avoid React hook order errors
+  const firstGroupId = groups.length > 0 ? groups[0].id : '';
+  const planningRoom = usePlanningRoomSync(firstGroupId, userId);
+
+  // On mount, load groups from storage or create a default group with a unique ID
+  useEffect(() => {
+    try {
+      const savedGroups = getGroups();
+      const migratedGroups = savedGroups.map(group => ({
+        ...group,
+        cards: group.cards.map((card: Card & { cardType?: string }) => ({
+          ...card,
+          type: card.type || card.cardType || 'what',
+        })),
+      }));
+      if (migratedGroups.length > 0) {
+        setGroups(migratedGroups);
+      } else {
+        const defaultGroup: Group = {
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+          name: 'To Be Scheduled',
+          cards: [],
+        };
+        setGroups([defaultGroup]);
+      }
+    } catch (error) {
+      console.error('Error loading groups:', error);
+      const defaultGroup: Group = {
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+        name: 'To Be Scheduled',
+        cards: [],
+      };
+      setGroups([defaultGroup]);
+    }
+  }, []);
 
   // Re-sync groups from storage on window focus or tab visibility
   useEffect(() => {
@@ -195,9 +215,11 @@ export default function PlansPage() {
     return null;
   };
 
+  // PATCH: IntakeCard always adds to the first group using Yjs
   const handleAddCard = async (data: { type: 'what' | 'where'; content: string; notes?: string }) => {
+    if (!groups.length || !planningRoom) return;
     let newCard: any = {
-      id: Date.now().toString(),
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
       ...data,
       cardType: data.type,
       userId,
@@ -210,11 +232,7 @@ export default function PlansPage() {
         newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
       }
     }
-    const targetGroupId = selectedGroupId || groups[0].id;
-    const groupIndex = groups.findIndex(g => g.id === targetGroupId);
-    if (groupIndex !== -1) {
-      // planningRoomHooks[groupIndex].addCard(newCard);
-    }
+    planningRoom.addCard(newCard);
     setSelectedGroupId(null);
     toast.success('Card added successfully!');
   };
@@ -522,26 +540,8 @@ export default function PlansPage() {
                 isFirstGroup={index === 0}
                 totalGroups={groups.length}
                 onAddGroup={handleAddGroup}
-                onAddCard={(_groupId, data) => {
-                  // Only used for IntakeCard modal, actual addCard logic is now in PlanGroup
-                }}
                 legacyCards={group.cards}
-              >
-                {(planningRoom) => (
-                  <button
-                    className="ml-2 px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200"
-                    onClick={() => {
-                      // planningRoom.cardOrder.forEach((id: string) => planningRoom.removeCard(id));
-                      // localStorage.removeItem(`yjs-migrated-${group.id}`);
-                      setGroups(prevGroups => prevGroups.map((g, i) =>
-                        i === index ? { ...g, cards: [] } : g
-                      ));
-                    }}
-                  >
-                    Clear All Cards
-                  </button>
-                )}
-              </PlanGroup>
+              />
             </div>
           ))}
         </div>

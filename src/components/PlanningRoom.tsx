@@ -21,6 +21,8 @@ import ActivityFeed from './ActivityFeed';
 import PlanCard from './PlanCard';
 import { v4 as uuidv4 } from 'uuid';
 import { Listing } from '@/types/listing';
+import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
+import { useUser } from '@/lib/useUser';
 
 interface CustomPoll {
   id: string;
@@ -71,7 +73,10 @@ interface PlanningRoomProps {
 }
 
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
-  const [currentGroup, setCurrentGroup] = useState<ListingGroup>(group);
+  // Use Yjs-powered planningRoom for real-time card sync
+  const { user } = useUser();
+  const userId = user?.id || '';
+  const planningRoom = usePlanningRoomSync(group.id, userId);
   const [messages, setMessages] = useState<ExtendedMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
@@ -88,13 +93,12 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const [pollOptions, setPollOptions] = useState(['', '']);
   const [polls, setPolls] = useState<CustomPoll[]>([]);
 
-  // Ensure group.listings exists
-  if (!group.listings) {
-    group.listings = [];
-  }
-
+  // Map Yjs cardOrder to linkedCards for display, filter out undefined
+  const cards = planningRoom.cardOrder
+    .map((cardId: string) => planningRoom.linkedCards.find((card: any) => card.id === cardId))
+    .filter((card: any): card is NonNullable<typeof card> => Boolean(card));
   // Add debug logging in the component render
-  console.log('Rendering listings:', currentGroup.listings.map(c => c.id));
+  console.log('Rendering Yjs cards:', cards.map(c => c.id));
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,44 +205,29 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     setShowEmojiPicker(null);
   };
 
+  const handleAddCard = (type: 'what' | 'where', content: string, notes?: string) => {
+    const newCard = {
+      id: uuidv4(),
+      content,
+      notes: notes || '',
+      cardType: type,
+      userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    planningRoom.addCard(newCard);
+    // Optimistically close modal and reset fields immediately
+    setShowNewCardForm(false);
+    setShowActionsMenu(false);
+    setNewCardContent('');
+    setNewCardNotes('');
+  };
+
   const handleCreateNewCard = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCardContent.trim()) return;
-
-    const newCard: Listing = {
-      id: uuidv4(),
-      address: newCardContent,
-      cardType,
-      groupId: group.id,
-      imageUrl: cardType === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
-      sourceUrl: '',
-      source: 'manual',
-      price: 0,
-      notes: newCardNotes.trim() || undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      order: group.listings.length,
-      reactions: []
-    };
-
-    // Update group with new card
-    const updatedGroup = {
-      ...group,
-      listings: [...group.listings, newCard]
-    };
-    onGroupUpdate(updatedGroup);
-    
-    // Add card creation activity
-    addActivity('card_add', {
-      cardTitle: newCardContent,
-      timestamp: Date.now()
-    });
-
-    // Reset form state
-    setNewCardContent('');
-    setNewCardNotes('');
-    setShowNewCardForm(false);
-    setShowActionsMenu(false);
+    handleAddCard(cardType, newCardContent, newCardNotes);
+    // All resets are now handled in handleAddCard for instant feedback
   };
 
   const addActivity = (type: ActivityType, details: ActivityDetails) => {
@@ -255,7 +244,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
     const userId = 'currentUser'; // Replace with actual user ID
     
-    const updatedGroup = { ...currentGroup };
+    const updatedGroup = { ...group };
     const updatedListings = updatedGroup.listings.map(listing => {
       if (listing.id === cardId) {
         const reactions = listing.reactions || [];
@@ -285,63 +274,22 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     });
 
     updatedGroup.listings = updatedListings;
-    setCurrentGroup(updatedGroup);
     onGroupUpdate(updatedGroup);
   };
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = currentGroup.listings.findIndex((item) => item.id === active.id);
-    const newIndex = currentGroup.listings.findIndex((item) => item.id === over.id);
+    const oldIndex = cards.findIndex((item) => item && item.id === active.id);
+    const newIndex = cards.findIndex((item) => item && item.id === over.id);
     if (oldIndex !== -1 && newIndex !== -1) {
-      const newListings = arrayMove(currentGroup.listings, oldIndex, newIndex).map((listing, idx) => ({ ...listing, order: idx }));
-      const updatedGroup = { ...currentGroup, listings: newListings };
-      setCurrentGroup(updatedGroup);
-      onGroupUpdate(updatedGroup);
-      // Add activity
-      const removed = currentGroup.listings[oldIndex];
-      addActivity('card_reorder', {
-        cardTitle: removed.address,
-        fromIndex: oldIndex,
-        toIndex: newIndex,
-        timestamp: Date.now()
-      });
+      const newOrder = Array.from(planningRoom.cardOrder);
+      const [moved] = newOrder.splice(oldIndex, 1);
+      newOrder.splice(newIndex, 0, moved);
+      planningRoom.reorderCards(newOrder);
+      // Add activity (optional, if you want to keep this feature)
+      // addActivity('card_reorder', { ... });
     }
-  };
-
-  const handleAddCard = (type: 'what' | 'where', content: string, notes?: string) => {
-    if (!group) return;
-
-    const newListing: Listing = {
-      id: uuidv4(),
-      address: content,
-      cardType: type,
-      groupId: group.id,
-      imageUrl: type === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
-      sourceUrl: '',
-      source: 'manual',
-      price: 0,
-      notes: notes || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      order: group.listings.length,
-      reactions: []
-    };
-
-    const updatedGroup = {
-      ...group,
-      listings: [...group.listings, newListing]
-    };
-
-    onGroupUpdate(updatedGroup);
-  };
-
-  const updateGroup = (newListings: Listing[]) => {
-    setCurrentGroup((prevGroup: ListingGroup): ListingGroup => ({
-      ...prevGroup,
-      listings: newListings
-    }));
   };
 
   return (
@@ -381,17 +329,19 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               </div>
               <div className="p-4">
                 <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={currentGroup.listings.map(card => card.id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-4">
-                      {currentGroup.listings.map((card, index) => (
-                        <SortableCard
-                          key={card.id}
-                          card={card}
-                          index={index}
-                          handleCardReaction={handleCardReaction}
-                          setActiveCardId={setActiveCardId}
-                          setShowNewCardForm={setShowNewCardForm}
-                        />
+                      {cards.map((card, index) => (
+                        card ? (
+                          <SortableCard
+                            key={card.id}
+                            card={card}
+                            index={index}
+                            handleCardReaction={handleCardReaction}
+                            setActiveCardId={setActiveCardId}
+                            setShowNewCardForm={setShowNewCardForm}
+                          />
+                        ) : null
                       ))}
                     </div>
                   </SortableContext>
@@ -785,7 +735,7 @@ function SortableCard({ card, index, handleCardReaction, setActiveCardId, setSho
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
                 {card.cardType === 'where' ? 'Where' : 'What'}
               </div>
-              <div className="text-sm text-gray-900">{card.address}</div>
+              <div className="text-sm text-gray-900">{card.content}</div>
             </div>
             {card.notes && (
               <div className="pt-2 border-t">
