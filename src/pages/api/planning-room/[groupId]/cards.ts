@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 // In-memory store as a stub for D1
