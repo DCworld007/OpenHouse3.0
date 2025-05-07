@@ -84,6 +84,8 @@ model PlanningRoom {
   shareable   Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  linkedGroups      LinkedGroup[] @relation("SourceGroup")
+  linkedToThisRoom  LinkedGroup[] @relation("LinkedGroup")
 }
 
 model RoomMember {
@@ -144,4 +146,14 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model LinkedGroup {
+  id             String   @id @default(cuid())
+  sourceGroupId  String
+  linkedGroupId  String
+  createdAt      DateTime @default(now())
+  sourceGroup    PlanningRoom @relation("SourceGroup", fields: [sourceGroupId], references: [id])
+  linkedGroup    PlanningRoom @relation("LinkedGroup", fields: [linkedGroupId], references: [id])
+  @@unique([sourceGroupId, linkedGroupId])
 } 

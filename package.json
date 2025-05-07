@@ -10,7 +10,7 @@
     "pages:build": "npx @cloudflare/next-on-pages",
     "pages:deploy": "npm run pages:build && wrangler pages deploy .vercel/output/static",
     "pages:watch": "npx @cloudflare/next-on-pages --watch",
-    "pages:dev": "npx wrangler pages dev .vercel/output/static --compatibility-date=2024-02-05"
+    "pages:dev": "npx wrangler pages dev --compatibility-date=2024-02-05 -- npm run dev"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -19,7 +19,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@headlessui/react": "^1.7.19",
     "@heroicons/react": "^2.2.0",
-    "@prisma/client": "^5.3.1",
+    "@prisma/adapter-d1": "^6.7.0",
     "@swc/helpers": "^0.5.17",
     "@types/node": "20.6.2",
     "@types/react": "18.2.21",
@@ -37,7 +37,6 @@
     "leaflet-routing-machine": "^3.2.12",
     "next": "^15.3.1",
     "postcss": "8.4.29",
-    "prisma": "^5.3.1",
     "react": "18.2.0",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
@@ -52,6 +51,9 @@
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.12",
-    "@types/leaflet": "^1.9.17"
+    "@cloudflare/workers-types": "^4.20250506.0",
+    "@prisma/client": "^6.7.0",
+    "@types/leaflet": "^1.9.17",
+    "prisma": "^6.7.0"
   }
 }

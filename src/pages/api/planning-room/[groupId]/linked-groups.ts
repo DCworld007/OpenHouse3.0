@@ -18,9 +18,10 @@ export default async function handler(req: NextRequest) {
 
   try {
     // Get D1 database from context
-    const db = (req as any).cf?.env?.DB;
+    const db = process.env.DB as any as D1Database;
     if (!db) {
-      throw new Error('D1 database not found in context');
+      console.error('[LinkedGroups API] D1 database (DB binding) not found in process.env');
+      return NextResponse.json({ error: 'D1 database (DB binding) not found in process.env' }, { status: 500 });
     }
     // Find all linked group IDs
     const linksResult = await db.prepare(

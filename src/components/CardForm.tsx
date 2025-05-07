@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Card } from '@prisma/client';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 
@@ -13,7 +12,7 @@ interface CardFormData {
 }
 
 interface CardFormProps {
-  card?: Card;
+  card?: CardFormData;
   onSubmit: (data: CardFormData) => Promise<void>;
   onCancel: () => void;
 }

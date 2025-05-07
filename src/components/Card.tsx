@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Card as CardType } from '@prisma/client';
 import { Listing } from '@/types/listing';
 import { EllipsisVerticalIcon, MapPinIcon, HeartIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
@@ -9,7 +8,7 @@ import { Menu, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 
 interface CardProps {
-  card?: CardType | Listing;
+  card?: Listing;
   onEdit?: () => void;
   onDelete?: () => void;
   onReaction?: (type: string) => void;
@@ -37,15 +36,20 @@ export default function Card({
   }
 
   // Get the content based on the type of card
-  const content = 'content' in card ? card.content : card.address;
+  let content: string = '';
+  if ('content' in card && typeof card.content === 'string') {
+    content = card.content;
+  } else if ('address' in card && typeof card.address === 'string') {
+    content = card.address;
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {card.imageUrl && (
         <div className="relative h-48 w-full">
-        <img
+          <img
             src={card.imageUrl}
-            alt={content}
+            alt={content || ''}
             className="object-cover w-full h-full"
           />
           {card.cardType === 'where' && (
@@ -58,7 +62,7 @@ export default function Card({
       <div className="p-4">
         <div className="flex justify-between items-start">
           <h3 className="text-lg font-medium text-gray-900 flex-1">
-            {content}
+            {content || ''}
           </h3>
           {showActions && (
             <Menu as="div" className="relative inline-block text-left">

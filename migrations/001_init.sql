@@ -64,4 +64,14 @@ CREATE TABLE IF NOT EXISTS Reaction (
   messageId TEXT,
   cardId TEXT,
   createdAt TEXT NOT NULL
+);
+
+-- ActivityLog table for activity feed persistence
+CREATE TABLE IF NOT EXISTS activity_log (
+  id TEXT PRIMARY KEY,
+  groupId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  type TEXT NOT NULL,
+  context TEXT, -- JSON string
+  timestamp INTEGER NOT NULL
 ); 

@@ -1,14 +1,10 @@
 name = "openhouse"
 main = "src/workers/index.ts"
 compatibility_date = "2024-03-01"
+# pages_build_output_dir = ".next" # Temporarily commenting out for proxy mode
 
-[build]
-command = "npm run build"
-pages_build_output_dir = ".next"
-
-[pages]
-build_output_dir = ".next"
-pages_build_output_dir = ".next"
+[vars]
+MY_TEST_VAR = "hello_from_wrangler_vars"
 
 [env.production]
 name = "openhouse3-prod"
@@ -39,8 +35,8 @@ bucket = ".next/static"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "openhouse"
-database_id = "YOUR_D1_DATABASE_ID"
+database_name = "local-openhouse-db"
+database_id = "498d2614-b8d6-4c8e-868b-95de450b185c"
 
 [[kv_namespaces]]
 binding = "CACHE"

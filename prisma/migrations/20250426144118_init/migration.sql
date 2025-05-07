@@ -118,6 +118,16 @@ CREATE TABLE "VerificationToken" (
     "expires" DATETIME NOT NULL
 );
 
+-- CreateTable
+CREATE TABLE IF NOT EXISTS activity_log (
+  id TEXT PRIMARY KEY,
+  groupId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  type TEXT NOT NULL,
+  context TEXT, -- JSON string
+  timestamp INTEGER NOT NULL
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 

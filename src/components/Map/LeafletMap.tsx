@@ -125,9 +125,16 @@ const LeafletMap = ({ locations = [], currentLocation }: LeafletMapProps) => {
   const clearRoute = useCallback(() => {
     if (routingControlRef.current && mapRef.current) {
       try {
-        mapRef.current.removeControl(routingControlRef.current);
+        // Defensive: Only remove if control is still on the map
+        if (mapRef.current.hasLayer && routingControlRef.current._container && mapRef.current.hasLayer(routingControlRef.current)) {
+          mapRef.current.removeControl(routingControlRef.current);
+        } else if (routingControlRef.current.remove) {
+          // Fallback: try to call remove() on the control itself
+          routingControlRef.current.remove();
+        }
         routingControlRef.current = null;
       } catch (error) {
+        // Swallow error, as control may already be removed
         console.warn('Error clearing route:', error);
       }
     }

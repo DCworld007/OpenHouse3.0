@@ -11,10 +11,10 @@ export default async function handler(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
   }
   // Get D1 database from context
-  const db = (req as any).cf?.env?.DB;
+  const db = process.env.DB as any as D1Database;
   if (!db) {
-    console.error('[Activity API] D1 database not found in context');
-    return NextResponse.json({ error: 'D1 database not found in context' }, { status: 500 });
+    console.error('[Activity API] D1 database (DB binding) not found in process.env');
+    return NextResponse.json({ error: 'D1 database (DB binding) not found in process.env' }, { status: 500 });
   }
 
   if (req.method === 'POST') {

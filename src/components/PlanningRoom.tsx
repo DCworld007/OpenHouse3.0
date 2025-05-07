@@ -10,7 +10,8 @@ import {
   ChartBarIcon,
   DocumentPlusIcon,
   XMarkIcon,
-  Bars3Icon
+  Bars3Icon,
+  LinkIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import Card from './Card';
@@ -24,6 +25,7 @@ import { Listing } from '@/types/listing';
 import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
 import { useUser } from '@/lib/useUser';
 import { PlanningRoomYjsDoc } from '@/types/planning-room';
+import { getGroups } from '@/lib/groupStorage';
 
 interface ExtendedMessage extends Message {
   sender: string;
@@ -231,21 +233,31 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   /**
-   * Add an activity to the Yjs-powered activity feed
+   * Add an activity to the Yjs-powered activity feed and persist to D1
    */
-  const addActivity = (type: string, details: any) => {
-    planningRoom.addActivity({
+  const addActivity = async (type: string, details: any) => {
+    const activity = {
       id: uuidv4(),
       type: type as any,
       userId,
       context: details,
       timestamp: Date.now(),
-    });
+    };
+    planningRoom.addActivity(activity);
+    // Persist to D1
+    try {
+      await fetch(`/api/planning-room/${group.id}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activity),
+      });
+    } catch (e) {
+      console.error('[ActivityFeed] Failed to persist activity to D1:', e);
+    }
   };
 
   const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
-    const userId = 'currentUser'; // Replace with actual user ID
-    
+    // Use the actual userId from context
     const updatedGroup = { ...group };
     const updatedListings = updatedGroup.listings.map(listing => {
       if (listing.id === cardId) {
@@ -259,9 +271,17 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           updatedReactions.splice(existingReactionIndex, 1);
         } else {
           updatedReactions.push({ type: reactionType, userId });
-          // Add activity only when adding a reaction, not when removing
+          // Add activity for both like/dislike
+          const cardTitle =
+            typeof listing === 'object'
+              ? ('address' in listing && listing.address)
+                ? listing.address
+                : ('content' in listing && (listing as any).content)
+                  ? (listing as any).content
+                  : ''
+              : '';
           addActivity('card_reaction', {
-            cardTitle: listing.address,
+            cardTitle,
             reactionType,
             timestamp: Date.now()
           });
@@ -289,8 +309,17 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       const [moved] = newOrder.splice(oldIndex, 1);
       newOrder.splice(newIndex, 0, moved);
       planningRoom.reorderCards(newOrder);
-      // Add activity (optional, if you want to keep this feature)
-      // addActivity('card_reorder', { ... });
+      // Track card reorder in activity feed
+      const card = cards[oldIndex];
+      if (card) {
+        const cardTitle = typeof card === 'object' && 'address' in card ? (card as any).address : (card as any).content;
+        addActivity('card_reorder', {
+          cardTitle,
+          fromIndex: oldIndex,
+          toIndex: newIndex,
+          timestamp: Date.now()
+        });
+      }
     }
   };
 
@@ -399,6 +428,97 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     }
   }
 
+  // --- Linked Groups State ---
+  const [linkedGroups, setLinkedGroups] = useState<any[]>([]);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+
+  // Fetch persisted activity feed from D1 on mount
+  useEffect(() => {
+    async function fetchPersistedActivity() {
+      try {
+        const res = await fetch(`/api/planning-room/${group.id}/activity`);
+        const data = await res.json();
+        if (Array.isArray(data.activities)) {
+          // Merge into Yjs activity feed if not already present
+          const existingIds = new Set(planningRoom.activityFeed.map((a: any) => a.id));
+          data.activities.forEach((activity: any) => {
+            if (!existingIds.has(activity.id)) {
+              planningRoom.addActivity(activity);
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[ActivityFeed] Failed to fetch persisted activity:', e);
+      }
+    }
+    fetchPersistedActivity();
+    // Only run on initial mount for this group
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group.id]);
+
+  // Fetch linked groups on mount and after link/unlink
+  useEffect(() => {
+    async function fetchLinkedGroups() {
+      try {
+        const res = await fetch(`/api/planning-room/${group.id}/linked-groups`);
+        const data = await res.json();
+        setLinkedGroups(data.linkedGroups || []);
+        console.log('[LinkedGroups] fetched:', data.linkedGroups);
+      } catch (e) {
+        console.error('[LinkedGroups] fetch error:', e);
+      }
+    }
+    fetchLinkedGroups();
+  }, [group.id]);
+  // Link a group
+  async function handleLinkGroup() {
+    if (!selectedGroupId) return;
+    setLinking(true);
+    try {
+      const res = await fetch(`/api/planning-room/${group.id}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedGroupId: selectedGroupId }),
+      });
+      const data = await res.json();
+      console.log('[LinkedGroups] link result:', data);
+      setShowLinkModal(false);
+      setSelectedGroupId('');
+      // Refetch linked groups
+      const res2 = await fetch(`/api/planning-room/${group.id}/linked-groups`);
+      const data2 = await res2.json();
+      setLinkedGroups(data2.linkedGroups || []);
+    } catch (e) {
+      console.error('[LinkedGroups] link error:', e);
+    } finally {
+      setLinking(false);
+    }
+  }
+  // Unlink a group
+  async function handleUnlinkGroup(linkedGroupId: string) {
+    try {
+      const res = await fetch(`/api/planning-room/${group.id}/unlink`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedGroupId }),
+      });
+      const data = await res.json();
+      console.log('[LinkedGroups] unlink result:', data);
+      // Refetch linked groups
+      const res2 = await fetch(`/api/planning-room/${group.id}/linked-groups`);
+      const data2 = await res2.json();
+      setLinkedGroups(data2.linkedGroups || []);
+    } catch (e) {
+      console.error('[LinkedGroups] unlink error:', e);
+    }
+  }
+  // Get available groups for linking (exclude current and already linked)
+  const availableGroups = getGroups().filter(
+    g => g.id !== group.id && !linkedGroups.some(lg => lg.group.id === g.id)
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -425,13 +545,22 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               <div className="p-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
-                  <button
-                    onClick={() => setShowNewCardForm(true)}
-                    className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50"
-                    title="Add new card"
-                  >
-                    <PlusIcon className="h-5 w-5" />
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowLinkModal(true)}
+                      className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
+                      title="Link Group"
+                    >
+                      <LinkIcon className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => setShowNewCardForm(true)}
+                      className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50"
+                      title="Add new card"
+                    >
+                      <PlusIcon className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="p-4">
@@ -454,6 +583,31 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     </div>
                   </SortableContext>
                 </DndContext>
+                {/* Linked Groups Section */}
+                {linkedGroups.length > 0 && (
+                  <div className="mt-8">
+                    <h3 className="text-sm font-semibold text-indigo-700 mb-2">Linked Groups</h3>
+                    {linkedGroups.map(lg => (
+                      <div key={lg.group.id} className="mb-6 border border-indigo-100 rounded-lg bg-indigo-50 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-indigo-700">From {lg.group.name}</span>
+                          <button
+                            onClick={() => handleUnlinkGroup(lg.group.id)}
+                            className="text-xs text-red-500 hover:underline"
+                          >Unlink</button>
+                        </div>
+                        <div className="space-y-2">
+                          {lg.cards.map((card: any) => (
+                            <div key={card.id} className="bg-white rounded border border-gray-200 px-3 py-2 text-sm text-gray-900">
+                              {card.content}
+                              {card.notes && <div className="text-xs text-gray-500 mt-1">{card.notes}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -754,6 +908,37 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link Group Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[400px] p-6">
+            <h3 className="text-lg font-semibold mb-4">Link Group</h3>
+            <select
+              className="w-full border border-gray-300 rounded px-3 py-2 mb-4"
+              value={selectedGroupId}
+              onChange={e => setSelectedGroupId(e.target.value)}
+            >
+              <option value="">Select a group...</option>
+              {availableGroups.map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowLinkModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-900"
+                disabled={linking}
+              >Cancel</button>
+              <button
+                onClick={handleLinkGroup}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+                disabled={!selectedGroupId || linking}
+              >{linking ? 'Linking...' : 'Link Group'}</button>
             </div>
           </div>
         </div>
