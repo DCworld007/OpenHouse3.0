@@ -11,7 +11,10 @@ import {
   DocumentPlusIcon,
   XMarkIcon,
   Bars3Icon,
-  LinkIcon
+  LinkIcon,
+  UserPlusIcon,
+  ClipboardDocumentIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import Card from './Card';
@@ -71,7 +74,7 @@ interface PlanningRoomProps {
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
   // Use Yjs-powered planningRoom for real-time card sync
   const { user } = useUser();
-  const userId = user?.id || '';
+  const userId = user?.sub || '';
   const planningRoom = usePlanningRoomSync(group.id, userId);
   // Use Yjs-powered chat messages
   const messages = planningRoom.chatMessages;
@@ -87,6 +90,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const [newCardTitle, setNewCardTitle] = useState('');
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
+  // --- ADDED: Invite Modal State ---
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [generatedInviteLink, setGeneratedInviteLink] = useState('');
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   // Map Yjs cardOrder to linkedCards for display, filter out undefined
   const cards = planningRoom.cardOrder
@@ -208,7 +216,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   // (removed legacy updateReaction logic)
 
   const handleAddCard = (type: 'what' | 'where', content: string, notes?: string) => {
-    const newCard = {
+    const newCardData = {
       id: uuidv4(),
       content,
       notes: notes || '',
@@ -217,7 +225,14 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    planningRoom.addCard(newCard);
+    planningRoom.addCard(newCardData);
+
+    // Explicitly add activity after card is added to Yjs
+    addActivity('card_add', { 
+      cardTitle: newCardData.content, 
+      timestamp: Date.now()
+    });
+
     // Optimistically close modal and reset fields immediately
     setShowNewCardForm(false);
     setShowActionsMenu(false);
@@ -240,6 +255,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       id: uuidv4(),
       type: type as any,
       userId,
+      userName: user?.name || undefined,
+      userEmail: user?.email || undefined,
       context: details,
       timestamp: Date.now(),
     };
@@ -462,12 +479,69 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   useEffect(() => {
     async function fetchLinkedGroups() {
       try {
-        const res = await fetch(`/api/planning-room/${group.id}/linked-groups`);
+        // Get all available groups from localStorage to send to the API
+        const currentGroups = getGroups();
+        
+        // IMPORTANT: Make sure allGroups includes the current cards for each group
+        const enhancedGroups = currentGroups.map(g => {
+          // Ensure each group has both cards and listings array
+          if (!g.cards) g.cards = [];
+          if (!g.listings) g.listings = [];
+          
+          console.log(`[LinkedGroups] Group ${g.id} (${g.name}) has ${g.cards.length} cards and ${g.listings.length} listings`);
+          return g;
+        });
+        
+        const groupsParam = encodeURIComponent(JSON.stringify(enhancedGroups));
+        
+        const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/linked-groups?groups=${groupsParam}`;
+        console.log('[LinkedGroups] Fetching linked groups:', apiUrl);
+        
+        const res = await fetch(apiUrl);
+        
+        // If we get an error status, just log it and display empty state
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('[LinkedGroups] API fetch error:', res.status, errorText);
+          
+          // Still set empty array when there's an error to avoid breaking the UI
+          setLinkedGroups([]);
+          return;
+        }
+        
         const data = await res.json();
+        console.log('[LinkedGroups] Response data:', data);
+        console.log('[LinkedGroups] linkedGroups array:', data.linkedGroups);
+        
+        if (!data.linkedGroups || data.linkedGroups.length === 0) {
+          console.log('[LinkedGroups] No linked groups found');
+        } else {
+          console.log('[LinkedGroups] Found linked groups:', data.linkedGroups.length);
+          data.linkedGroups.forEach((lg: any, i: number) => {
+            console.log(`[LinkedGroups] Group ${i+1}:`, lg.group.id, lg.group.name);
+            console.log(`[LinkedGroups] Cards for group ${i+1}:`, lg.cards.length);
+            
+            // DEBUG: Check if the linked group exists in localStorage
+            const originalGroup = currentGroups.find(g => g.id === lg.group.id);
+            if (originalGroup) {
+              console.log(`[LinkedGroups DEBUG] Original group from localStorage:`, {
+                id: originalGroup.id,
+                name: originalGroup.name,
+                cardsCount: originalGroup.cards?.length || 0,
+                listingsCount: originalGroup.listings?.length || 0
+              });
+            } else {
+              console.log(`[LinkedGroups DEBUG] Group ${lg.group.id} not found in localStorage!`);
+            }
+          });
+        }
+        
         setLinkedGroups(data.linkedGroups || []);
-        console.log('[LinkedGroups] fetched:', data.linkedGroups);
+        console.log('[LinkedGroups] State updated with:', data.linkedGroups);
       } catch (e) {
         console.error('[LinkedGroups] fetch error:', e);
+        // Set empty array on error to avoid breaking the UI
+        setLinkedGroups([]);
       }
     }
     fetchLinkedGroups();
@@ -477,21 +551,53 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     if (!selectedGroupId) return;
     setLinking(true);
     try {
-      const res = await fetch(`/api/planning-room/${group.id}/link`, {
+      // Get all available groups to send to the API
+      const currentGroups = getGroups();
+      
+      // Ensure we're using the correct API endpoint with query parameter for groups
+      const groupsParam = encodeURIComponent(JSON.stringify(currentGroups));
+      const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/link?groups=${groupsParam}`;
+      console.log('[LinkedGroups] Calling API:', apiUrl);
+      console.log('[LinkedGroups] selectedGroupId:', selectedGroupId);
+      console.log('[LinkedGroups] Found groups to send:', currentGroups.length);
+      
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ linkedGroupId: selectedGroupId }),
       });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[LinkedGroups] API error:', res.status, errorText);
+        // Show an error dialog or toast here (using alert for simplicity)
+        alert(`Failed to link group: ${res.status} error`);
+        setShowLinkModal(false);
+        setSelectedGroupId('');
+        return;
+      }
+      
       const data = await res.json();
       console.log('[LinkedGroups] link result:', data);
       setShowLinkModal(false);
       setSelectedGroupId('');
+      
       // Refetch linked groups
-      const res2 = await fetch(`/api/planning-room/${group.id}/linked-groups`);
+      const updatedGroups = getGroups();
+      const updatedGroupsParam = encodeURIComponent(JSON.stringify(updatedGroups));
+      const res2 = await fetch(`/api/planning-room/${encodeURIComponent(group.id)}/linked-groups?groups=${updatedGroupsParam}`);
+      if (!res2.ok) {
+        console.error('[LinkedGroups] Failed to fetch linked groups:', res2.status);
+        // Just leave the UI as is if we can't refresh the linked groups list
+        return;
+      }
+      
       const data2 = await res2.json();
       setLinkedGroups(data2.linkedGroups || []);
-    } catch (e) {
+    } catch (e: any) {
       console.error('[LinkedGroups] link error:', e);
+      // Show an error dialog or toast
+      alert(`Error linking group: ${e.message || 'Unknown error'}`);
     } finally {
       setLinking(false);
     }
@@ -499,25 +605,157 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   // Unlink a group
   async function handleUnlinkGroup(linkedGroupId: string) {
     try {
-      const res = await fetch(`/api/planning-room/${group.id}/unlink`, {
+      // Ensure we're using the correct API endpoint
+      const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/unlink`;
+      console.log('[LinkedGroups] Unlinking group:', linkedGroupId, 'API:', apiUrl);
+      
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ linkedGroupId }),
       });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[LinkedGroups] API unlink error:', res.status, errorText);
+        // Show an error dialog or toast here (using alert for simplicity)
+        alert(`Failed to unlink group: ${res.status} error`);
+        return;
+      }
+      
       const data = await res.json();
       console.log('[LinkedGroups] unlink result:', data);
-      // Refetch linked groups
-      const res2 = await fetch(`/api/planning-room/${group.id}/linked-groups`);
+      
+      // Optimistically update UI by removing the unlinked group
+      setLinkedGroups(prev => prev.filter(lg => lg.group.id !== linkedGroupId));
+      
+      // Try to refetch linked groups, but it's okay if this fails
+      try {
+        const allGroups = getGroups();
+        const groupsParam = encodeURIComponent(JSON.stringify(allGroups));
+        const res2 = await fetch(`/api/planning-room/${encodeURIComponent(group.id)}/linked-groups?groups=${groupsParam}`);
+        if (res2.ok) {
       const data2 = await res2.json();
       setLinkedGroups(data2.linkedGroups || []);
+        }
     } catch (e) {
+        console.error('[LinkedGroups] Failed to refetch after unlinking:', e);
+        // Already updated UI optimistically, so no additional action needed
+      }
+    } catch (e: any) {
       console.error('[LinkedGroups] unlink error:', e);
+      // Show an error dialog or toast
+      alert(`Error unlinking group: ${e.message || 'Unknown error'}`);
+    }
+  }
+  // Sync copied cards with their originals
+  async function handleSyncCopiedCards(originalGroupId: string) {
+    try {
+      // Show a loading state if needed
+      // For example: setIsSyncing(originalGroupId);
+      
+      // Get all available groups from localStorage to send to the API
+      const currentGroups = getGroups();
+      const originalGroup = currentGroups.find(g => g.id === originalGroupId);
+      
+      if (!originalGroup) {
+        console.error('[LinkedGroups] Original group not found in localStorage');
+        alert('Could not find original group to sync with');
+        return;
+      }
+      
+      // Call the sync API endpoint
+      const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/sync-copied-cards`;
+      console.log('[LinkedGroups] Syncing copied cards from group:', originalGroupId);
+      
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          originalGroupId,
+          originalGroup
+        }),
+      });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('[LinkedGroups] API sync error:', res.status, errorText);
+        alert(`Failed to sync cards: ${res.status} error`);
+        return;
+      }
+      
+      const data = await res.json();
+      console.log('[LinkedGroups] sync result:', data);
+      
+      // Refresh the cards display
+      const updatedGroups = getGroups();
+      const groupsParam = encodeURIComponent(JSON.stringify(updatedGroups));
+      const res2 = await fetch(`/api/planning-room/${encodeURIComponent(group.id)}/linked-groups?groups=${groupsParam}`);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        setLinkedGroups(data2.linkedGroups || []);
+        
+        // Show success message
+        alert(`Successfully synced ${data.syncedCount || 0} cards from ${originalGroup.name}`);
+      }
+    } catch (e: any) {
+      console.error('[LinkedGroups] sync error:', e);
+      alert(`Error syncing cards: ${e.message || 'Unknown error'}`);
+    } finally {
+      // Clear loading state if needed
+      // setIsSyncing(null);
     }
   }
   // Get available groups for linking (exclude current and already linked)
   const availableGroups = getGroups().filter(
     g => g.id !== group.id && !linkedGroups.some(lg => lg.group.id === g.id)
   );
+
+  // --- Helper to filter duplicate activities by ID ---
+  const uniqueActivitiesById = (activities: (Activity | null)[]) => {
+    const seenIds = new Set<string>();
+    return activities.filter(activity => {
+      if (activity && activity.id && !seenIds.has(activity.id)) {
+        seenIds.add(activity.id);
+        return true;
+      }
+      return false;
+    });
+  };
+
+  // --- ADDED: Invite Logic ---
+  const handleGenerateInviteLink = async () => {
+    setIsGeneratingLink(true);
+    setGeneratedInviteLink('');
+    setInviteLinkCopied(false);
+    try {
+      const res = await fetch(`/api/planning-room/${group.id}/invite`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to generate invite link');
+      }
+      const data = await res.json();
+      setGeneratedInviteLink(data.inviteLink);
+      setShowInviteModal(true);
+    } catch (error: any) {
+      console.error('[InviteLink] Error generating invite link:', error);
+      alert(`Error: ${error.message}`); // Simple error display for now
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setInviteLinkCopied(true);
+      setTimeout(() => setInviteLinkCopied(false), 2000); // Reset after 2 seconds
+    }).catch(err => {
+      console.error('[Clipboard] Failed to copy:', err);
+      alert('Failed to copy link.');
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -531,6 +769,40 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               </Link>
               <h1 className="text-xl font-semibold text-gray-900">{group.name}</h1>
               <span className="px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">Planning Room</span>
+            </div>
+            {/* --- MODIFIED: Header Buttons --- */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleGenerateInviteLink}
+                disabled={isGeneratingLink}
+                className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition disabled:opacity-50"
+                title="Invite Users"
+              >
+                {/* Basic spinner for loading state */}
+                {isGeneratingLink ? 
+                  <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg> : 
+                  <UserPlusIcon className="h-5 w-5" />
+                }
+              </button>
+              <button
+                onClick={() => setShowLinkModal(true)}
+                className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
+                title="Link Group"
+              >
+                <LinkIcon className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => {
+                  setShowNewCardForm(true);
+                }}
+                className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition"
+                title="Add new card"
+              >
+                <PlusIcon className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>
@@ -577,6 +849,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                             setShowNewCardForm={setShowNewCardForm}
                             planningRoom={planningRoom}
                             userId={userId}
+                            addActivity={addActivity}
                           />
                         ) : null
                       ))}
@@ -586,26 +859,99 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 {/* Linked Groups Section */}
                 {linkedGroups.length > 0 && (
                   <div className="mt-8">
-                    <h3 className="text-sm font-semibold text-indigo-700 mb-2">Linked Groups</h3>
-                    {linkedGroups.map(lg => (
-                      <div key={lg.group.id} className="mb-6 border border-indigo-100 rounded-lg bg-indigo-50 p-3">
+                    <h3 className="text-sm font-semibold text-indigo-700 mb-2">Linked Groups ({linkedGroups.length})</h3>
+                    {linkedGroups.map(lg => {
+                      console.log(`Rendering linked group ${lg.group.name} with ${lg?.cards?.length || 0} cards`);
+                      const isCopied = lg.group.isCopied === true;
+                      const isLinked = lg.group.isLinked === true;
+                      
+                      return (
+                      <div key={lg.group.id} className={`mb-6 border rounded-lg p-3 ${isCopied ? 'bg-green-50 border-green-200' : 'bg-indigo-50 border-indigo-100'}`}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-indigo-700">From {lg.group.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-indigo-700">
+                              {isCopied ? 'Copied from ' : 'Linked to '}
+                              {lg.group.name}
+                            </span>
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${isCopied ? 'bg-green-100 text-green-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                              {isCopied ? 'Copied' : 'Linked'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => window.open(`/planning-room/${lg.group.id}`, '_blank')}
+                              className="text-xs text-blue-500 hover:underline"
+                              title="Open linked group in new tab"
+                            >
+                              View
+                            </button>
+                            {isCopied && (
+                              <button
+                                onClick={() => handleSyncCopiedCards(lg.group.id)}
+                                className="text-xs text-green-600 hover:underline"
+                                title="Update cards with the latest changes from original group"
+                              >
+                                Sync
+                              </button>
+                            )}
                           <button
                             onClick={() => handleUnlinkGroup(lg.group.id)}
                             className="text-xs text-red-500 hover:underline"
-                          >Unlink</button>
+                              title={`${isCopied ? 'Remove these copies' : 'Unlink this group'}`}
+                            >
+                              {isCopied ? 'Remove' : 'Unlink'}
+                            </button>
+                          </div>
                         </div>
                         <div className="space-y-2">
-                          {lg.cards.map((card: any) => (
-                            <div key={card.id} className="bg-white rounded border border-gray-200 px-3 py-2 text-sm text-gray-900">
-                              {card.content}
+                          {lg.cards && Array.isArray(lg.cards) && lg.cards.length > 0 ? (
+                            lg.cards.map((card: any) => {
+                              console.log(`Card in ${isCopied ? 'copied' : 'linked'} group:`, card);
+                              return (
+                              <div key={card.id || Math.random().toString()} 
+                                className={`rounded border px-3 py-2 text-sm text-gray-900 ${
+                                  isCopied ? 'bg-white border-green-200' : 'bg-white border-indigo-200'
+                                }`}
+                              >
+                                <div className="font-medium">{card.content || '(No content)'}</div>
                               {card.notes && <div className="text-xs text-gray-500 mt-1">{card.notes}</div>}
+                                <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                                  <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                    card.cardType === 'where' 
+                                      ? 'bg-blue-50 text-blue-700' 
+                                      : 'bg-green-50 text-green-700'
+                                  }`}>
+                                    {card.cardType === 'where' ? 'Where' : 'What'}
+                                  </span>
+                                  {isCopied && (
+                                    <span className="text-xs text-gray-500">
+                                      Copied from original card
+                                    </span>
+                                  )}
                             </div>
-                          ))}
+                        </div>
+                            );
+                            })
+                          ) : (
+                            <div className="bg-gray-50 rounded border border-gray-200 px-3 py-2 text-sm text-gray-500">
+                              No cards in this group - try adding some cards to this group and they'll appear here.
+                              <button 
+                                onClick={() => window.open(`/planning-room/${lg.group.id}`, '_blank')} 
+                                className="mt-2 block text-blue-500 hover:underline text-xs"
+                              >
+                                Open this group to add cards
+                              </button>
+                      </div>
+                          )}
                         </div>
                       </div>
-                    ))}
+                    )})}
+                  </div>
+                )}
+                
+                {linkedGroups.length === 0 && (
+                  <div className="mt-8 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-500">No linked groups yet. Click the link icon to connect another group.</p>
                   </div>
                 )}
               </div>
@@ -721,22 +1067,26 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
               </div>
               <div className="h-[550px] overflow-y-auto">
-                <ActivityFeed activities={planningRoom.activityFeed.slice().reverse().map(a => {
-                  // Map Yjs type to ActivityType
-                  let type: any = a.type;
-                  if (type === 'poll_created') type = 'poll_create';
-                  if (type === 'card_linked') type = 'card_add';
-                  if (type === 'card_reordered') type = 'card_reorder';
-                  if (type === 'vote_cast') type = 'poll_vote';
-                  // Only allow valid ActivityType values
-                  const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
-                  if (!validTypes.includes(type)) return null;
-                  return {
-                    ...a,
-                    type,
-                    details: a.context || {},
-                  };
-                }).filter(Boolean) as Activity[]} />
+                <ActivityFeed activities={uniqueActivitiesById(
+                  planningRoom.activityFeed.slice().reverse().map((a: any) => { 
+                    let type: any = a.type;
+                    if (type === 'poll_created') type = 'poll_create';
+                    if (type === 'card_linked') type = 'card_add';
+                    if (type === 'card_reordered') type = 'card_reorder';
+                    if (type === 'vote_cast') type = 'poll_vote';
+                    const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
+                    if (!validTypes.includes(type)) return null;
+                    return {
+                      id: a.id,
+                      type,
+                      timestamp: a.timestamp,
+                      userId: a.userId,
+                      userName: a.userName,
+                      userEmail: a.userEmail,
+                      details: a.context || {},
+                    };
+                  })
+                ) as Activity[]} />
               </div>
             </div>
           </div>
@@ -943,25 +1293,95 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           </div>
         </div>
       )}
+
+      {/* --- ADDED: Invite Modal --- */}
+      {showInviteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Invite to {group.name}</h3>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                Share this link with others to invite them to your planning room.
+              </p>
+              <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                <input
+                  type="text"
+                  value={generatedInviteLink}
+                  readOnly
+                  className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
+                  onClick={(e) => (e.target as HTMLInputElement).select()} // Select text on click
+                />
+                <button
+                  onClick={() => copyToClipboard(generatedInviteLink)}
+                  className={`inline-flex items-center justify-center px-3 py-2 rounded-md transition-colors text-sm font-medium 
+                    ${inviteLinkCopied 
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                  disabled={!generatedInviteLink}
+                >
+                  {inviteLinkCopied ? 
+                    <CheckCircleIcon className="h-5 w-5 mr-1.5" /> :
+                    <ClipboardDocumentIcon className="h-5 w-5 mr-1.5" />
+                  }
+                  {inviteLinkCopied ? 'Copied!' : 'Copy Link'}
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 text-right">
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-md shadow-sm"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // Add SortableCard component for @dnd-kit
-function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planningRoom, userId }: any) {
+function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planningRoom, userId, addActivity }: any) {
   const reactions = planningRoom.reactions?.[card.id] || {};
   const userReaction = reactions[userId] || null;
   const likeCount = Object.values(reactions).filter(r => r === 'like').length;
   const dislikeCount = Object.values(reactions).filter(r => r === 'dislike').length;
+  
+  // Check if this card is from a linked group
+  const isLinkedCard = card.linkedFrom && card.linkedFromName;
 
   // Debug logging
-  console.log('SortableCard', card.id, { reactions, userReaction, likeCount, dislikeCount });
+  console.log('SortableCard', card.id, { reactions, userReaction, likeCount, dislikeCount, isLinkedCard });
 
   const handleReaction = (type: 'like' | 'dislike') => {
-    if (userReaction === type) {
+    const currentReactionOnCard = userReaction; // Store before changing
+
+    if (currentReactionOnCard === type) {
       planningRoom.removeReaction(card.id);
+      // Optionally, log a 'reaction_removed' activity here if desired
+      // For now, we are not logging removals to avoid too much noise.
     } else {
       planningRoom.addReaction(card.id, type);
+      
+      // Log activity for adding/changing a reaction
+      const reactionTypeForActivity: 'thumbsUp' | 'thumbsDown' = type === 'like' ? 'thumbsUp' : 'thumbsDown';
+      addActivity('card_reaction', {
+        cardTitle: card.content, // Assuming card.content is the title
+        reactionType: reactionTypeForActivity,
+        timestamp: Date.now()
+      });
     }
   };
 
@@ -983,7 +1403,7 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
   };
   return (
     <div ref={setNodeRef} style={style} className={`transition-all group ${isDragging ? 'opacity-50' : ''}`} {...attributes}>
-      <div className="bg-white rounded-lg border border-gray-200 px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group">
+      <div className={`bg-white rounded-lg border ${isLinkedCard ? 'border-indigo-300' : 'border-gray-200'} px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group`}>
         {/* Drag Handle - only this is draggable */}
         <button
           className="mr-3 p-1 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing"
@@ -998,8 +1418,13 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
         <div className="flex-1">
           <div className="space-y-4">
             <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5 flex items-center">
                 {card.cardType === 'where' ? 'Where' : 'What'}
+                {isLinkedCard && (
+                  <span className="ml-2 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs">
+                    From {card.linkedFromName}
+                  </span>
+                )}
               </div>
               <div className="text-sm text-gray-900">{card.content}</div>
             </div>

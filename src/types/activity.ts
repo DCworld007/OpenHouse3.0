@@ -3,6 +3,8 @@ export interface Activity {
   type: ActivityType;
   timestamp: number;
   userId: string;
+  userName?: string;
+  userEmail?: string;
   details: ActivityDetails;
 }
 

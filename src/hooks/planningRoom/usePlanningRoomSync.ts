@@ -33,6 +33,100 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
   const providerRef = useRef<WebsocketProvider | null>(null);
   const hasLoadedFromD1 = useRef(false);
 
+  // NEW: Sync with linked groups - fetch linked groups and add their cards to this group
+  useEffect(() => {
+    let cancelled = false;
+    async function syncLinkedGroups() {
+      if (!groupId) return;
+      try {
+        // Fetch current group's linked groups
+        console.log('[LinkedGroups Sync] Fetching linked groups for', groupId);
+        
+        // Get all available groups from localStorage to send to the API
+        const allGroups = window.localStorage ? JSON.parse(window.localStorage.getItem('openhouse-data') || '[]') : [];
+        const groupsParam = encodeURIComponent(JSON.stringify(allGroups));
+        
+        const res = await fetch(`/api/planning-room/${groupId}/linked-groups?groups=${groupsParam}`);
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        if (!data.linkedGroups || !Array.isArray(data.linkedGroups)) return;
+        
+        console.log('[LinkedGroups Sync] Received linked groups:', data.linkedGroups.length);
+        
+        // Get reference to the Yjs doc and arrays
+        const ydoc = ydocRef.current;
+        if (!ydoc) return;
+        
+        const yLinkedCards = ydoc.getArray('linkedCards');
+        const yCardOrder = ydoc.getArray('cardOrder');
+        
+        // For each linked group that has cards, add their cards to this group's Yjs doc
+        let cardsAdded = 0;
+        
+        for (const linkedGroup of data.linkedGroups) {
+          if (!linkedGroup.cards || !Array.isArray(linkedGroup.cards) || linkedGroup.cards.length === 0) {
+            continue;
+          }
+          
+          console.log(`[LinkedGroups Sync] Processing ${linkedGroup.cards.length} cards from linked group ${linkedGroup.group.id}`);
+          
+          // Check which cards are not already in this group
+          const existingCardIds = new Set(yLinkedCards.toArray().map((card: any) => card.id));
+          const newCards = linkedGroup.cards.filter((card: any) => 
+            !existingCardIds.has(card.id) && 
+            card.content // Only add cards with content
+          );
+          
+          if (newCards.length === 0) {
+            console.log(`[LinkedGroups Sync] No new cards to add from group ${linkedGroup.group.id}`);
+            continue;
+          }
+          
+          console.log(`[LinkedGroups Sync] Adding ${newCards.length} cards from group ${linkedGroup.group.id}`);
+          
+          // Prepare cards for adding to Yjs doc
+          const cardsToAdd = newCards.map((card: any) => ({
+            id: card.id,
+            content: card.content,
+            notes: card.notes || '',
+            cardType: card.cardType || 'what',
+            userId: card.userId || 'unknown',
+            createdAt: card.createdAt || new Date().toISOString(),
+            updatedAt: card.updatedAt || new Date().toISOString(),
+            // Add metadata about the linked group
+            linkedFrom: linkedGroup.group.id,
+            linkedFromName: linkedGroup.group.name
+          }));
+          
+          // Add cards to Yjs arrays
+          if (cardsToAdd.length > 0) {
+            // Add to linkedCards array
+            yLinkedCards.push(cardsToAdd);
+            
+            // Add to cardOrder array
+            yCardOrder.push(cardsToAdd.map((c: any) => c.id));
+            
+            cardsAdded += cardsToAdd.length;
+          }
+        }
+        
+        console.log(`[LinkedGroups Sync] Added a total of ${cardsAdded} cards from linked groups`);
+      } catch (e) {
+        console.error('[LinkedGroups Sync] Error:', e);
+      }
+    }
+    
+    // Run on first mount and then every minute
+    syncLinkedGroups();
+    const interval = setInterval(syncLinkedGroups, 60000);
+    
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [groupId]);
+
   // Load initial state from D1 (Phase 1)
   useEffect(() => {
     let cancelled = false;

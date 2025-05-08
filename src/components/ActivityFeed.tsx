@@ -95,7 +95,7 @@ export default function ActivityFeed({ activities }: ActivityFeedProps) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm text-gray-900">
-                    <span className="font-medium">{activity.userId}</span>
+                    <span className="font-medium">{activity.userName || activity.userEmail || activity.userId}</span>
                     {' '}
                     {getActivityMessage(activity)}
                   </div>

@@ -1,0 +1,132 @@
+
+ ⛅️ wrangler 4.13.2 (update available 4.14.3)
+---------------------------------------------
+
+Running npm run dev...
+Sleeping 5 seconds to allow proxy process to start before attempting to automatically determine port...
+To skip, specify the proxy port with --proxy.
+[proxy]: 
+> openhouse3@0.1.0 dev
+> next dev -p 3000
+
+
+[proxy]:    ▲ Next.js 15.3.1
+
+[proxy]:    - Local:        http://localhost:3000
+   - Network:      http://192.168.68.62:3000
+   - Environments: .env.local, .env
+
+ ✓ Starting...
+
+[proxy]:  ✓ Ready in 1201ms
+
+Automatically determined the proxy port to be 3000.
+No Functions. Shimming...
+No bindings found.
+⎔ Starting local server...
+[wrangler:inf] Ready on http://localhost:8788
+[proxy]:  ✓ Compiled /middleware in 188ms (186 modules)
+
+[proxy]: [middleware] pathname: /planning-room/c820ca35-8305-4135-8038-fefe8b02933e
+
+[proxy]: [middleware] token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMDE0NTIzMDUzMzI1OTQyNDQ1MDAiLCJlbWFpbCI6ImRhbi5kYy5jaHVAZ21haWwuY29tIiwibmFtZSI6ImRhbmllbCBjaHUiLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUNnOG9jTHhaY0tCdWpyU2cwQ2h3OEkyNXpNNWZOT3NOYndZU09CcjNlRmtxUDcwOEZycXh3PXM5Ni1jIiwiaWF0IjoxNzQ2NTg4MzE0LCJleHAiOjE3NDcxOTMxMTR9.-Z2n3aaWm2szcC14NRZtX6qJO8jSEsSlC0jz8yeN3pQ
+
+[proxy]:  ○ Compiling /planning-room/[groupId] ...
+
+[proxy]:  ✓ Compiled /planning-room/[groupId] in 1205ms (1519 modules)
+
+[proxy]:  GET /planning-room/c820ca35-8305-4135-8038-fefe8b02933e 200 in 1490ms
+
+[wrangler:inf] GET /planning-room/c820ca35-8305-4135-8038-fefe8b02933e 200 OK (1750ms)
+[wrangler:inf] GET /_next/static/css/app/layout.css 200 OK (36ms)
+[wrangler:inf] GET /_next/static/chunks/webpack.js 200 OK (19ms)
+[wrangler:inf] GET /_next/static/chunks/main-app.js 200 OK (14ms)
+[wrangler:inf] GET /_next/static/chunks/app-pages-internals.js 200 OK (13ms)
+[wrangler:inf] GET /_next/static/chunks/app/planning-room/%5BgroupId%5D/page.js 200 OK (25ms)
+[wrangler:inf] GET /_next/static/chunks/app/layout.js 200 OK (25ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (7ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (6ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (6ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (5ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (18ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (15ms)
+[wrangler:inf] GET /_next/webpack-hmr 101 Switching Protocols (22ms)
+[wrangler:inf] GET /_next/static/chunks/_app-pages-browser_src_components_PlanningRoom_tsx.js 200 OK (53ms)
+[proxy]:  ○ Compiling /api/planning-room/[groupId]/linked-groups ...
+
+[wrangler:inf] GET /_next/static/webpack/459ce71dc3e3fa2f.webpack.hot-update.json 200 OK (54ms)
+[proxy]:  ✓ Compiled /api/planning-room/[groupId]/linked-groups in 1244ms (1813 modules)
+
+[proxy]: [Activity API] Is process.env.MY_TEST_VAR available? undefined
+
+[proxy]: [Activity API] Request context keys: next, sourcePage
+
+[wrangler:inf] GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/linked-groups 500 Internal Server Error (1084ms)
+[wrangler:inf] GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/activity 500 Internal Server Error (1086ms)
+[wrangler:inf] GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 OK (1090ms)
+[proxy]:  GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 in 1081ms
+ GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/activity 500 in 1081ms
+ GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/linked-groups 500 in 1079ms
+
+[proxy]:  GET /api/me 200 in 1447ms
+
+[wrangler:inf] GET /api/me 200 OK (1454ms)
+[proxy]:  GET /api/me 200 in 10ms
+
+[wrangler:inf] GET /api/me 200 OK (31ms)
+[proxy]:  GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 in 27ms
+ POST /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 in 28ms
+
+[proxy]:  GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/linked-groups 500 in 30ms
+[Activity API] Is process.env.MY_TEST_VAR available? undefined
+[Activity API] Request context keys: next, sourcePage
+ GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/activity 500 in 33ms
+
+[wrangler:inf] GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 OK (49ms)
+[wrangler:inf] POST /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 OK (127ms)
+[wrangler:inf] GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/linked-groups 500 Internal Server Error (53ms)
+[wrangler:inf] GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/activity 500 Internal Server Error (59ms)
+[wrangler:inf] GET /_next/static/webpack/webpack.459ce71dc3e3fa2f.hot-update.js 200 OK (24ms)
+[wrangler:inf] POST /__nextjs_original-stack-frames 200 OK (70ms)
+[proxy]:  GET /api/me 200 in 27ms
+
+[wrangler:inf] POST /__nextjs_original-stack-frames 200 OK (22ms)
+[wrangler:inf] GET /api/me 200 OK (62ms)
+[proxy]: [middleware] pathname: /planning-room/c820ca35-8305-4135-8038-fefe8b02933e
+
+[proxy]: [middleware] token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMDE0NTIzMDUzMzI1OTQyNDQ1MDAiLCJlbWFpbCI6ImRhbi5kYy5jaHVAZ21haWwuY29tIiwibmFtZSI6ImRhbmllbCBjaHUiLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUNnOG9jTHhaY0tCdWpyU2cwQ2h3OEkyNXpNNWZOT3NOYndZU09CcjNlRmtxUDcwOEZycXh3PXM5Ni1jIiwiaWF0IjoxNzQ2NTg4MzE0LCJleHAiOjE3NDcxOTMxMTR9.-Z2n3aaWm2szcC14NRZtX6qJO8jSEsSlC0jz8yeN3pQ
+
+[wrangler:inf] GET /planning-room/c820ca35-8305-4135-8038-fefe8b02933e 200 OK (328ms)
+[proxy]:  GET /planning-room/c820ca35-8305-4135-8038-fefe8b02933e 200 in 287ms
+
+[wrangler:inf] GET /_next/static/css/app/layout.css 200 OK (14ms)
+[wrangler:inf] GET /_next/static/chunks/webpack.js 200 OK (21ms)
+[wrangler:inf] GET /_next/static/chunks/main-app.js 200 OK (14ms)
+[wrangler:inf] GET /_next/static/chunks/app-pages-internals.js 200 OK (14ms)
+[wrangler:inf] GET /_next/static/chunks/app/layout.js 200 OK (22ms)
+[wrangler:inf] GET /_next/static/chunks/app/planning-room/%5BgroupId%5D/page.js 200 OK (122ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (6ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (3ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (2ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (3ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (4ms)
+[wrangler:inf] GET /__nextjs_source-map 200 OK (26ms)
+[wrangler:inf] GET /_next/webpack-hmr 101 Switching Protocols (14ms)
+[proxy]:  GET /api/me 200 in 14ms
+
+[wrangler:inf] GET /api/me 200 OK (20ms)
+[wrangler:inf] GET /_next/static/chunks/_app-pages-browser_src_components_PlanningRoom_tsx.js 200 OK (19ms)
+[proxy]:  GET /api/me 200 in 12ms
+
+[wrangler:inf] GET /api/me 200 OK (18ms)
+[proxy]:  GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 in 14ms
+
+[wrangler:inf] GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 OK (30ms)
+[proxy]: [Activity API] Is process.env.MY_TEST_VAR available? undefined
+[Activity API] Request context keys: next, sourcePage
+
+[proxy]:  GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/activity 500 in 12ms
+ GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/linked-groups 500 in 17ms
+ GET /api/me 200 in 15ms
+ GET /api/planning-room/c820ca35-8305-4135-8038-fefe8b02933e/cards 200 in 2ms
+

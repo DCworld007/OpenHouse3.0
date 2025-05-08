@@ -19,10 +19,10 @@ export default async function handler(req: NextRequest) {
   
   try {
     // Extract linked group ID from request body
-    const { linkedGroupId } = await req.json();
+  const { linkedGroupId } = await req.json();
     if (!linkedGroupId) {
       return NextResponse.json({ error: 'Missing linkedGroupId' }, { status: 400 });
-    }
+  }
     
     // Get the Cloudflare context
     const ctx = await getCloudflareContext({async: true});

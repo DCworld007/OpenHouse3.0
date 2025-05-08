@@ -1,3 +1,416 @@
 {
-  "version": 3
+  "version": 3,
+  "routes": [
+    {
+      "src": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$",
+      "headers": {
+        "Location": "/$1"
+      },
+      "status": 308,
+      "continue": true
+    },
+    {
+      "src": "/_next/__private/trace",
+      "dest": "/404",
+      "status": 404,
+      "continue": true
+    },
+    {
+      "src": "/404/?",
+      "status": 404,
+      "continue": true,
+      "missing": [
+        {
+          "type": "header",
+          "key": "x-prerender-revalidate"
+        }
+      ]
+    },
+    {
+      "src": "/500",
+      "status": 500,
+      "continue": true
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/(.*).json",
+      "dest": "/$1",
+      "override": true,
+      "continue": true,
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ]
+    },
+    {
+      "src": "^/index(?:/)?",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ],
+      "dest": "/",
+      "override": true,
+      "continue": true
+    },
+    {
+      "continue": true,
+      "src": "^(?:\\/(_next\\/data\\/[^/]{1,}))?(?:\\/((?!api|_next\\/static|_next\\/image|favicon.ico|public).*))(\\.json)?[\\/#\\?]?$",
+      "missing": [
+        {
+          "type": "header",
+          "key": "x-prerender-revalidate",
+          "value": "bc6e71e4e2bdb8a46cf9ec0dce66e684"
+        }
+      ],
+      "middlewarePath": "src/middleware",
+      "middlewareRawSrc": [
+        "/((?!api|_next/static|_next/image|favicon.ico|public).*)"
+      ],
+      "override": true
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ],
+      "dest": "/_next/data/kV2Lu7pmWfwP5kFSxjKOu/index.json",
+      "continue": true,
+      "override": true
+    },
+    {
+      "src": "^/((?!_next/)(?:.*[^/]|.*))/?$",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ],
+      "dest": "/_next/data/kV2Lu7pmWfwP5kFSxjKOu/$1.json",
+      "continue": true,
+      "override": true
+    },
+    {
+      "src": "^/?",
+      "has": [
+        {
+          "type": "header",
+          "key": "rsc"
+        }
+      ],
+      "dest": "/index.rsc",
+      "continue": true,
+      "override": true
+    },
+    {
+      "src": "^/((?!.+\\.rsc).+?)(?:/)?$",
+      "has": [
+        {
+          "type": "header",
+          "key": "rsc"
+        }
+      ],
+      "dest": "/$1.rsc",
+      "continue": true,
+      "override": true
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/(.*).json",
+      "dest": "/$1",
+      "continue": true,
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ]
+    },
+    {
+      "src": "^/index(?:/)?",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ],
+      "dest": "/",
+      "continue": true
+    },
+    {
+      "src": "/index(\\.action|\\.rsc)",
+      "dest": "/",
+      "continue": true
+    },
+    {
+      "src": "/\\.prefetch\\.rsc$",
+      "dest": "/__index.prefetch.rsc",
+      "check": true
+    },
+    {
+      "src": "/(.+)/\\.prefetch\\.rsc$",
+      "dest": "/$1.prefetch.rsc",
+      "check": true
+    },
+    {
+      "src": "/\\.rsc$",
+      "dest": "/index.rsc",
+      "check": true
+    },
+    {
+      "src": "/(.+)/\\.rsc$",
+      "dest": "/$1.rsc",
+      "check": true
+    },
+    {
+      "handle": "resource"
+    },
+    {
+      "src": "/.*",
+      "status": 404
+    },
+    {
+      "handle": "miss"
+    },
+    {
+      "src": "/_next/static/(?:[^/]+/pages|pages|chunks|runtime|css|image|media)/.+",
+      "status": 404,
+      "check": true,
+      "dest": "$0"
+    },
+    {
+      "handle": "rewrite"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ],
+      "dest": "/_next/data/kV2Lu7pmWfwP5kFSxjKOu/index.json",
+      "continue": true
+    },
+    {
+      "src": "^/((?!_next/)(?:.*[^/]|.*))/?$",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-nextjs-data"
+        }
+      ],
+      "dest": "/_next/data/kV2Lu7pmWfwP5kFSxjKOu/$1.json",
+      "continue": true
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/activity(?:/)?.json$",
+      "dest": "/api/planning-room/[groupId]/activity?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/cards(?:/)?.json$",
+      "dest": "/api/planning-room/[groupId]/cards?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/link(?:/)?.json$",
+      "dest": "/api/planning-room/[groupId]/link?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/linked\\-groups(?:/)?.json$",
+      "dest": "/api/planning-room/[groupId]/linked-groups?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/unlink(?:/)?.json$",
+      "dest": "/api/planning-room/[groupId]/unlink?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/plan/(?<nxtPgroupId>[^/]+?)(?:/)?.json$",
+      "dest": "/plan/[groupId]?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/planning\\-room/(?<nxtPgroupId>[^/]+?)(?:/)?.json$",
+      "dest": "/planning-room/[groupId]?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/sign\\-in(?:/(?<nxtPrest>.+?))?(?:/)?.json$",
+      "dest": "/sign-in/[[...rest]]?nxtPrest=$nxtPrest"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/activity(?:\\.rsc)(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/activity.rsc?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/activity(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/activity?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/cards(?:\\.rsc)(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/cards.rsc?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/cards(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/cards?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/link(?:\\.rsc)(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/link.rsc?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/link(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/link?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/linked\\-groups(?:\\.rsc)(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/linked-groups.rsc?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/linked\\-groups(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/linked-groups?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/unlink(?:\\.rsc)(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/unlink.rsc?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/api/planning\\-room/(?<nxtPgroupId>[^/]+?)/unlink(?:/)?$",
+      "dest": "/api/planning-room/[groupId]/unlink?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/plan/(?<nxtPgroupId>[^/]+?)(?:\\.rsc)(?:/)?$",
+      "dest": "/plan/[groupId].rsc?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/plan/(?<nxtPgroupId>[^/]+?)(?:/)?$",
+      "dest": "/plan/[groupId]?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/planning\\-room/(?<nxtPgroupId>[^/]+?)(?:\\.rsc)(?:/)?$",
+      "dest": "/planning-room/[groupId].rsc?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/planning\\-room/(?<nxtPgroupId>[^/]+?)(?:/)?$",
+      "dest": "/planning-room/[groupId]?nxtPgroupId=$nxtPgroupId"
+    },
+    {
+      "src": "^/sign\\-in(?:/(?<nxtPrest>.+?))?(?:\\.rsc)(?:/)?$",
+      "dest": "/sign-in/[[...rest]].rsc?nxtPrest=$nxtPrest"
+    },
+    {
+      "src": "^/sign\\-in(?:/(?<nxtPrest>.+?))?(?:/)?$",
+      "dest": "/sign-in/[[...rest]]?nxtPrest=$nxtPrest"
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/(.*).json",
+      "headers": {
+        "x-nextjs-matched-path": "/$1"
+      },
+      "continue": true,
+      "override": true
+    },
+    {
+      "src": "^/_next/data/kV2Lu7pmWfwP5kFSxjKOu/(.*).json",
+      "dest": "__next_data_catchall"
+    },
+    {
+      "handle": "hit"
+    },
+    {
+      "src": "/_next/static/(?:[^/]+/pages|pages|chunks|runtime|css|image|media|kV2Lu7pmWfwP5kFSxjKOu)/.+",
+      "headers": {
+        "cache-control": "public,max-age=31536000,immutable"
+      },
+      "continue": true,
+      "important": true
+    },
+    {
+      "src": "/index(?:/)?",
+      "headers": {
+        "x-matched-path": "/"
+      },
+      "continue": true,
+      "important": true
+    },
+    {
+      "src": "/((?!index$).*?)(?:/)?",
+      "headers": {
+        "x-matched-path": "/$1"
+      },
+      "continue": true,
+      "important": true
+    },
+    {
+      "handle": "error"
+    },
+    {
+      "src": "/.*",
+      "dest": "/404",
+      "status": 404
+    },
+    {
+      "src": "/.*",
+      "dest": "/500",
+      "status": 500
+    }
+  ],
+  "overrides": {
+    "404.html": {
+      "path": "404",
+      "contentType": "text/html; charset=utf-8"
+    },
+    "500.html": {
+      "path": "500",
+      "contentType": "text/html; charset=utf-8"
+    },
+    "_app.rsc.json": {
+      "path": "_app.rsc",
+      "contentType": "application/json"
+    },
+    "_error.rsc.json": {
+      "path": "_error.rsc",
+      "contentType": "application/json"
+    },
+    "_document.rsc.json": {
+      "path": "_document.rsc",
+      "contentType": "application/json"
+    },
+    "api/planning-room/[groupId]/activity.rsc.json": {
+      "path": "api/planning-room/[groupId]/activity.rsc",
+      "contentType": "application/json"
+    },
+    "api/planning-room/[groupId]/cards.rsc.json": {
+      "path": "api/planning-room/[groupId]/cards.rsc",
+      "contentType": "application/json"
+    },
+    "api/planning-room/[groupId]/unlink.rsc.json": {
+      "path": "api/planning-room/[groupId]/unlink.rsc",
+      "contentType": "application/json"
+    },
+    "api/planning-room/[groupId]/linked-groups.rsc.json": {
+      "path": "api/planning-room/[groupId]/linked-groups.rsc",
+      "contentType": "application/json"
+    },
+    "api/planning-room/[groupId]/link.rsc.json": {
+      "path": "api/planning-room/[groupId]/link.rsc",
+      "contentType": "application/json"
+    },
+    "404.rsc.json": {
+      "path": "404.rsc",
+      "contentType": "application/json"
+    },
+    "__next_data_catchall.json": {
+      "path": "__next_data_catchall",
+      "contentType": "application/json"
+    }
+  },
+  "framework": {
+    "version": "15.3.1"
+  },
+  "crons": []
 }
