@@ -69,9 +69,17 @@ export default async function handler(req: NextRequest) {
     ).bind(...linkedGroupIds).all();
     const cardLinks = groupCardLinksResult.results || [];
     
+    // Format the response to match what the UI expects (with nested 'group' property)
     return NextResponse.json({ 
       linkedGroups: groups.map((g: any) => ({
-        ...g,
+        group: { 
+          id: g.id,
+          name: g.name,
+          description: g.description,
+          ownerId: g.ownerId,
+          createdAt: g.createdAt,
+          updatedAt: g.updatedAt
+        },
         cards: cardLinks.filter((cl: any) => cl.roomId === g.id)
       }))
     });
