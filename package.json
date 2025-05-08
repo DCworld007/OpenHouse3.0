@@ -19,6 +19,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@headlessui/react": "^1.7.19",
     "@heroicons/react": "^2.2.0",
+    "@opennextjs/cloudflare": "^1.0.1",
     "@prisma/adapter-d1": "^6.7.0",
     "@swc/helpers": "^0.5.17",
     "@types/node": "20.6.2",

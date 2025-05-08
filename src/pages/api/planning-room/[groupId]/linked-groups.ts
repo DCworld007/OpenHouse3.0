@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export const runtime = 'edge';
 
@@ -17,12 +18,36 @@ export default async function handler(req: NextRequest) {
   }
 
   try {
-    // Get D1 database from context
-    const db = process.env.DB as any as D1Database;
+    // Get the Cloudflare context
+    const ctx = await getCloudflareContext({async: true});
+    
+    // Get the DB binding directly
+    const db = ctx.env.DB;
+
     if (!db) {
-      console.error('[LinkedGroups API] D1 database (DB binding) not found in process.env');
-      return NextResponse.json({ error: 'D1 database (DB binding) not found in process.env' }, { status: 500 });
+      console.error('[LinkedGroups API] D1 database (DB binding) not found');
+      return NextResponse.json({ error: 'Database connection not available' }, { status: 500 });
     }
+    
+    // Check if table exists, create if not
+    try {
+      await db.prepare(`SELECT * FROM LinkedGroup LIMIT 1`).all();
+    } catch (e) {
+      // Table doesn't exist, create it
+      console.log('[LinkedGroups API] Creating LinkedGroup table');
+      await db.prepare(`
+        CREATE TABLE IF NOT EXISTS LinkedGroup (
+          sourceGroupId TEXT NOT NULL,
+          linkedGroupId TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          PRIMARY KEY (sourceGroupId, linkedGroupId)
+        )
+      `).run();
+      
+      // If table was just created, there are no linked groups
+      return NextResponse.json({ linkedGroups: [] });
+    }
+    
     // Find all linked group IDs
     const linksResult = await db.prepare(
       `SELECT linkedGroupId FROM LinkedGroup WHERE sourceGroupId = ?`
@@ -43,23 +68,15 @@ export default async function handler(req: NextRequest) {
       `SELECT crl.*, c.content, c.notes, c.cardType FROM CardRoomLink crl JOIN Card c ON crl.cardId = c.id WHERE crl.roomId IN (${placeholders})`
     ).bind(...linkedGroupIds).all();
     const cardLinks = groupCardLinksResult.results || [];
-    // Format as [{ group, cards }]
-    const result = groups.map((g: any) => ({
-      group: {
-        id: g.id,
-        name: g.name,
-        description: g.description,
-        shareable: 'shareable' in g ? g.shareable : false,
-      },
-      cards: cardLinks.filter((cl: any) => cl.roomId === g.id).map((cl: any) => ({
-        id: cl.cardId,
-        content: cl.content,
-        notes: cl.notes,
-        cardType: cl.cardType,
-      })),
-    }));
-    return NextResponse.json({ linkedGroups: result });
+    
+    return NextResponse.json({ 
+      linkedGroups: groups.map((g: any) => ({
+        ...g,
+        cards: cardLinks.filter((cl: any) => cl.roomId === g.id)
+      }))
+    });
   } catch (e: any) {
+    console.error('[LinkedGroups API] Error:', e);
     return NextResponse.json({ error: e.message || 'Internal Server Error' }, { status: 500 });
   }
 } 
