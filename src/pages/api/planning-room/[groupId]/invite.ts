@@ -50,7 +50,11 @@ export default async function handler(req: NextRequest) {
 
   const url = new URL(req.url);
   const pathSegments = url.pathname.split('/');
-  const groupId = pathSegments[pathSegments.length - 3];
+  const groupId = pathSegments[pathSegments.length - 2];
+  
+  console.log(`[API Invite POST] URL: ${url.pathname}`);
+  console.log(`[API Invite POST] Path segments: ${JSON.stringify(pathSegments)}`);
+  console.log(`[API Invite POST] Extracted groupId: ${groupId}`);
 
   if (!groupId || typeof groupId !== 'string') {
     return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
