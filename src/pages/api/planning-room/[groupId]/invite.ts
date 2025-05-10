@@ -55,37 +55,51 @@ export default async function handler(req: NextRequest) {
     return NextResponse.json({ error: 'Method Not Allowed' }, { status: 405 });
   }
 
-  const currentUserId = await getUserIdFromJwt(req);
-
-  if (!currentUserId) {
-    return NextResponse.json({ error: 'Unauthorized: Invalid or missing token' }, { status: 401 });
-  }
-
-  const url = new URL(req.url);
-  const pathSegments = url.pathname.split('/');
-  const groupId = pathSegments[pathSegments.length - 2];
-  
-  console.log(`[API Invite POST] URL: ${url.pathname}`);
-  console.log(`[API Invite POST] Path segments: ${JSON.stringify(pathSegments)}`);
-  console.log(`[API Invite POST] Extracted groupId: ${groupId}`);
-
-  if (!groupId || typeof groupId !== 'string') {
-    return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
-  }
-
   try {
-    let db;
-    try {
-      const cloudflare = getCloudflareContext();
-      db = cloudflare.env.DB;
-    } catch (e) {
-      console.warn('[API Invite POST] Could not get Cloudflare context. Trying process.env.DB.');
-      db = (process.env as any).DB;
+    const currentUserId = await getUserIdFromJwt(req);
+
+    if (!currentUserId) {
+      return NextResponse.json({ error: 'Unauthorized: Invalid or missing token' }, { status: 401 });
     }
 
-    if (!db) {
-      console.error('[API Invite POST] D1 database (DB binding) not found');
-      return NextResponse.json({ error: 'Database connection not available' }, { status: 500 });
+    const url = new URL(req.url);
+    const pathSegments = url.pathname.split('/');
+    const groupId = pathSegments[pathSegments.length - 2];
+    
+    console.log(`[API Invite POST] URL: ${url.pathname}`);
+    console.log(`[API Invite POST] Path segments: ${JSON.stringify(pathSegments)}`);
+    console.log(`[API Invite POST] Extracted groupId: ${groupId}`);
+
+    if (!groupId || typeof groupId !== 'string') {
+      return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
+    }
+
+    // More robust DB connection handling
+    let db;
+    try {
+      // First attempt: get from Cloudflare context
+      try {
+        const cloudflare = getCloudflareContext();
+        db = cloudflare.env.DB;
+        console.log('[API Invite POST] Successfully obtained DB from Cloudflare context');
+      } catch (cfError) {
+        console.warn('[API Invite POST] Could not get Cloudflare context:', cfError);
+        // Second attempt: fallback to process.env.DB
+        db = (process.env as any).DB;
+        if (db) {
+          console.log('[API Invite POST] Successfully obtained DB from process.env');
+        }
+      }
+
+      if (!db) {
+        throw new Error('Database connection not available');
+      }
+    } catch (dbError) {
+      console.error('[API Invite POST] Failed to connect to database:', dbError);
+      return NextResponse.json({ 
+        error: 'Database connection not available', 
+        details: dbError instanceof Error ? dbError.message : String(dbError) 
+      }, { status: 500 });
     }
 
     console.log(`[API Invite POST] Looking for planning room with ID: ${groupId}`);
@@ -117,8 +131,17 @@ export default async function handler(req: NextRequest) {
 
     const expiresAt = null;
     const maxUses = null;
-    const tokenString = generateSecureToken();
-    const newInviteId = generateUUID();
+    const tokenString = generateSecureToken(48); // Increase token length for security
+    
+    // Generate ID with fallback to timestamp if UUID generation fails
+    let newInviteId;
+    try {
+      newInviteId = generateUUID();
+      console.log(`[API Invite POST] Generated UUID: ${newInviteId}`);
+    } catch (uuidError) {
+      console.warn('[API Invite POST] UUID generation failed, using timestamp-based ID', uuidError);
+      newInviteId = `invite-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    }
 
     // Check if InviteTokens table exists, create it if not
     try {
@@ -174,7 +197,15 @@ export default async function handler(req: NextRequest) {
     }, { status: 201 });
 
   } catch (error: any) {
-    console.error('[API Invite POST] Error creating invite:', error, error.cause);
-    return NextResponse.json({ error: 'Failed to create invite', details: error.message }, { status: 500 });
+    // More detailed error logging
+    console.error('[API Invite POST] Error creating invite:', error);
+    console.error('[API Invite POST] Error stack:', error.stack);
+    console.error('[API Invite POST] Error cause:', error.cause);
+    
+    return NextResponse.json({ 
+      error: 'Failed to create invite', 
+      details: error instanceof Error ? error.message : String(error),
+      path: req.url
+    }, { status: 500 });
   }
 } 
