@@ -1069,22 +1069,22 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               <div className="h-[550px] overflow-y-auto">
                 <ActivityFeed activities={uniqueActivitiesById(
                   planningRoom.activityFeed.slice().reverse().map((a: any) => { 
-                    let type: any = a.type;
-                    if (type === 'poll_created') type = 'poll_create';
-                    if (type === 'card_linked') type = 'card_add';
-                    if (type === 'card_reordered') type = 'card_reorder';
-                    if (type === 'vote_cast') type = 'poll_vote';
-                    const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
-                    if (!validTypes.includes(type)) return null;
-                    return {
+                  let type: any = a.type;
+                  if (type === 'poll_created') type = 'poll_create';
+                  if (type === 'card_linked') type = 'card_add';
+                  if (type === 'card_reordered') type = 'card_reorder';
+                  if (type === 'vote_cast') type = 'poll_vote';
+                  const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
+                  if (!validTypes.includes(type)) return null;
+                  return {
                       id: a.id,
-                      type,
+                    type,
                       timestamp: a.timestamp,
                       userId: a.userId,
                       userName: a.userName,
                       userEmail: a.userEmail,
-                      details: a.context || {},
-                    };
+                    details: a.context || {},
+                  };
                   })
                 ) as Activity[]} />
               </div>

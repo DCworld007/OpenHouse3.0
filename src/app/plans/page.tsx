@@ -107,6 +107,14 @@ export default function PlansPage() {
       }));
       if (migratedGroups.length > 0) {
         setGroups(migratedGroups);
+        // Ensure all existing groups are persisted to D1
+        migratedGroups.forEach(async (group) => {
+          try {
+            await ensureGroupExistsInD1(group);
+          } catch (error) {
+            console.error(`Failed to sync group ${group.id} to D1:`, error);
+          }
+        });
       } else {
         const defaultGroup: Group = {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
@@ -114,6 +122,10 @@ export default function PlansPage() {
           cards: [],
         };
         setGroups([defaultGroup]);
+        // Persist the default group to D1
+        ensureGroupExistsInD1(defaultGroup).catch(error => {
+          console.error('Failed to persist default group to D1:', error);
+        });
       }
     } catch (error) {
       console.error('Error loading groups:', error);
@@ -123,6 +135,10 @@ export default function PlansPage() {
         cards: [],
       };
       setGroups([defaultGroup]);
+      // Persist the default group to D1
+      ensureGroupExistsInD1(defaultGroup).catch(error => {
+        console.error('Failed to persist default group to D1:', error);
+      });
     }
   }, []);
 
@@ -265,21 +281,40 @@ export default function PlansPage() {
   };
 
   const handleAddGroup = (afterGroupId: string) => {
+    const newGroupId = typeof crypto !== 'undefined' && crypto.randomUUID 
+      ? crypto.randomUUID() 
+      : Date.now().toString();
+      
     const newGroup: Group = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      id: newGroupId,
       name: 'New Group',
       cards: [],
     };
-    const index = groups.findIndex(g => g.id === afterGroupId);
-    let newGroups;
-    if (index === -1) {
-      newGroups = [...groups, newGroup];
-    } else {
-      newGroups = [...groups];
-      newGroups.splice(index + 1, 0, newGroup);
-    }
-    console.log('[PlansPage] setGroups (add group)', newGroups);
+    
+    // Find the index of the group after which to add the new group
+    const index = groups.findIndex(group => group.id === afterGroupId);
+    const newGroups = [
+      ...groups.slice(0, index + 1),
+      newGroup,
+      ...groups.slice(index + 1),
+    ];
+    
     setGroups(newGroups);
+    setSelectedGroupId(newGroup.id);
+    
+    // Persist the new group to D1
+    ensureGroupExistsInD1(newGroup).catch(error => {
+      console.error('Failed to persist new group to D1:', error);
+      toast.error('Group created locally but failed to sync to server');
+    });
+    
+    // Delayed transition to focus on group name
+    setTimeout(() => {
+      const groupElement = document.getElementById(`group-name-${newGroup.id}`);
+      if (groupElement) {
+        groupElement.focus();
+      }
+    }, 100);
   };
 
   const handleDeleteGroup = (groupId: string) => {
@@ -428,6 +463,42 @@ export default function PlansPage() {
       }
     });
   }, [groups]);
+
+  // Helper function to ensure a group exists in D1 database
+  const ensureGroupExistsInD1 = async (group: Group) => {
+    // Skip if no userId (user not logged in)
+    if (!userId) {
+      console.warn('Cannot persist group to D1: No user ID');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: group.id, // Use the same ID as localStorage
+          name: group.name,
+          description: '',
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        // If error is "Room already exists" that's fine - it means it's already in D1
+        if (errorData.error && !errorData.error.includes('already exists')) {
+          throw new Error(errorData.error || 'Failed to persist room to D1');
+        }
+      }
+      
+      console.log(`Group ${group.id} synced to D1 database`);
+    } catch (error) {
+      console.error('Error persisting group to D1:', error);
+      throw error;
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

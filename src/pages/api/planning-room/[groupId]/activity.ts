@@ -16,10 +16,10 @@ export default async function handler(req: NextRequest) {
     const { env } = getCloudflareContext();
     const db = env.DB;
     
-    if (!db) {
+  if (!db) {
       console.error('[Activity API] D1 database (DB binding) not found');
       return NextResponse.json({ error: 'Database connection not available' }, { status: 500 });
-    }
+  }
 
     // Ensure Activity table exists (idempotent check)
     // This could be moved to a separate initialization step outside the request handler

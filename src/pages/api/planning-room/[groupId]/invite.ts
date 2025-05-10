@@ -71,12 +71,28 @@ export default async function handler(req: NextRequest) {
       return NextResponse.json({ error: 'Database connection not available' }, { status: 500 });
     }
 
+    console.log(`[API Invite POST] Looking for planning room with ID: ${groupId}`);
+    
     const roomQuery = 'SELECT ownerId FROM PlanningRoom WHERE id = ?';
     const room = await db.prepare(roomQuery).bind(groupId).first() as { ownerId: string } | null;
 
     if (!room) {
-      return NextResponse.json({ error: 'Planning room not found' }, { status: 404 });
+      console.error(`[API Invite POST] Planning room not found for ID: ${groupId}`);
+      
+      const allRoomsStmt = db.prepare('SELECT id FROM PlanningRoom').all();
+      const allRoomsResult = await allRoomsStmt;
+      const allRoomIds = allRoomsResult.results?.map((r: any) => r.id) || [];
+      
+      console.log(`[API Invite POST] Available room IDs in database: ${JSON.stringify(allRoomIds)}`);
+      
+      return NextResponse.json({ 
+        error: 'Planning room not found',
+        roomId: groupId,
+        availableRooms: allRoomIds.length
+      }, { status: 404 });
     }
+
+    console.log(`[API Invite POST] Found planning room with ID: ${groupId}, ownerId: ${room.ownerId}`);
 
     if (room.ownerId !== currentUserId) {
       return NextResponse.json({ error: 'Forbidden: Only the room owner can create invites' }, { status: 403 });
@@ -86,6 +102,37 @@ export default async function handler(req: NextRequest) {
     const maxUses = null;
     const tokenString = generateSecureToken();
     const newInviteId = crypto.randomUUID();
+
+    // Check if InviteTokens table exists, create it if not
+    try {
+      await db.prepare(`SELECT 1 FROM InviteTokens LIMIT 1`).first();
+    } catch (e) {
+      console.log('[API Invite POST] InviteTokens table does not exist, creating it...');
+      try {
+        await db.prepare(`
+          CREATE TABLE IF NOT EXISTS InviteTokens (
+            id TEXT PRIMARY KEY,
+            token TEXT UNIQUE NOT NULL,
+            planningRoomId TEXT NOT NULL,
+            generatedByUserId TEXT NOT NULL,
+            createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            expiresAt TEXT,
+            maxUses INTEGER,
+            usesCount INTEGER NOT NULL DEFAULT 0,
+            isActive INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY (planningRoomId) REFERENCES PlanningRoom(id) ON DELETE CASCADE,
+            FOREIGN KEY (generatedByUserId) REFERENCES User(id) ON DELETE CASCADE
+          )
+        `).run();
+        console.log('[API Invite POST] InviteTokens table created successfully');
+      } catch (createError: any) {
+        console.error('[API Invite POST] Failed to create InviteTokens table:', createError);
+        return NextResponse.json({ 
+          error: 'Failed to create invite: InviteTokens table could not be created', 
+          details: createError.message 
+        }, { status: 500 });
+      }
+    }
 
     const insertQuery = `
       INSERT INTO InviteTokens (id, token, planningRoomId, generatedByUserId, expiresAt, maxUses)
