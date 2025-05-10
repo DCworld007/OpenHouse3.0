@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
-import crypto from 'crypto';
 import * as jose from 'jose'; // Using jose for JWT verification
 
 export const runtime = 'edge';
 
-// Helper function to generate a secure token
+// Simple function to generate a random string without using crypto
 function generateSecureToken(length = 32) {
-  return crypto.randomBytes(length).toString('hex');
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Simple function to generate a UUID-like string without using crypto
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 // Helper to get user ID from JWT
@@ -105,7 +118,7 @@ export default async function handler(req: NextRequest) {
     const expiresAt = null;
     const maxUses = null;
     const tokenString = generateSecureToken();
-    const newInviteId = crypto.randomUUID();
+    const newInviteId = generateUUID();
 
     // Check if InviteTokens table exists, create it if not
     try {
