@@ -11,7 +11,7 @@ const { execSync } = require('child_process');
 
 // Configuration
 const DATABASE_NAME = 'local-openhouse-db';
-const ROOM_ID_TO_FIX = '96013c1e-9aaa-469b-9d8c-c4f08fe2adaa';
+const ROOM_ID_TO_FIX = 'b0530ea4-df13-4f27-8bc5-3206e9206813';
 const USER_ID = '101452305332594244500'; // User ID for room ownership
 
 function runCommand(command) {
