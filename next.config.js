@@ -1,10 +1,8 @@
 // Import OpenNext initialization function
 const { initOpenNextCloudflareForDev } = require('@opennextjs/cloudflare');
 
-// Initialize OpenNext for Cloudflare in development environment
-if (process.env.NODE_ENV === 'development') {
-  initOpenNextCloudflareForDev();
-}
+// Initialize OpenNext for Cloudflare in all environments
+initOpenNextCloudflareForDev();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
