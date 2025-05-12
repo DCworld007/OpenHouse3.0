@@ -1,6 +1,6 @@
 module.exports = {
   // Keep public directory contents in the deployment
-  includeFiles: ['public/**/*'],
+  includeFiles: ['public/**/*', 'functions/**/*'],
   // Build command
   buildCommand: 'npm run build',
   // Directory to serve static assets from
