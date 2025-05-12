@@ -71,10 +71,9 @@ export default function LoginDebugPage() {
     setApiStatus(prev => ({ ...prev, testing: true }));
     
     const results = {
-      test: await testApi('/api/test'),
-      healthcheck: await testApi('/api/healthcheck'),
-      me: await testApi('/api/me'),
-      login: await testApi('/api/auth/login-simplified')
+      direct: await testApi('/direct'),
+      me: await testApi('/me'),
+      login: await testApi('/login')
     };
     
     setApiStatus({ ...results, testing: false, lastTested: new Date().toISOString() });
@@ -114,7 +113,7 @@ export default function LoginDebugPage() {
             
             // Send ID token to API
             try {
-              const loginUrl = `${getBaseUrl()}/api/auth/login-simplified`;
+              const loginUrl = `${getBaseUrl()}/login`;
               console.log('[LoginPage] Sending login request to:', loginUrl);
               
               const res = await fetch(loginUrl, {
@@ -232,7 +231,7 @@ export default function LoginDebugPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {['test', 'healthcheck', 'me', 'login'].map(endpoint => {
+                      {['direct', 'me', 'login'].map(endpoint => {
                         const result = apiStatus[endpoint];
                         if (!result) return null;
                         
