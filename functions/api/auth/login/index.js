@@ -99,13 +99,41 @@ export async function onRequest(context) {
     };
     console.log('[API Login] Creating JWT with payload:', JSON.stringify(jwtPayload));
 
-    // Manual JWT creation without library dependencies
-    const headerObj = { alg: 'HS256', typ: 'JWT' };
-    const headerB64 = btoa(JSON.stringify(headerObj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const payloadB64 = btoa(JSON.stringify(jwtPayload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    // Create a properly signed JWT token using Cloudflare's environment variables
+    const encoder = new TextEncoder();
+    const secretKeyData = encoder.encode(env.JWT_SECRET || 'fallback_secret_do_not_use_in_production');
     
-    // Since we can't sign it here, we'll use an unsigned token
-    const token = `${headerB64}.${payloadB64}.unsigned`;
+    // Create the JWT parts
+    const headerObj = { alg: 'HS256', typ: 'JWT' };
+    const headerStr = JSON.stringify(headerObj);
+    const payloadStr = JSON.stringify(jwtPayload);
+    
+    // Base64 encode the header and payload
+    const base64Header = btoa(headerStr).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const base64Payload = btoa(payloadStr).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    
+    // Create the signature - In Cloudflare Workers we can use the Web Crypto API
+    const data = encoder.encode(`${base64Header}.${base64Payload}`);
+    
+    // Sign with HMAC SHA-256
+    const key = await crypto.subtle.importKey(
+      'raw', 
+      secretKeyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const signature = await crypto.subtle.sign('HMAC', key, data);
+    
+    // Convert signature to base64url
+    const base64Signature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+    
+    // Create the complete JWT
+    const token = `${base64Header}.${base64Payload}.${base64Signature}`;
     console.log('[API Login] Generated token:', token);
 
     // Set cookie and return response
