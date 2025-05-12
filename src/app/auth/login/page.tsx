@@ -33,17 +33,26 @@ export default function LoginPage() {
 
     // If already logged in, redirect to callbackUrl or /plans
     if (typeof window !== 'undefined') {
-      // Check authentication by calling /api/me
-      fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' })
+      // Check authentication by calling /api/healthcheck
+      fetch(`${getBaseUrl()}/api/healthcheck`, { credentials: 'include' })
         .then(res => {
           if (res.ok) {
-            const params = new URLSearchParams(window.location.search);
-            const callbackUrl = params.get('callbackUrl');
-            window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
+            console.log('[LoginPage] Health check passed');
+            // Only redirect if we're really authenticated
+            fetch(`${getBaseUrl()}/api/test`, { credentials: 'include' })
+              .then(testRes => {
+                if (testRes.ok) {
+                  const params = new URLSearchParams(window.location.search);
+                  const callbackUrl = params.get('callbackUrl');
+                  window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
+                }
+              });
+          } else {
+            console.log('[LoginPage] Health check failed:', res.status);
           }
         })
         .catch(error => {
-          console.error('[LoginPage] Error checking auth status:', error);
+          console.error('[LoginPage] Error checking health status:', error);
         });
     }
 
@@ -69,7 +78,7 @@ export default function LoginPage() {
             
             // Send ID token to API
             try {
-              const loginUrl = `${getBaseUrl()}/api/auth/login`;
+              const loginUrl = `${getBaseUrl()}/api/auth/login-simplified`;
               console.log('[LoginPage] Sending login request to:', loginUrl);
               
               const res = await fetch(loginUrl, {
@@ -95,9 +104,9 @@ export default function LoginPage() {
               console.log('[LoginPage] Login response data:', data);
               
               if (res.ok) {
-                // Verify authentication worked by calling /api/me
-                const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
-                console.log('[LoginPage] /api/me response status:', meRes.status);
+                // Verify authentication worked by calling /api/test
+                const meRes = await fetch(`${getBaseUrl()}/api/test`, { credentials: 'include' });
+                console.log('[LoginPage] /api/test response status:', meRes.status);
                 
                 if (meRes.ok) {
                   const params = new URLSearchParams(window.location.search);
