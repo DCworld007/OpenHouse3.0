@@ -44,7 +44,7 @@ export const onRequestPost = async (context: { request: Request, env: any }) => 
     // Verify Google ID token
     let payload;
     try {
-      const response = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + credential);
+    const response = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + credential);
       if (!response.ok) {
         console.error('[API Login] Google verification failed:', response.status, response.statusText);
         const errorText = await response.text();
@@ -79,7 +79,7 @@ export const onRequestPost = async (context: { request: Request, env: any }) => 
         headers: { 'Content-Type': 'application/json' }
       });
     }
-
+    
     // Only include the fields you want in the JWT payload
     const jwtPayload = {
       sub: payload.sub,

@@ -11,27 +11,16 @@ export async function onRequest(context) {
   }
 
   console.log('[API Login] Received login request');
-  console.log('[API Login] Request URL:', request.url);
   
-  // Get headers in a safer way
-  const headers = {};
-  request.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
-  console.log('[API Login] Headers:', JSON.stringify(headers));
-
   try {
     // Get request body
     let credential;
     try {
       const requestBody = await request.json();
-      console.log('[API Login] Request body:', JSON.stringify(requestBody));
       credential = requestBody.credential;
     } catch (e) {
-      console.error('[API Login] Error parsing request body:', e);
       return new Response(JSON.stringify({ 
-        error: 'Invalid request body', 
-        details: e instanceof Error ? e.message : String(e)
+        error: 'Invalid request body'
       }), { 
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -39,26 +28,19 @@ export async function onRequest(context) {
     }
 
     if (!credential) {
-      console.log('[API Login] No credential provided');
       return new Response(JSON.stringify({ error: 'Missing credential' }), { 
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    console.log('[API Login] Verifying Google token...');
     // Verify Google ID token
     let payload;
     try {
       const response = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + credential);
       if (!response.ok) {
-        console.error('[API Login] Google verification failed:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.error('[API Login] Google error response:', errorText);
         return new Response(JSON.stringify({ 
-          error: 'Failed to verify Google token',
-          status: response.status,
-          details: errorText
+          error: 'Failed to verify Google token'
         }), { 
           status: 401,
           headers: { 'Content-Type': 'application/json' }
@@ -66,12 +48,9 @@ export async function onRequest(context) {
       }
       
       payload = await response.json();
-      console.log('[API Login] Google token response:', JSON.stringify(payload));
     } catch (e) {
-      console.error('[API Login] Error verifying Google token:', e);
       return new Response(JSON.stringify({ 
-        error: 'Error verifying Google token',
-        details: e instanceof Error ? e.message : String(e)
+        error: 'Error verifying Google token'
       }), { 
         status: 500,
         headers: { 'Content-Type': 'application/json' }
@@ -79,62 +58,47 @@ export async function onRequest(context) {
     }
     
     if (!payload.email_verified) {
-      console.log('[API Login] Email not verified');
       return new Response(JSON.stringify({ error: 'Email not verified' }), { 
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Only include the fields you want in the JWT payload
-    const jwtPayload = {
+    // Create a simplified session token
+    // We'll just store the essential user information and encode it
+    const sessionData = {
       sub: payload.sub,
       email: payload.email,
       name: payload.name,
       picture: payload.picture,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
-      iss: 'openhouse3',
-      aud: 'openhouse3-users'
+      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days
     };
-    console.log('[API Login] Creating JWT with payload:', JSON.stringify(jwtPayload));
 
-    // Create a properly signed JWT token using Cloudflare's environment variables
+    // Simple base64 encoding of the session data with a signature
+    const sessionString = JSON.stringify(sessionData);
+    const encodedSession = btoa(sessionString);
+    
+    // Create a simple signature using HMAC
     const encoder = new TextEncoder();
-    const secretKeyData = encoder.encode(env.JWT_SECRET || 'fallback_secret_do_not_use_in_production');
-    
-    // Create the JWT parts
-    const headerObj = { alg: 'HS256', typ: 'JWT' };
-    const headerStr = JSON.stringify(headerObj);
-    const payloadStr = JSON.stringify(jwtPayload);
-    
-    // Base64 encode the header and payload
-    const base64Header = btoa(headerStr).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const base64Payload = btoa(payloadStr).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-    
-    // Create the signature - In Cloudflare Workers we can use the Web Crypto API
-    const data = encoder.encode(`${base64Header}.${base64Payload}`);
-    
-    // Sign with HMAC SHA-256
     const key = await crypto.subtle.importKey(
-      'raw', 
-      secretKeyData,
+      'raw',
+      encoder.encode(env.JWT_SECRET || 'default_secret'),
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']
     );
     
-    const signature = await crypto.subtle.sign('HMAC', key, data);
+    const signature = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      encoder.encode(encodedSession)
+    );
     
-    // Convert signature to base64url
-    const base64Signature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
+    // Convert signature to base64
+    const base64Signature = btoa(String.fromCharCode(...new Uint8Array(signature)));
     
-    // Create the complete JWT
-    const token = `${base64Header}.${base64Payload}.${base64Signature}`;
-    console.log('[API Login] Generated token:', token);
+    // Final token format: encodedSession.signature
+    const token = `${encodedSession}.${base64Signature}`;
 
     // Set cookie and return response
     const responseHeaders = new Headers({
@@ -142,13 +106,22 @@ export async function onRequest(context) {
       'Set-Cookie': `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
     });
 
-    return new Response(JSON.stringify({ ok: true }), { headers: responseHeaders });
+    return new Response(JSON.stringify({ 
+      ok: true,
+      user: {
+        sub: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture
+      }
+    }), { 
+      status: 200,
+      headers: responseHeaders 
+    });
   } catch (e) {
     console.error('[API Login] Unhandled error:', e);
     return new Response(JSON.stringify({ 
-      error: 'Login failed', 
-      message: e.message || 'Unknown error',
-      stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
+      error: 'Login failed'
     }), { 
       status: 500,
       headers: { 'Content-Type': 'application/json' }

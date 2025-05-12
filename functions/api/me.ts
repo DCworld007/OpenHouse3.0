@@ -25,10 +25,10 @@ export const onRequestGet = async (context: { request: Request, env: any }) => {
       // Verify the token using our utility
       const { payload } = await verifyToken(token, env);
       
-      // Only return safe user info
-      const { sub, email, name, picture } = payload;
-      console.log('[GET /api/me] User payload:', { sub, email, name, picture });
-      return new Response(JSON.stringify({ sub, email, name, picture }), { status: 200 });
+    // Only return safe user info
+    const { sub, email, name, picture } = payload;
+    console.log('[GET /api/me] User payload:', { sub, email, name, picture });
+    return new Response(JSON.stringify({ sub, email, name, picture }), { status: 200 });
     } catch (err) {
       // If token verification fails, try manual decoding as a fallback
       const parts = token.split('.');

@@ -1342,29 +1342,29 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                   </svg>
                 </div>
               ) : (
-                <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
-                  <input
-                    type="text"
-                    value={generatedInviteLink}
-                    readOnly
-                    className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
-                    onClick={(e) => (e.target as HTMLInputElement).select()} // Select text on click
-                  />
-                  <button
-                    onClick={() => copyToClipboard(generatedInviteLink)}
-                    className={`inline-flex items-center justify-center px-3 py-2 rounded-md transition-colors text-sm font-medium 
-                      ${inviteLinkCopied 
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                    disabled={!generatedInviteLink}
-                  >
-                    {inviteLinkCopied ? 
-                      <CheckCircleIcon className="h-5 w-5 mr-1.5" /> :
-                      <ClipboardDocumentIcon className="h-5 w-5 mr-1.5" />
-                    }
-                    {inviteLinkCopied ? 'Copied!' : 'Copy Link'}
-                  </button>
-                </div>
+              <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                <input
+                  type="text"
+                  value={generatedInviteLink}
+                  readOnly
+                  className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
+                  onClick={(e) => (e.target as HTMLInputElement).select()} // Select text on click
+                />
+                <button
+                  onClick={() => copyToClipboard(generatedInviteLink)}
+                  className={`inline-flex items-center justify-center px-3 py-2 rounded-md transition-colors text-sm font-medium 
+                    ${inviteLinkCopied 
+                      ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                  disabled={!generatedInviteLink}
+                >
+                  {inviteLinkCopied ? 
+                    <CheckCircleIcon className="h-5 w-5 mr-1.5" /> :
+                    <ClipboardDocumentIcon className="h-5 w-5 mr-1.5" />
+                  }
+                  {inviteLinkCopied ? 'Copied!' : 'Copy Link'}
+                </button>
+              </div>
               )}
             </div>
             <div className="px-6 py-4 bg-gray-50 text-right">
