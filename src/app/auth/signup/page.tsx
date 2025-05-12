@@ -23,7 +23,7 @@ export default function SignUpPage() {
           client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
           callback: async (response: any) => {
             // Send ID token to API
-            const res = await fetch('/api/auth/login', {
+            const res = await fetch('/api/simple-auth/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ credential: response.credential })

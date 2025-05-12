@@ -5,7 +5,7 @@ export function useUser() {
   useEffect(() => {
     async function fetchUser() {
       try {
-        const res = await fetch('/api/me');
+        const res = await fetch('/api/simple-auth/me');
         if (res.ok) {
           const data = await res.json();
           setUser(data);

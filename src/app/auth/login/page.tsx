@@ -34,7 +34,7 @@ export default function LoginPage() {
     // If already logged in, redirect to callbackUrl or /plans
     if (typeof window !== 'undefined') {
       // Check authentication by calling /api/me
-      fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' })
+      fetch(`${getBaseUrl()}/api/simple-auth/me`, { credentials: 'include' })
         .then(res => {
           if (res.ok) {
             const params = new URLSearchParams(window.location.search);
@@ -69,7 +69,7 @@ export default function LoginPage() {
             
             // Send ID token to API
             try {
-              const loginUrl = `${getBaseUrl()}/api/auth/login`;
+              const loginUrl = `${getBaseUrl()}/api/simple-auth/login`;
               console.log('[LoginPage] Sending login request to:', loginUrl);
               
               const res = await fetch(loginUrl, {
@@ -96,7 +96,7 @@ export default function LoginPage() {
               
               if (res.ok) {
                 // Verify authentication worked by calling /api/me
-                const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
+                const meRes = await fetch(`${getBaseUrl()}/api/simple-auth/me`, { credentials: 'include' });
                 console.log('[LoginPage] /api/me response status:', meRes.status);
                 
                 if (meRes.ok) {

@@ -49,7 +49,7 @@ export default function Navigation() {
   useEffect(() => {
     async function fetchUser() {
       try {
-        const res = await fetch('/api/me');
+        const res = await fetch('/api/simple-auth/me');
         if (res.ok) {
           const data = await res.json();
           setUser(data);
@@ -66,7 +66,7 @@ export default function Navigation() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch('/api/simple-auth/logout');
     window.location.href = '/auth/login';
   };
 
