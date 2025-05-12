@@ -1,10 +1,11 @@
-name = "openhouse"
-main = "src/workers/index.ts"
-compatibility_date = "2024-03-01"
+# name = "openhouse"
+# main = "src/workers/index.ts"
+# compatibility_date = "2024-03-01"
 # pages_build_output_dir = ".next" # Temporarily commenting out for proxy mode
 
 [vars]
 MY_TEST_VAR = "hello_from_wrangler_vars"
+JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz"  # Using the secret from .dev.vars
 
 [env.production]
 name = "openhouse3-prod"
@@ -16,7 +17,7 @@ d1_databases = [
 kv_namespaces = [
   { binding = "CACHE", id = "your-kv-id", preview_id = "your-preview-kv-id" }
 ]
-vars = { JWT_SECRET = "your-jwt-secret" }
+vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }  # Replace with your production secret
 
 [env.staging]
 name = "openhouse3-staging"
@@ -26,17 +27,23 @@ d1_databases = [
   { binding = "DB", database_name = "openhouse3_staging", database_id = "your-staging-db-id" }
 ]
 kv_namespaces = [
-  { binding = "CACHE", id = "your-staging-kv-id", preview_id = "your-preview-kv-id" }
+  { binding = "CACHE", id = "your-staging-kv-id", preview_id = "your-staging-kv-id" }
 ]
-vars = { JWT_SECRET = "your-staging-jwt-secret" }
+vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }  # Replace with your staging secret
+
+[env.development]
+name = "openhouse-dev"
+workers_dev = true
+compatibility_date = "2024-02-05"
+vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }  # Replace with your development secret
 
 [site]
 bucket = ".next/static"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "local-openhouse-db"
-database_id = "498d2614-b8d6-4c8e-868b-95de450b185c"
+database_name = "openhouse-local"
+database_id = "527c7d53-4926-4c79-bbe6-21121a10f06b"
 
 [[kv_namespaces]]
 binding = "CACHE"

@@ -728,20 +728,41 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     setIsGeneratingLink(true);
     setGeneratedInviteLink('');
     setInviteLinkCopied(false);
+    
     try {
+      console.log(`[Invite] Generating invite link for group ${group.id}`);
       const res = await fetch(`/api/planning-room/${group.id}/invite`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
+      
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to generate invite link');
+        throw new Error(errorData.error || `Server error: ${res.status}`);
       }
+      
       const data = await res.json();
-      setGeneratedInviteLink(data.inviteLink);
+      console.log('[Invite] Response data:', data);
+      
+      if (!data.inviteUrl) {
+        // If API doesn't return a URL, construct one from the token
+        if (data.token) {
+          const baseUrl = window.location.origin;
+          const fullUrl = `${baseUrl}/invite?token=${data.token}`;
+          setGeneratedInviteLink(fullUrl);
+        } else {
+          throw new Error('No invite token returned from server');
+        }
+      } else {
+        setGeneratedInviteLink(data.inviteUrl);
+      }
+      
       setShowInviteModal(true);
     } catch (error: any) {
       console.error('[InviteLink] Error generating invite link:', error);
-      alert(`Error: ${error.message}`); // Simple error display for now
+      alert(`Error: ${error.message}`);
     } finally {
       setIsGeneratingLink(false);
     }
@@ -1312,29 +1333,39 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               <p className="text-sm text-gray-600">
                 Share this link with others to invite them to your planning room.
               </p>
-              <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
-                <input
-                  type="text"
-                  value={generatedInviteLink}
-                  readOnly
-                  className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
-                  onClick={(e) => (e.target as HTMLInputElement).select()} // Select text on click
-                />
-                <button
-                  onClick={() => copyToClipboard(generatedInviteLink)}
-                  className={`inline-flex items-center justify-center px-3 py-2 rounded-md transition-colors text-sm font-medium 
-                    ${inviteLinkCopied 
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                      : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                  disabled={!generatedInviteLink}
-                >
-                  {inviteLinkCopied ? 
-                    <CheckCircleIcon className="h-5 w-5 mr-1.5" /> :
-                    <ClipboardDocumentIcon className="h-5 w-5 mr-1.5" />
-                  }
-                  {inviteLinkCopied ? 'Copied!' : 'Copy Link'}
-                </button>
-              </div>
+              
+              {!generatedInviteLink ? (
+                <div className="flex justify-center py-4">
+                  <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                  <input
+                    type="text"
+                    value={generatedInviteLink}
+                    readOnly
+                    className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
+                    onClick={(e) => (e.target as HTMLInputElement).select()} // Select text on click
+                  />
+                  <button
+                    onClick={() => copyToClipboard(generatedInviteLink)}
+                    className={`inline-flex items-center justify-center px-3 py-2 rounded-md transition-colors text-sm font-medium 
+                      ${inviteLinkCopied 
+                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                    disabled={!generatedInviteLink}
+                  >
+                    {inviteLinkCopied ? 
+                      <CheckCircleIcon className="h-5 w-5 mr-1.5" /> :
+                      <ClipboardDocumentIcon className="h-5 w-5 mr-1.5" />
+                    }
+                    {inviteLinkCopied ? 'Copied!' : 'Copy Link'}
+                  </button>
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 bg-gray-50 text-right">
               <button

@@ -20,11 +20,17 @@ export default function LoginPage() {
       console.log('[LoginPage] NEXT_PUBLIC_GOOGLE_CLIENT_ID:', process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
     }
     // If already logged in, redirect to callbackUrl or /plans
-    if (typeof window !== 'undefined' && document.cookie.includes('token=')) {
-      const params = new URLSearchParams(window.location.search);
-      const callbackUrl = params.get('callbackUrl');
-      window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
-      return;
+    if (typeof window !== 'undefined') {
+      // Check authentication by calling /api/me
+      fetch('/api/me', { credentials: 'include' })
+        .then(res => {
+          if (res.ok) {
+            const params = new URLSearchParams(window.location.search);
+            const callbackUrl = params.get('callbackUrl');
+            window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
+          }
+        })
+        .catch(console.error);
     }
 
     // Load Google Identity Services script
@@ -43,18 +49,36 @@ export default function LoginPage() {
         window.google.accounts.id.initialize({
           client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
           callback: async (response: any) => {
+            console.log('[LoginPage] Google Sign-In response:', response);
             // Send ID token to API
-            const res = await fetch('/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ credential: response.credential })
-            });
-            if (res.ok) {
-              const params = new URLSearchParams(window.location.search);
-              const callbackUrl = params.get('callbackUrl');
-              window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
-            } else {
-              alert('Login failed');
+            try {
+              const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ credential: response.credential })
+              });
+              console.log('[LoginPage] Login response status:', res.status);
+              const data = await res.json();
+              console.log('[LoginPage] Login response data:', data);
+              
+              if (res.ok) {
+                // Verify authentication worked by calling /api/me
+                const meRes = await fetch('/api/me', { credentials: 'include' });
+                console.log('[LoginPage] /api/me response status:', meRes.status);
+                if (meRes.ok) {
+                  const params = new URLSearchParams(window.location.search);
+                  const callbackUrl = params.get('callbackUrl');
+                  window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
+                } else {
+                  alert('Login failed - could not verify authentication');
+                }
+              } else {
+                alert('Login failed: ' + (data.error || 'Unknown error'));
+              }
+            } catch (error) {
+              console.error('[LoginPage] Login error:', error);
+              alert('Login failed: ' + error);
             }
           },
         });

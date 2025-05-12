@@ -60,6 +60,63 @@ const DEFAULT_GROUP: Group = {
   cards: [],
 };
 
+// Utility to sync all local groups to D1
+async function syncLocalGroupsToD1(groups: Group[]) {
+  for (const group of groups) {
+    try {
+      // First check if the room exists
+      const res = await fetch(`/api/planning-room/${group.id}`);
+      if (res.status === 404) {
+        // Room missing in D1, create it
+        console.log(`[Sync] Room not found in D1: ${group.id}. Creating...`);
+        
+        const createRes = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: group.id,
+            name: group.name,
+            description: 'description' in group ? (group as any).description || '' : '',
+            // ownerId will be extracted from JWT cookie in the API
+          }),
+        });
+        
+        if (!createRes.ok) {
+          const errorData = await createRes.json();
+          console.error(`[Sync] Failed to create room ${group.id} in D1:`, errorData);
+          // Retry with a delay if there's a specific error that might be temporary
+          if (createRes.status === 400 && errorData.error?.includes('ownerId')) {
+            console.log(`[Sync] Retrying room creation after short delay...`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            const retryRes = await fetch('/api/rooms', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: group.id,
+                name: group.name,
+                description: 'description' in group ? (group as any).description || '' : '',
+              }),
+            });
+            
+            if (retryRes.ok) {
+              console.log(`[Sync] Successfully created room ${group.id} in D1 on retry`);
+            } else {
+              console.error(`[Sync] Failed to create room ${group.id} in D1 even on retry`);
+            }
+          }
+        } else {
+          console.log(`[Sync] Successfully created room ${group.id} in D1`);
+        }
+      } else if (res.ok) {
+        console.log(`[Sync] Room ${group.id} already exists in D1`);
+      }
+    } catch (err) {
+      console.error(`[Sync] Error syncing group ${group.id} to D1:`, err);
+    }
+  }
+}
+
 export default function PlansPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -107,14 +164,8 @@ export default function PlansPage() {
       }));
       if (migratedGroups.length > 0) {
         setGroups(migratedGroups);
-        // Ensure all existing groups are persisted to D1
-        migratedGroups.forEach(async (group) => {
-          try {
-            await ensureGroupExistsInD1(group);
-          } catch (error) {
-            console.error(`Failed to sync group ${group.id} to D1:`, error);
-          }
-        });
+        // Ensure all existing groups are persisted to D1 (robust sync)
+        syncLocalGroupsToD1(migratedGroups);
       } else {
         const defaultGroup: Group = {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
@@ -123,9 +174,7 @@ export default function PlansPage() {
         };
         setGroups([defaultGroup]);
         // Persist the default group to D1
-        ensureGroupExistsInD1(defaultGroup).catch(error => {
-          console.error('Failed to persist default group to D1:', error);
-        });
+        syncLocalGroupsToD1([defaultGroup]);
       }
     } catch (error) {
       console.error('Error loading groups:', error);
@@ -136,9 +185,7 @@ export default function PlansPage() {
       };
       setGroups([defaultGroup]);
       // Persist the default group to D1
-      ensureGroupExistsInD1(defaultGroup).catch(error => {
-        console.error('Failed to persist default group to D1:', error);
-      });
+      syncLocalGroupsToD1([defaultGroup]);
     }
   }, []);
 
@@ -481,7 +528,7 @@ export default function PlansPage() {
         body: JSON.stringify({
           id: group.id, // Use the same ID as localStorage
           name: group.name,
-          description: '',
+          description: 'description' in group ? (group as any).description || '' : '',
         }),
       });
       

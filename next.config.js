@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  basePath: '/OpenHouse3.0',
+  // output: 'export',
   images: {
     unoptimized: true,
   },
