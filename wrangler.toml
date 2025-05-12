@@ -3,48 +3,56 @@
 # compatibility_date = "2024-03-01"
 # pages_build_output_dir = ".next" # Temporarily commenting out for proxy mode
 
+# OpenHouse3.0 Cloudflare configuration
+compatibility_date = "2024-03-01"
+
 [vars]
 MY_TEST_VAR = "hello_from_wrangler_vars"
 JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz"  # Using the secret from .dev.vars
 
 [env.production]
 name = "openhouse3-prod"
-route = "openhouse3.com/*"
-zone_id = "your-zone-id"
-d1_databases = [
-  { binding = "DB", database_name = "openhouse3", database_id = "your-db-id" }
-]
-kv_namespaces = [
-  { binding = "CACHE", id = "your-kv-id", preview_id = "your-preview-kv-id" }
-]
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }  # Replace with your production secret
+# Uncomment and update these values for your production environment
+# route = "openhouse3.com/*"
+# zone_id = "your-zone-id"
+# d1_databases = [
+#   { binding = "DB", database_name = "openhouse3", database_id = "your-db-id" }
+# ]
+# kv_namespaces = [
+#   { binding = "CACHE", id = "your-kv-id", preview_id = "your-preview-kv-id" }
+# ]
+vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }
 
 [env.staging]
 name = "openhouse3-staging"
-route = "staging.openhouse3.com/*"
-zone_id = "your-zone-id"
-d1_databases = [
-  { binding = "DB", database_name = "openhouse3_staging", database_id = "your-staging-db-id" }
-]
-kv_namespaces = [
-  { binding = "CACHE", id = "your-staging-kv-id", preview_id = "your-staging-kv-id" }
-]
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }  # Replace with your staging secret
+# Uncomment and update these values for your staging environment
+# route = "staging.openhouse3.com/*"
+# zone_id = "your-zone-id"
+# d1_databases = [
+#   { binding = "DB", database_name = "openhouse3_staging", database_id = "your-staging-db-id" }
+# ]
+# kv_namespaces = [
+#   { binding = "CACHE", id = "your-staging-kv-id", preview_id = "your-staging-kv-id" }
+# ]
+vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }
 
 [env.development]
 name = "openhouse-dev"
 workers_dev = true
 compatibility_date = "2024-02-05"
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }  # Replace with your development secret
+vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }
 
 [site]
 bucket = ".next/static"
 
+# D1 Database configuration
 [[d1_databases]]
 binding = "DB"
 database_name = "openhouse-local"
 database_id = "527c7d53-4926-4c79-bbe6-21121a10f06b"
+migrations_dir = "migrations"
 
+# KV Namespace configuration
 [[kv_namespaces]]
 binding = "CACHE"
 id = "99b502ae72564574bb8e2041a983f287"

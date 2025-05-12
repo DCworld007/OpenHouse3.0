@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
+    "build": "npm run prepare-cloudflare && next build",
     "start": "next start",
     "lint": "next lint",
     "pages:build": "npx @cloudflare/next-on-pages",
     "pages:deploy": "npm run pages:build && wrangler pages deploy .vercel/output/static",
     "pages:watch": "npx @cloudflare/next-on-pages --watch",
-    "pages:dev": "npx wrangler pages dev --compatibility-date=2024-02-05 -- npm run dev"
+    "pages:dev": "npx wrangler pages dev --compatibility-date=2024-02-05 -- npm run dev",
+    "prepare-cloudflare": "node scripts/prepare-for-cloudflare.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
