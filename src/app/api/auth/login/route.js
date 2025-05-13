@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { jwtVerify, SignJWT } from 'jose';
 
 // Generate a secret key - in production, this should be an environment variable
