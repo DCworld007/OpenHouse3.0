@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from 'react';
+import { AuthProvider } from '@/app/contexts/AuthContext';
 
 const ClientWrapper = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
@@ -14,7 +15,9 @@ const ClientWrapper = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
   
-  return <>{children}</>;
+  return (
+    <AuthProvider>{children}</AuthProvider>
+  );
 };
 
 export default ClientWrapper; 

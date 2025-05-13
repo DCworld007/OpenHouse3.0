@@ -1,12 +1,20 @@
 'use client';
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment } from 'react';
 import { Disclosure, Menu, Transition } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { UserCircleIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import Image from 'next/image';
+import { usePathname } from 'next/navigation';
+import { useAuth } from '@/app/contexts/AuthContext';
+
+// Define local user type for the component
+interface UserType {
+  id: string;
+  name: string;
+  email: string;
+  picture?: string;
+}
 
 const navigation = [
   { name: 'Home', href: '/' },
@@ -17,7 +25,7 @@ function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-function UserAvatar({ user }: { user: { name?: string; picture?: string | null } }) {
+function UserAvatar({ user }: { user: UserType }) {
   if (user.picture) {
     return (
       <img
@@ -30,7 +38,7 @@ function UserAvatar({ user }: { user: { name?: string; picture?: string | null }
   // Fallback: initials
   const initials = (user.name || '?')
     .split(' ')
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join('')
     .toUpperCase();
   return (
@@ -42,32 +50,10 @@ function UserAvatar({ user }: { user: { name?: string; picture?: string | null }
 
 export default function Navigation() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchUser() {
-      try {
-        const res = await fetch('/api/me');
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data);
-        } else {
-          setUser(null);
-        }
-      } catch {
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchUser();
-  }, []);
+  const { user, isLoading, logout } = useAuth();
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/auth/login';
+    await logout();
   };
 
   return (
@@ -98,12 +84,12 @@ export default function Navigation() {
                 </div>
               </div>
               <div className="flex items-center">
-                {loading ? null : user ? (
+                {isLoading ? null : user ? (
                   <Menu as="div" className="relative ml-3">
                     <div>
                       <Menu.Button className="flex rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
                         <span className="sr-only">Open user menu</span>
-                        <UserAvatar user={user} />
+                        <UserAvatar user={user as UserType} />
                       </Menu.Button>
                     </div>
                     <Transition
@@ -116,10 +102,12 @@ export default function Navigation() {
                       leaveTo="transform opacity-0 scale-95"
                     >
                       <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                        <div className="px-4 py-2 text-sm text-gray-700">
-                          <div className="font-bold">{user.name}</div>
-                          <div className="text-xs text-gray-500">{user.email}</div>
-                        </div>
+                        {user && (
+                          <div className="px-4 py-2 text-sm text-gray-700">
+                            <div className="font-bold">{user.name}</div>
+                            <div className="text-xs text-gray-500">{user.email}</div>
+                          </div>
+                        )}
                         <Menu.Item>
                           {({ active }) => (
                             <button
