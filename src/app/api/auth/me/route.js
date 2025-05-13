@@ -1,5 +1,3 @@
-export const runtime = 'experimental-edge';
-
 import { jwtVerify } from 'jose';
 
 // Generate a secret key - in production, this should be an environment variable
@@ -8,26 +6,26 @@ const JWT_SECRET = new TextEncoder().encode(
 );
 
 export async function GET(request) {
-  // Get cookies
-  let token = null;
-  const cookies = request.headers.get('cookie');
-  if (cookies) {
-    const tokenCookie = cookies.split(';').find(c => c.trim().startsWith('token='));
-    if (tokenCookie) {
-      token = tokenCookie.split('=')[1].trim();
-    }
-  }
-  
-  if (!token) {
-    return Response.json({ 
-      authenticated: false,
-      message: 'Not authenticated'
-    }, {
-      status: 401
-    });
-  }
-  
   try {
+    // Get cookies
+    let token = null;
+    const cookies = request.headers.get('cookie');
+    if (cookies) {
+      const tokenCookie = cookies.split(';').find(c => c.trim().startsWith('token='));
+      if (tokenCookie) {
+        token = tokenCookie.split('=')[1].trim();
+      }
+    }
+    
+    if (!token) {
+      return Response.json({ 
+        authenticated: false,
+        message: 'Not authenticated'
+      }, {
+        status: 401
+      });
+    }
+    
     // Verify the JWT using jose
     const { payload } = await jwtVerify(token, JWT_SECRET, {
       algorithms: ['HS256']

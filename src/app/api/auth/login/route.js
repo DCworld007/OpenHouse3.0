@@ -1,6 +1,4 @@
-export const runtime = 'experimental-edge';
-
-import { jwtVerify, SignJWT } from 'jose';
+import { SignJWT } from 'jose';
 
 // Generate a secret key - in production, this should be an environment variable
 const JWT_SECRET = new TextEncoder().encode(
