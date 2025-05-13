@@ -1,3 +1,6 @@
+// MIDDLEWARE DISABLED FOR TROUBLESHOOTING
+// Rename this file back to middleware.js to re-enable
+
 import { NextResponse } from 'next/server';
 
 // Public paths that don't require authentication
@@ -26,6 +29,11 @@ export function middleware(request) {
   
   const { pathname } = request.nextUrl;
   
+  // Always allow all requests during troubleshooting
+  return NextResponse.next();
+  
+  // Original middleware code below
+  /*
   // Always allow public paths
   if (isPublicPath(pathname)) {
     console.log("[Middleware] Public path allowed:", pathname);
@@ -46,6 +54,7 @@ export function middleware(request) {
   // Allow request to proceed
   console.log("[Middleware] Token found, allowing request");
   return NextResponse.next();
+  */
 }
 
 // Configure which paths the middleware should run on
