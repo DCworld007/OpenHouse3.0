@@ -6,7 +6,7 @@ const nextConfig = {
   },
   // Add explicit configuration for Cloudflare Pages
   experimental: {
-    runtime: 'edge',
+    // The runtime is configured at the component/page level instead
   },
 }
 
