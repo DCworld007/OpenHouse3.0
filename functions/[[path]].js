@@ -5,6 +5,21 @@ export async function onRequest(context) {
   
   console.log(`[[[path]].js] Handling request for: ${path}`);
   
+  // Check if this is a static file request - if so, pass it through immediately
+  if (path.endsWith('.html') || 
+      path.endsWith('.css') || 
+      path.endsWith('.js') || 
+      path.endsWith('.png') || 
+      path.endsWith('.jpg') || 
+      path.endsWith('.jpeg') || 
+      path.endsWith('.svg') || 
+      path.endsWith('.ico') || 
+      path.includes('/_next/') || 
+      path === '/') {
+    console.log(`[[[path]].js] Passing through static file: ${path}`);
+    return context.next();
+  }
+  
   // Extract API path parts for proper routing
   const parts = path.split('/').filter(Boolean);
   
@@ -83,5 +98,5 @@ export async function onRequest(context) {
   }
   
   // Pass through for non-API requests (will be handled by Pages)
-  return fetch(request);
+  return context.next();
 }
