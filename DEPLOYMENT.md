@@ -12,16 +12,33 @@ This guide provides information on deploying OpenHouse3.0 to Cloudflare Pages an
 
 ## Build Command
 
+For local builds:
 ```
 npm run build
 ```
 
-This command runs several scripts in sequence:
-1. Fixes the wrangler.toml file format
-2. Prepares Cloudflare-specific configuration files
-3. Forces Edge runtime for all API routes
-4. Builds the Next.js application
-5. Ensures all generated function files have Edge runtime declarations
+For Cloudflare Pages CI builds:
+```
+npm run cloudflare:build
+```
+
+The build command runs several scripts in sequence:
+1. Prepares the environment for CI (when applicable)
+2. Fixes the wrangler.toml file format
+3. Prepares Cloudflare-specific configuration files
+4. Forces Edge runtime for all API routes
+5. Builds the Next.js application
+6. Ensures all generated function files have Edge runtime declarations
+
+## Cloudflare Pages Configuration
+
+When configuring your Cloudflare Pages project, use these settings:
+
+| Setting | Value |
+|---------|-------|
+| Build command | `npm run cloudflare:build` |
+| Build output directory | `.vercel/output/static` |
+| Node.js version | 18.20.8 |
 
 ## Known Issues and Fixes
 
@@ -67,6 +84,19 @@ npm warn EBADENGINE Unsupported engine {
 **Action Required:**
 - These warnings can be safely ignored for now, as Node.js 18.20.8 is still supported.
 - In the future, we should upgrade to Node.js 20 or newer to address these warnings.
+
+### 4. Package Lock Synchronization Issue
+
+If you encounter an error like this:
+
+```
+npm error `npm ci` can only install packages when your package.json and package-lock.json or npm-shrinkwrap.json are in sync.
+```
+
+**Fix:**
+- This usually happens when a new dependency is added but the package-lock.json file is not updated.
+- Run `npm install` locally to update the package-lock.json, then commit and push the changes.
+- Our CI scripts now use `npm install` instead of `npm ci` to avoid this issue during deployment.
 
 ## Manual Deployment Steps
 

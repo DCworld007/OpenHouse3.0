@@ -4,16 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "node scripts/fix-wrangler-toml.js && npm run prepare-cloudflare && npm run cloudflare-config && npm run force-edge-runtime && next build && node fix-functions-runtime.js",
+    "build": "node scripts/ci-prepare.js && node scripts/fix-wrangler-toml.js && npm run prepare-cloudflare && npm run cloudflare-config && npm run force-edge-runtime && next build && node fix-functions-runtime.js",
     "start": "next start",
     "lint": "next lint",
-    "pages:build": "node scripts/fix-wrangler-toml.js && npx @cloudflare/next-on-pages",
+    "pages:build": "node scripts/ci-prepare.js && node scripts/fix-wrangler-toml.js && npx @cloudflare/next-on-pages",
     "pages:deploy": "npm run pages:build && wrangler pages deploy .vercel/output/static",
     "pages:watch": "npx @cloudflare/next-on-pages --watch",
     "pages:dev": "npx wrangler pages dev --proxy=3000 --compatibility-date=2024-02-05",
     "prepare-cloudflare": "node scripts/prepare-for-cloudflare.js",
     "cloudflare-config": "node scripts/cloudflare-runtime-config.js",
-    "force-edge-runtime": "node scripts/force-edge-runtime.js"
+    "force-edge-runtime": "node scripts/force-edge-runtime.js",
+    "install:ci": "npm install",
+    "cloudflare:build": "npm install && npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
