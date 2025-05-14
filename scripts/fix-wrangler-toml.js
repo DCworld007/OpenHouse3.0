@@ -5,8 +5,10 @@ console.log('🛠️ Fixing wrangler.toml file...');
 
 // Define the correct content for wrangler.toml
 const correctContent = `# OpenHouse3.0 Cloudflare Pages configuration
+# Updated for nodejs_compat flag compatibility
 name = "openhouse3-0"
 compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".vercel/output/static"
 
 # Environment variables for all environments
@@ -17,6 +19,7 @@ NODE_VERSION = "18.20.8"
 [env.production]
 # Production environment variables
 vars = { NODE_VERSION = "18.20.8" }
+compatibility_flags = ["nodejs_compat"]
 
 # Production D1 database
 [[env.production.d1_databases]]
@@ -33,6 +36,7 @@ id = "99b502ae72564574bb8e2041a983f287"
 [env.preview]
 # Preview environment variables are the same as production
 vars = { NODE_VERSION = "18.20.8" }
+compatibility_flags = ["nodejs_compat"]
 
 # Preview D1 database
 [[env.preview.d1_databases]]

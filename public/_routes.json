@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [],
+  "config": {
+    "compatibility_flags": ["nodejs_compat"]
+  }
+} 
