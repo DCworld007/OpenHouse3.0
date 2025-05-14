@@ -1,4 +1,5 @@
 // Cloudflare Pages integration configuration
+// Requires nodejs_compat flag to be enabled in Cloudflare Pages dashboard
 export default {
   // Configure the runtime for all routes
   onRequest: async ({ request, env, next }) => {
