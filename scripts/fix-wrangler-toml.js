@@ -11,13 +11,12 @@ pages_build_output_dir = ".vercel/output/static"
 
 # Environment variables for all environments
 [vars]
-JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz"
 NODE_VERSION = "18.20.8"
 
 # Production environment configuration
 [env.production]
 # Production environment variables
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz", NODE_VERSION = "18.20.8" }
+vars = { NODE_VERSION = "18.20.8" }
 
 # Production D1 database
 [[env.production.d1_databases]]
@@ -33,7 +32,7 @@ id = "99b502ae72564574bb8e2041a983f287"
 # Preview environment (development) 
 [env.preview]
 # Preview environment variables are the same as production
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz", NODE_VERSION = "18.20.8" }
+vars = { NODE_VERSION = "18.20.8" }
 
 # Preview D1 database
 [[env.preview.d1_databases]]
