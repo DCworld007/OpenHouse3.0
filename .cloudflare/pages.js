@@ -1,18 +1,21 @@
-// This file configures Cloudflare Pages to use Edge runtime for all routes
+// Cloudflare Pages integration configuration
 export default {
-  onBeforeRequest(request, env) {
-    // Add D1 and KV variables to the request context
-    return {
-      force_edge_runtime: true,
-      data: {
-        force_edge: true,
-        db: env.DB,
-        cache: env.CACHE
-      },
+  // Configure the runtime for all routes
+  onRequest: async ({ request, env, next }) => {
+    // Log incoming requests in production
+    if (env.NODE_ENV === 'production') {
+      console.log(`[Pages] ${request.method} ${new URL(request.url).pathname}`);
+    }
+    
+    // Add Edge runtime context to all requests
+    const context = {
+      edge: true,
+      db: env.DB,
+      cache: env.CACHE,
+      jwt_secret: env.JWT_SECRET
     };
-  },
-  onResponse(response, request, env) {
-    // Return the response as-is
-    return response;
+    
+    // Continue to the next middleware or route handler
+    return next({ data: context });
   }
 };
