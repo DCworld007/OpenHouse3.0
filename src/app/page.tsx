@@ -1,17 +1,88 @@
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white p-8">
-      <h1 className="text-3xl font-bold">UnifyPlan</h1>
-      <p className="mt-4">
-        Collaborate, organize, and plan together in real-time.
-      </p>
-      <div className="mt-6">
-        <a 
-          href="/plans" 
-          className="px-4 py-2 bg-blue-600 text-white rounded-md"
-        >
-          Get Started
-        </a>
+    <div className="min-h-screen bg-white">
+      {/* Hero Section */}
+      <div className="bg-purple-50 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900">
+              Welcome to <span className="text-indigo-600">UnifyPlan</span>
+            </h1>
+            <p className="mt-4 text-lg text-gray-600">
+              Collaborate, organize, and plan together in real-time.
+            </p>
+            <div className="mt-8 flex justify-center space-x-4">
+              <a 
+                href="/plans" 
+                className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition"
+              >
+                Get Started
+              </a>
+              <a 
+                href="#features" 
+                className="px-6 py-3 bg-white text-indigo-600 font-medium rounded-md border border-indigo-300 hover:bg-indigo-50 transition"
+              >
+                Learn More
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Features Section */}
+      <div id="features" className="py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-base font-semibold text-indigo-600 uppercase tracking-wide">FEATURES</h2>
+            <h3 className="mt-2 text-3xl font-bold text-gray-900">Everything you need to plan together</h3>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="p-6 bg-gray-50 rounded-lg">
+              <h4 className="text-lg font-medium text-gray-900">Real-time Collaboration</h4>
+              <p className="mt-2 text-gray-600">
+                Work together in real-time with your team.
+              </p>
+            </div>
+
+            <div className="p-6 bg-gray-50 rounded-lg">
+              <h4 className="text-lg font-medium text-gray-900">Organized Planning</h4>
+              <p className="mt-2 text-gray-600">
+                Keep all your planning tasks organized.
+              </p>
+            </div>
+
+            <div className="p-6 bg-gray-50 rounded-lg">
+              <h4 className="text-lg font-medium text-gray-900">Mobile Friendly</h4>
+              <p className="mt-2 text-gray-600">
+                Access your plans from anywhere.
+              </p>
+            </div>
+
+            <div className="p-6 bg-gray-50 rounded-lg">
+              <h4 className="text-lg font-medium text-gray-900">Secure & Private</h4>
+              <p className="mt-2 text-gray-600">
+                Your data is encrypted and secure.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="bg-indigo-700 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-white">Ready to get started?</h2>
+          <p className="mt-4 text-xl text-indigo-100">Start planning together today.</p>
+          <div className="mt-8">
+            <a 
+              href="/plans" 
+              className="px-8 py-3 bg-white text-indigo-700 font-medium rounded-md hover:bg-indigo-50 transition"
+            >
+              Get Started
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );
