@@ -21,7 +21,7 @@ export const onRequest = async (context: { request: Request, env: any }) => {
   // JWT verification (simple, for demo)
   let userId = null;
   try {
-    const cookie = getCookie('token');
+    const cookie = getCookie('auth_token');
     if (!cookie) throw new Error('No token cookie');
     const secret = env.JWT_SECRET;
     if (!secret) throw new Error('No JWT_SECRET in env');

@@ -45,7 +45,7 @@ export async function onRequest(context) {
       const cookie = request.headers.get('cookie');
       let userId = 'unknown';
       if (cookie) {
-        const token = cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
+        const token = cookie.split(';').find(c => c.trim().startsWith('auth_token='))?.split('=')[1];
         if (token) {
           try {
             const parts = token.split('.');

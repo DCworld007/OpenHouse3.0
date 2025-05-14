@@ -21,7 +21,7 @@ export const onRequestPost = async (context: { request: Request, env: any, param
     let userImage = null;
 
     if (cookie) {
-      const tokenCookie = cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
+      const tokenCookie = cookie.split(';').find(c => c.trim().startsWith('auth_token='))?.split('=')[1];
       if (tokenCookie) {
         try {
           const parts = tokenCookie.split('.');

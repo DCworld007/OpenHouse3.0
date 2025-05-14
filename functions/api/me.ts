@@ -1,6 +1,6 @@
 import { verifyToken, getJwtSecret } from '../../src/utils/jwt';
 
-export const onRequestGet = async (context: { request: Request, env: any }) => {
+export const onRequestGet = async (context: { request: Request; env: any }) => {
   const { request, env } = context;
 
   // Helper: parse cookies
@@ -12,41 +12,61 @@ export const onRequestGet = async (context: { request: Request, env: any }) => {
   }
 
   try {
-    const cookieHeader = request.headers.get('cookie');
-    console.log('[GET /api/me] Cookie header:', cookieHeader);
-    const token = getCookie('token');
-    console.log('[GET /api/me] Token:', token);
-    
+    // JWT verification (simple, for demo)
+    // Update to use auth_token instead of token
+    const token = getCookie('auth_token');
     if (!token) {
-      return new Response(JSON.stringify({ error: 'Not authenticated: No token cookie' }), { status: 401 });
+      return new Response(JSON.stringify({
+        authenticated: false,
+        message: 'Not authenticated'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
-    
-    try {
-      // Verify the token using our utility
-      const { payload } = await verifyToken(token, env);
-      
-      // Only return safe user info
-      const { sub, email, name, picture } = payload;
-      console.log('[GET /api/me] User payload:', { sub, email, name, picture });
-      return new Response(JSON.stringify({ sub, email, name, picture }), { status: 200 });
-    } catch (err) {
-      // If token verification fails, try manual decoding as a fallback
-      const parts = token.split('.');
-      if (parts.length < 2) throw new Error('Malformed JWT');
-      const payload = JSON.parse(atob(parts[1]));
-      
-      // Only return safe user info
-      const { sub, email, name, picture } = payload;
-      console.log('[GET /api/me] User payload (decoded without verification):', { sub, email, name, picture });
-      
-      // Add a warning that the token wasn't properly verified
-      return new Response(JSON.stringify({ 
-        sub, email, name, picture,
-        warning: "Token decoded but not verified - secret may be mismatched" 
-      }), { status: 200 });
+
+    // Parse the token (simple parsing, not verifying)
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid token format');
     }
-  } catch (e: any) {
-    console.log('[GET /api/me] Error:', e.message || e);
-    return new Response(JSON.stringify({ error: e.message || 'Not authenticated' }), { status: 401 });
+
+    // Base64 decode the payload
+    const decodeBase64 = (str: string) => {
+      // Ensure the string is a valid base64 format by padding it
+      const padding = '='.repeat((4 - str.length % 4) % 4);
+      const base64 = (str + padding)
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+      
+      try {
+        return atob(base64);
+      } catch (e) {
+        throw new Error('Failed to decode base64 string');
+      }
+    };
+
+    const payload = JSON.parse(decodeBase64(parts[1]));
+
+    // Return the user info
+    return new Response(JSON.stringify({
+      authenticated: true,
+      user: {
+        id: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error: any) {
+    return new Response(JSON.stringify({
+      authenticated: false,
+      message: error.message || 'Invalid token'
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }; 

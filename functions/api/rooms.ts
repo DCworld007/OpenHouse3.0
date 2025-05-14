@@ -22,7 +22,7 @@ export const onRequest = async (context: { request: Request, env: any }) => {
   let userId = null;
   let jwtError = null;
   try {
-    const cookie = getCookie('token');
+    const cookie = getCookie('auth_token');
     if (!cookie) throw new Error('No token cookie');
     const secret = env.JWT_SECRET;
     if (!secret) throw new Error('No JWT_SECRET in env');
@@ -169,7 +169,7 @@ export const onRequestPost = async ({ request, env }: { request: Request, env: a
   // If ownerId is not provided, get it from JWT token
   if (!ownerId) {
     try {
-      const cookie = getCookie(request, 'token');
+      const cookie = getCookie(request, 'auth_token');
       if (!cookie) throw new Error('No token cookie');
       
       const secret = env.JWT_SECRET || "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz"; // Use hardcoded secret as fallback

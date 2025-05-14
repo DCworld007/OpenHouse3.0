@@ -6,7 +6,7 @@ export function onRequest(context) {
   let token = null;
   const cookies = request.headers.get('cookie');
   if (cookies) {
-    const tokenCookie = cookies.split(';').find(c => c.trim().startsWith('token='));
+    const tokenCookie = cookies.split(';').find(c => c.trim().startsWith('auth_token='));
     if (tokenCookie) {
       token = tokenCookie.split('=')[1].trim();
     }
