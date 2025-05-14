@@ -19,9 +19,28 @@ const nextConfig = {
   // Optimize for Cloudflare Pages
   experimental: {
     optimizePackageImports: ['@heroicons/react', '@headlessui/react'],
+    serverComponentsExternalPackages: ['sharp'],
   },
   // External packages that shouldn't be bundled in server components
   serverExternalPackages: [],
+  // Security headers
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Referrer-Policy",
+            value: "no-referrer-when-downgrade",
+          },
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
+          },
+        ],
+      },
+    ];
+  },
   // Optimize bundle size
   webpack: (config, { dev, isServer }) => {
     // Only run in production
@@ -50,6 +69,7 @@ const nextConfig = {
         },
       };
     }
+    config.externals = [...config.externals, 'canvas', 'jsdom'];
     return config;
   },
   // Disable source maps in production
@@ -60,6 +80,13 @@ const nextConfig = {
   trailingSlash: false,
   // Configure output mode
   output: 'standalone',
+  // Force all API routes to use Edge runtime
+  serverRuntimeConfig: {
+    PROJECT_ROOT: __dirname
+  },
+  // Important: Configure all routes to use Edge runtime by default
+  // This fixes Cloudflare Pages deployment issues
+  runtime: 'edge',
 }
 
 export default nextConfig; 

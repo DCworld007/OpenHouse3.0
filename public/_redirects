@@ -1,2 +1,5 @@
-/* /index.html 200
-/api/* /api/:splat 200
+# Redirect API requests to the Functions serving them
+/api/*  /.netlify/functions/api/:splat  200
+
+# Handle all other routes with Next.js
+/*  /index.html  200

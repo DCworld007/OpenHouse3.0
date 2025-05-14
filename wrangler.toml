@@ -4,46 +4,37 @@
 # pages_build_output_dir = ".next" # Temporarily commenting out for proxy mode
 
 # OpenHouse3.0 Cloudflare configuration
-compatibility_date = "2024-03-01"
+name = "openhouse3-0"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = ".vercel/output/static"
 
+# Environment variables
 [vars]
-MY_TEST_VAR = "hello_from_wrangler_vars"
-JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz"  # Using the secret from .dev.vars
+JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz"
+NODE_VERSION = "18.20.8"
 
-[env.production]
-name = "openhouse3-prod"
-# Uncomment and update these values for your production environment
-# route = "openhouse3.com/*"
-# zone_id = "your-zone-id"
-# d1_databases = [
-#   { binding = "DB", database_name = "openhouse3", database_id = "your-db-id" }
-# ]
-# kv_namespaces = [
-#   { binding = "CACHE", id = "your-kv-id", preview_id = "your-preview-kv-id" }
-# ]
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }
+# Configure Next.js build
+[build]
+command = "npm run build"
 
-[env.staging]
-name = "openhouse3-staging"
-# Uncomment and update these values for your staging environment
-# route = "staging.openhouse3.com/*"
-# zone_id = "your-zone-id"
-# d1_databases = [
-#   { binding = "DB", database_name = "openhouse3_staging", database_id = "your-staging-db-id" }
-# ]
-# kv_namespaces = [
-#   { binding = "CACHE", id = "your-staging-kv-id", preview_id = "your-staging-kv-id" }
-# ]
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }
-
-[env.development]
-name = "openhouse-dev"
-workers_dev = true
-compatibility_date = "2024-02-05"
-vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }
-
+# Tell Cloudflare to use the correct build output
 [site]
-bucket = ".next/static"
+bucket = ".vercel/output/static"
+
+# Configure Pages behavior
+[env.production]
+NODE_VERSION = "18.20.8"
+vars = { JWT_SECRET = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz" }
+
+# Define the build output directory
+[build.upload]
+format = "directory"
+main = ".vercel/output/static"
+
+# Tell Cloudflare about the functions directory
+[[build.upload.rules]]
+type = "Pages"
+globs = [".vercel/output/functions/**/*"]
 
 # D1 Database configuration
 [[d1_databases]]

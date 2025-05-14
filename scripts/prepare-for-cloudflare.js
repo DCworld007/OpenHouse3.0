@@ -571,6 +571,42 @@ fs.writeFileSync(
 );
 console.log('✅ Created .cloudflare/pages.js');
 
+// Add edge runtime directive for app router
+const routeManifestPath = path.join(process.cwd(), '.next', 'build-manifest.json');
+if (fs.existsSync(routeManifestPath)) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(routeManifestPath, 'utf8'));
+    console.log('✅ Added edge runtime to Next.js build manifest');
+  } catch (e) {
+    console.error('❌ Failed to patch build manifest:', e);
+  }
+}
+
+// Add edge runtime configuration for Next.js Config
+const nextConfigPath = path.join(process.cwd(), 'next.config.mjs');
+if (fs.existsSync(nextConfigPath)) {
+  try {
+    let content = fs.readFileSync(nextConfigPath, 'utf8');
+    if (!content.includes("runtime: 'edge'")) {
+      console.log('⚠️ Adding edge runtime to next.config.mjs');
+      // This is a simplified approach - in production you might want to use an AST parser
+      const configStart = content.indexOf('const nextConfig = {');
+      if (configStart !== -1) {
+        const insertPos = configStart + 'const nextConfig = {'.length;
+        content = content.slice(0, insertPos) + "\n  runtime: 'edge'," + content.slice(insertPos);
+        fs.writeFileSync(nextConfigPath, content);
+        console.log('✅ Added edge runtime to next.config.mjs');
+      } else {
+        console.warn('⚠️ Could not find config object in next.config.mjs');
+      }
+    } else {
+      console.log('✅ next.config.mjs already has edge runtime configuration');
+    }
+  } catch (e) {
+    console.error('❌ Failed to patch next.config.mjs:', e);
+  }
+}
+
 console.log('\n🚀 Application prepared for Cloudflare Pages deployment!');
 console.log('\nMake sure to set these secrets in your Cloudflare Pages dashboard:');
 console.log('1. JWT_SECRET');

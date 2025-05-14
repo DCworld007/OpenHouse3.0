@@ -1,12 +1,18 @@
-module.exports = {
-  // Keep public directory contents in the deployment
-  includeFiles: ['public/**/*', 'functions/**/*'],
-  // Build command
-  buildCommand: 'npm run build',
-  // Directory to serve static assets from
-  outputDirectory: '.next',
-  // Environment variables
-  env: {
-    JWT_SECRET: process.env.JWT_SECRET || 'Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz',
+// This file configures Cloudflare Pages to use Edge runtime for all routes
+export default {
+  onBeforeRequest(request, env) {
+    // Add D1 and KV variables to the request context
+    return {
+      force_edge_runtime: true,
+      data: {
+        force_edge: true,
+        db: env.DB,
+        cache: env.CACHE
+      },
+    };
   },
+  onResponse(response, request, env) {
+    // Return the response as-is
+    return response;
+  }
 };
