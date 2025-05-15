@@ -4,6 +4,10 @@ import { Inter } from 'next/font/google';
 import Navigation from '@/components/Navigation';
 import { Toaster } from 'react-hot-toast';
 import ClientWrapper from '@/components/ClientWrapper';
+import { EnvProvider } from './contexts/EnvContext';
+import { AuthProvider } from './contexts/AuthContext';
+import UserDebug from './components/UserDebug';
+import ClientWrapperWithDebug from './components/ClientWrapperWithDebug';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,11 +24,17 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full bg-gray-50">
       <body className={`${inter.className} h-full`}>
-        <ClientWrapper>
-          <Navigation />
-          <main>{children}</main>
-          <Toaster />
-        </ClientWrapper>
+        <EnvProvider>
+          <AuthProvider>
+            <ClientWrapper>
+              <Navigation />
+              <main>{children}</main>
+              <Toaster />
+              {process.env.NODE_ENV !== 'production' && <UserDebug />}
+              <ClientWrapperWithDebug />
+            </ClientWrapper>
+          </AuthProvider>
+        </EnvProvider>
       </body>
     </html>
   );
