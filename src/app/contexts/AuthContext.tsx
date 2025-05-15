@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { shouldUseFallback } from '../cloudflare-fallback';
 
 // Define user type
 export interface User {
@@ -48,6 +49,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Function to fetch the current user
   const fetchUser = async (): Promise<User | null> => {
     try {
+      // In Cloudflare fallback mode, return demo user
+      if (shouldUseFallback()) {
+        const demoUser = {
+          id: 'demo-user',
+          email: 'demo@example.com',
+          name: 'Demo User',
+          picture: 'https://via.placeholder.com/150'
+        };
+        setUser(demoUser);
+        setIsLoading(false);
+        return demoUser;
+      }
+
       const res = await fetch('/api/auth/me', {
         credentials: 'include',
         headers: { 'Cache-Control': 'no-cache' }
@@ -78,6 +92,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Function to handle login
   const login = async (credential: string): Promise<User | null> => {
     try {
+      // In Cloudflare fallback mode, simulate successful login
+      if (shouldUseFallback()) {
+        const demoUser = {
+          id: 'demo-user',
+          email: 'demo@example.com',
+          name: 'Demo User',
+          picture: 'https://via.placeholder.com/150'
+        };
+        setUser(demoUser);
+        return demoUser;
+      }
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 
@@ -105,6 +131,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Function to handle logout
   const logout = async (): Promise<void> => {
     try {
+      if (shouldUseFallback()) {
+        setUser(null);
+        router.push('/auth/login');
+        return;
+      }
+
       await fetch('/api/auth/logout', {
         credentials: 'include',
         headers: { 'Cache-Control': 'no-cache' }

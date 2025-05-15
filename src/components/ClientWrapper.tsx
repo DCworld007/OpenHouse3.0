@@ -15,9 +15,15 @@ const ClientWrapper = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
   
-  return (
-    <AuthProvider>{children}</AuthProvider>
-  );
+  // We'll try to wrap with AuthProvider, but catch any errors if it's not available
+  try {
+    return (
+      <AuthProvider>{children}</AuthProvider>
+    );
+  } catch (error) {
+    console.warn('AuthProvider not available, rendering without authentication');
+    return <>{children}</>;
+  }
 };
 
 export default ClientWrapper; 
