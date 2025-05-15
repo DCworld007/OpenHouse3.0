@@ -1,24 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import HomeFallback from './index-fallback';
-
-// Simple client-side component that switches to fallback in Cloudflare Pages
-export default function Home() {
-  const [useFallback, setUseFallback] = useState(false);
-  
-  useEffect(() => {
-    // Client-side detection of Cloudflare Pages
-    const hostname = window.location.hostname;
-    setUseFallback(hostname.includes('pages.dev'));
-  }, []);
-
-  // Use the fallback component when in Cloudflare Pages
-  if (useFallback) {
-    return <HomeFallback />;
-  }
-
-  // Original home page component
+export default function HomeFallback() {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -31,18 +13,25 @@ export default function Home() {
             <p className="mt-4 text-lg text-gray-600">
               Collaborate, organize, and plan together in real-time.
             </p>
+            <div className="mt-6 bg-white rounded-lg p-6 inline-block">
+              <p className="text-gray-700 text-sm">
+                <span className="font-semibold text-amber-600">Note:</span> You're viewing the demo mode of UnifyPlan.
+                Some features are limited in this environment. Full functionality is available when self-hosted.
+              </p>
+            </div>
             <div className="mt-8 flex justify-center space-x-4">
               <a 
                 href="/plans" 
                 className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition"
               >
-                Get Started
+                View Demo
               </a>
               <a 
-                href="#features" 
+                href="https://github.com/DCworld007/OpenHouse3.0" 
+                target="_blank"
                 className="px-6 py-3 bg-white text-indigo-600 font-medium rounded-md border border-indigo-300 hover:bg-indigo-50 transition"
               >
-                Learn More
+                GitHub Repo
               </a>
             </div>
           </div>
@@ -82,7 +71,7 @@ export default function Home() {
             <div className="p-6 bg-gray-50 rounded-lg">
               <h4 className="text-lg font-medium text-gray-900">Secure & Private</h4>
               <p className="mt-2 text-gray-600">
-                Your data is encrypted and secure.
+                Self-hostable for maximum data privacy.
               </p>
             </div>
           </div>
@@ -92,18 +81,18 @@ export default function Home() {
       {/* CTA Section */}
       <div className="bg-indigo-700 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white">Ready to get started?</h2>
-          <p className="mt-4 text-xl text-indigo-100">Start planning together today.</p>
+          <h2 className="text-3xl font-bold text-white">Ready to try it out?</h2>
+          <p className="mt-4 text-xl text-indigo-100">Explore the demo or deploy your own instance.</p>
           <div className="mt-8">
             <a 
               href="/plans" 
               className="px-8 py-3 bg-white text-indigo-700 font-medium rounded-md hover:bg-indigo-50 transition"
             >
-              Get Started
+              View Demo
             </a>
           </div>
         </div>
       </div>
     </div>
   );
-}
+} 
