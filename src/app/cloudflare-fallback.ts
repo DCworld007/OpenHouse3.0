@@ -61,6 +61,24 @@ const MOCK_CARDS: Record<string, Card[]> = {
       lat: 45.508888,
       lng: -73.561668,
     }
+  ],
+  'demo-room-2': [
+    {
+      id: 'card-3',
+      type: 'what',
+      content: 'Project Planning',
+      groupId: 'demo-room-2',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'card-4',
+      type: 'when',
+      content: 'Next Week',
+      groupId: 'demo-room-2',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
   ]
 };
 
@@ -71,32 +89,51 @@ export function shouldUseFallback(): boolean {
   let result = false;
   const reasons = [];
 
-  if (typeof window !== 'undefined') {
-    // Client-side detection
-    if (window.location.hostname.includes('pages.dev')) {
-      result = true;
-      reasons.push('hostname includes pages.dev');
+  try {
+    if (typeof window !== 'undefined') {
+      // Client-side detection
+      if (window.location.hostname.includes('pages.dev')) {
+        result = true;
+        reasons.push('hostname includes pages.dev');
+      }
+      
+      // Check for special debug flag in localStorage
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('debug_cloudflare') === 'true') {
+        result = true;
+        reasons.push('debug_cloudflare=true in localStorage');
+      }
+
+      // Direct override for Cloudflare Pages
+      if (window.location.hostname === 'unifyplanver2.pages.dev') {
+        result = true;
+        reasons.push('unifyplanver2.pages.dev direct match');
+        // Force the flag to be true in localStorage
+        try {
+          localStorage.setItem('debug_cloudflare', 'true');
+        } catch (e) {
+          console.error('Could not set localStorage flag:', e);
+        }
+      }
+    } else {
+      // Server-side detection
+      if (process.env.NODE_ENV === 'production' && 
+         (process.env.CLOUDFLARE === 'true' || !!process.env.CF_PAGES)) {
+        result = true;
+        if (process.env.CLOUDFLARE === 'true') reasons.push('CLOUDFLARE=true');
+        if (process.env.CF_PAGES) reasons.push('CF_PAGES is set');
+      }
+      
+      // Local dev environment can simulate Cloudflare
+      if (process.env.CLOUDFLARE === 'true' || process.env.CF_PAGES) {
+        result = true;
+        reasons.push('Local dev with CLOUDFLARE or CF_PAGES env var');
+      }
     }
-    
-    // Check for special debug flag in localStorage
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('debug_cloudflare') === 'true') {
-      result = true;
-      reasons.push('debug_cloudflare=true in localStorage');
-    }
-  } else {
-    // Server-side detection
-    if (process.env.NODE_ENV === 'production' && 
-        (process.env.CLOUDFLARE === 'true' || !!process.env.CF_PAGES)) {
-      result = true;
-      if (process.env.CLOUDFLARE === 'true') reasons.push('CLOUDFLARE=true');
-      if (process.env.CF_PAGES) reasons.push('CF_PAGES is set');
-    }
-    
-    // Local dev environment can simulate Cloudflare
-    if (process.env.CLOUDFLARE === 'true' || process.env.CF_PAGES) {
-      result = true;
-      reasons.push('Local dev with CLOUDFLARE or CF_PAGES env var');
-    }
+  } catch (error) {
+    console.error('Error in shouldUseFallback:', error);
+    // If any error occurs, default to fallback mode to be safe
+    result = true;
+    reasons.push('error occurred in detection, fallback for safety');
   }
   
   if (result) {

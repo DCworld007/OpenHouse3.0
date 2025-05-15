@@ -2,15 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import HomeFallback from './index-fallback';
+import { shouldUseFallback } from './cloudflare-fallback';
 
 // Simple client-side component that switches to fallback in Cloudflare Pages
 export default function Home() {
   const [useFallback, setUseFallback] = useState(false);
   
   useEffect(() => {
-    // Client-side detection of Cloudflare Pages
+    // Check both hostname and localStorage for Cloudflare mode
     const hostname = window.location.hostname;
-    setUseFallback(hostname.includes('pages.dev'));
+    const isCloudflare = hostname.includes('pages.dev') || 
+                         localStorage.getItem('debug_cloudflare') === 'true';
+    
+    console.log('[Home] Checking for Cloudflare environment:', 
+      { hostname, isCloudflare, fallbackMode: shouldUseFallback() });
+    
+    setUseFallback(isCloudflare);
   }, []);
 
   // Use the fallback component when in Cloudflare Pages

@@ -18,6 +18,15 @@ export default function HomeFallback() {
                 <span className="font-semibold text-amber-600">Note:</span> You're viewing the demo mode of UnifyPlan.
                 Some features are limited in this environment. Full functionality is available when self-hosted.
               </p>
+              <div className="mt-3 bg-gray-50 p-3 text-left rounded">
+                <p className="text-xs text-gray-500 mb-1">Environment Information:</p>
+                <p className="text-xs text-gray-500">
+                  Hostname: <span className="text-gray-700">{typeof window !== 'undefined' ? window.location.hostname : 'Server'}</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Cloudflare Pages Mode: <span className="text-green-600">Enabled</span>
+                </p>
+              </div>
             </div>
             <div className="mt-8 flex justify-center space-x-4">
               <a 
