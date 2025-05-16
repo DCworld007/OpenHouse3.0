@@ -15,8 +15,8 @@ export default function HomeFallback() {
             </p>
             <div className="mt-6 bg-white rounded-lg p-6 inline-block">
               <p className="text-gray-700 text-sm">
-                <span className="font-semibold text-amber-600">Note:</span> You're viewing the demo mode of UnifyPlan.
-                Some features are limited in this environment. Full functionality is available when self-hosted.
+                <span className="font-semibold text-amber-600">Note:</span> You're viewing the demo mode of UnifyPlan
+                on Cloudflare Pages. Some features are limited in this environment.
               </p>
               <div className="mt-3 bg-gray-50 p-3 text-left rounded">
                 <p className="text-xs text-gray-500 mb-1">Environment Information:</p>
@@ -25,6 +25,9 @@ export default function HomeFallback() {
                 </p>
                 <p className="text-xs text-gray-500">
                   Cloudflare Pages Mode: <span className="text-green-600">Enabled</span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  <span className="text-amber-500">◆</span> Using static demo data - no database connection
                 </p>
               </div>
             </div>

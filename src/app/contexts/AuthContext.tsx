@@ -46,17 +46,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  // Function to create a demo user for fallback mode
+  const createDemoUser = (): User => {
+    console.log("[AuthContext] Creating demo user for fallback mode");
+    return {
+      id: 'demo-user',
+      email: 'demo@example.com',
+      name: 'Demo User',
+      picture: 'https://via.placeholder.com/150'
+    };
+  };
+
   // Function to fetch the current user
   const fetchUser = async (): Promise<User | null> => {
     try {
       // In Cloudflare fallback mode, return demo user
-      if (shouldUseFallback()) {
-        const demoUser = {
-          id: 'demo-user',
-          email: 'demo@example.com',
-          name: 'Demo User',
-          picture: 'https://via.placeholder.com/150'
-        };
+      const fallbackMode = shouldUseFallback();
+      console.log("[AuthContext] Checking Cloudflare fallback mode:", fallbackMode);
+      
+      if (fallbackMode) {
+        console.log("[AuthContext] Using demo user in fallback mode");
+        const demoUser = createDemoUser();
         setUser(demoUser);
         setIsLoading(false);
         return demoUser;
@@ -77,6 +87,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return null;
         }
       } else {
+        console.log("[AuthContext] Auth API failed with status:", res.status);
         setUser(null);
         return null;
       }
@@ -94,12 +105,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       // In Cloudflare fallback mode, simulate successful login
       if (shouldUseFallback()) {
-        const demoUser = {
-          id: 'demo-user',
-          email: 'demo@example.com',
-          name: 'Demo User',
-          picture: 'https://via.placeholder.com/150'
-        };
+        console.log("[AuthContext] Using demo login in fallback mode");
+        const demoUser = createDemoUser();
         setUser(demoUser);
         return demoUser;
       }

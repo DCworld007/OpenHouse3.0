@@ -9,19 +9,36 @@ export default function Home() {
   const [useFallback, setUseFallback] = useState(false);
   
   useEffect(() => {
+    // Force Cloudflare fallback mode for local debugging
+    try {
+      localStorage.setItem('debug_cloudflare', 'true');
+      console.log('[Home] Forced debug_cloudflare to true in localStorage');
+    } catch (e) {
+      console.error('[Home] Could not set localStorage flag:', e);
+    }
+    
     // Check both hostname and localStorage for Cloudflare mode
     const hostname = window.location.hostname;
-    const isCloudflare = hostname.includes('pages.dev') || 
-                         localStorage.getItem('debug_cloudflare') === 'true';
+    let debugFlagValue;
+    try {
+      debugFlagValue = localStorage.getItem('debug_cloudflare');
+    } catch (e) {
+      console.error('[Home] Error reading localStorage:', e);
+      debugFlagValue = null;
+    }
+    
+    const isCloudflare = hostname.includes('pages.dev') || debugFlagValue === 'true';
+    const fallbackActive = shouldUseFallback();
     
     console.log('[Home] Checking for Cloudflare environment:', 
-      { hostname, isCloudflare, fallbackMode: shouldUseFallback() });
+      { hostname, isCloudflare, debugFlagValue, fallbackMode: fallbackActive });
     
-    setUseFallback(isCloudflare);
+    setUseFallback(isCloudflare || fallbackActive);
   }, []);
 
   // Use the fallback component when in Cloudflare Pages
   if (useFallback) {
+    console.log('[Home] Using fallback component');
     return <HomeFallback />;
   }
 

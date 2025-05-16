@@ -92,21 +92,51 @@ export function shouldUseFallback(): boolean {
   try {
     if (typeof window !== 'undefined') {
       // Client-side detection
-      if (window.location.hostname.includes('pages.dev')) {
+      console.log("[Fallback Debug] Client-side fallback check. Hostname:", window.location.hostname);
+      
+      const hostname = window.location.hostname;
+      
+      // ALWAYS use fallback mode for Cloudflare pages.dev domains
+      if (hostname.includes('pages.dev')) {
         result = true;
-        reasons.push('hostname includes pages.dev');
+        reasons.push('pages.dev domain - production Cloudflare Pages');
+        console.log("[Fallback Debug] PRODUCTION CLOUDFLARE PAGES DETECTED!", hostname);
+        
+        // Force fallback flag in localStorage for pages.dev domains
+        try {
+          localStorage.setItem('debug_cloudflare', 'true');
+          console.log("[Fallback Debug] Forced debug_cloudflare flag for pages.dev domain");
+        } catch (e) {
+          console.error("[Fallback Debug] Error setting localStorage:", e);
+        }
+      }
+      
+      // Always use fallback mode for localhost
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        result = true;
+        reasons.push('localhost detection - always use fallback');
       }
       
       // Check for special debug flag in localStorage
-      if (typeof localStorage !== 'undefined' && localStorage.getItem('debug_cloudflare') === 'true') {
+      let debugValue = null;
+      try {
+        debugValue = localStorage.getItem('debug_cloudflare');
+        console.log("[Fallback Debug] debug_cloudflare in localStorage:", debugValue);
+      } catch (e) {
+        console.error("[Fallback Debug] Error reading localStorage:", e);
+      }
+      
+      if (typeof localStorage !== 'undefined' && debugValue === 'true') {
         result = true;
         reasons.push('debug_cloudflare=true in localStorage');
       }
 
-      // Direct override for Cloudflare Pages
-      if (window.location.hostname === 'unifyplanver2.pages.dev') {
+      // Special handling for our specific Cloudflare domain
+      if (hostname === 'unifyplanver2.pages.dev') {
         result = true;
         reasons.push('unifyplanver2.pages.dev direct match');
+        console.log("[Fallback Debug] CRITICAL: unifyplanver2.pages.dev exact match - MUST use fallback");
+        
         // Force the flag to be true in localStorage
         try {
           localStorage.setItem('debug_cloudflare', 'true');
@@ -116,6 +146,10 @@ export function shouldUseFallback(): boolean {
       }
     } else {
       // Server-side detection
+      console.log("[Fallback Debug] Server-side fallback check. NODE_ENV:", process.env.NODE_ENV);
+      console.log("[Fallback Debug] CLOUDFLARE env:", process.env.CLOUDFLARE);
+      console.log("[Fallback Debug] CF_PAGES env:", process.env.CF_PAGES);
+      
       if (process.env.NODE_ENV === 'production' && 
          (process.env.CLOUDFLARE === 'true' || !!process.env.CF_PAGES)) {
         result = true;
@@ -138,6 +172,8 @@ export function shouldUseFallback(): boolean {
   
   if (result) {
     console.log(`[Cloudflare Fallback] Using fallback mode. Reasons: ${reasons.join(', ')}`);
+  } else {
+    console.log('[Cloudflare Fallback] Not using fallback mode');
   }
   
   return result;
