@@ -7,127 +7,74 @@ import { shouldUseFallback } from './cloudflare-fallback';
 // Simple client-side component that switches to fallback in Cloudflare Pages
 export default function Home() {
   const [useFallback, setUseFallback] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    // Force Cloudflare fallback mode for local debugging
-    try {
-      localStorage.setItem('debug_cloudflare', 'true');
-      console.log('[Home] Forced debug_cloudflare to true in localStorage');
-    } catch (e) {
-      console.error('[Home] Could not set localStorage flag:', e);
+    // Check if we should use the fallback mode
+    const checkFallback = () => {
+      const isFallbackMode = shouldUseFallback();
+      console.log("[Home] Fallback mode check:", isFallbackMode);
+      
+      // Force fallback mode for Cloudflare environment
+      if (typeof window !== 'undefined') {
+        // Always enable fallback for Cloudflare Pages
+        if (window.location.hostname.includes('pages.dev')) {
+          console.log("[Home] Forcing fallback mode for pages.dev domain");
+          localStorage.setItem('debug_cloudflare', 'true');
+          setUseFallback(true);
+          return true;
+        }
+      }
+      
+      setUseFallback(isFallbackMode);
+      return isFallbackMode;
+    };
+    
+    // First render check
+    const isFallback = checkFallback();
+    setIsLoading(false);
+    
+    // If we're in Cloudflare Pages, never attempt to fetch real data
+    if (isFallback) {
+      console.log("[Home] Using fallback mode - no API requests will be made");
     }
-    
-    // Check both hostname and localStorage for Cloudflare mode
-    const hostname = window.location.hostname;
-    let debugFlagValue;
-    try {
-      debugFlagValue = localStorage.getItem('debug_cloudflare');
-    } catch (e) {
-      console.error('[Home] Error reading localStorage:', e);
-      debugFlagValue = null;
-    }
-    
-    const isCloudflare = hostname.includes('pages.dev') || debugFlagValue === 'true';
-    const fallbackActive = shouldUseFallback();
-    
-    console.log('[Home] Checking for Cloudflare environment:', 
-      { hostname, isCloudflare, debugFlagValue, fallbackMode: fallbackActive });
-    
-    setUseFallback(isCloudflare || fallbackActive);
   }, []);
-
-  // Use the fallback component when in Cloudflare Pages
+  
+  // Show loading state initially
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-center">
+          <p className="text-gray-500">Loading application...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Always use fallback view for Cloudflare Pages deployments  
   if (useFallback) {
-    console.log('[Home] Using fallback component');
     return <HomeFallback />;
   }
 
-  // Original home page component
+  // Note: This part is only reached in local development or non-Cloudflare deployments
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <div className="bg-purple-50 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900">
-              Welcome to <span className="text-indigo-600">UnifyPlan</span>
-            </h1>
-            <p className="mt-4 text-lg text-gray-600">
-              Collaborate, organize, and plan together in real-time.
-            </p>
-            <div className="mt-8 flex justify-center space-x-4">
-              <a 
-                href="/plans" 
-                className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 transition"
+    <div className="py-10">
+      <main>
+        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+          <div className="px-4 py-6 sm:px-0">
+            <h1 className="text-2xl font-semibold">Welcome to UnifyPlan</h1>
+            <p className="mt-2 text-gray-600">Please sign in to continue.</p>
+            <div className="mt-4">
+              <a
+                href="/auth/login"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
-                Get Started
-              </a>
-              <a 
-                href="#features" 
-                className="px-6 py-3 bg-white text-indigo-600 font-medium rounded-md border border-indigo-300 hover:bg-indigo-50 transition"
-              >
-                Learn More
+                Sign In
               </a>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Features Section */}
-      <div id="features" className="py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-base font-semibold text-indigo-600 uppercase tracking-wide">FEATURES</h2>
-            <h3 className="mt-2 text-3xl font-bold text-gray-900">Everything you need to plan together</h3>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h4 className="text-lg font-medium text-gray-900">Real-time Collaboration</h4>
-              <p className="mt-2 text-gray-600">
-                Work together in real-time with your team.
-              </p>
-            </div>
-
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h4 className="text-lg font-medium text-gray-900">Organized Planning</h4>
-              <p className="mt-2 text-gray-600">
-                Keep all your planning tasks organized.
-              </p>
-            </div>
-
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h4 className="text-lg font-medium text-gray-900">Mobile Friendly</h4>
-              <p className="mt-2 text-gray-600">
-                Access your plans from anywhere.
-              </p>
-            </div>
-
-            <div className="p-6 bg-gray-50 rounded-lg">
-              <h4 className="text-lg font-medium text-gray-900">Secure & Private</h4>
-              <p className="mt-2 text-gray-600">
-                Your data is encrypted and secure.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* CTA Section */}
-      <div className="bg-indigo-700 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white">Ready to get started?</h2>
-          <p className="mt-4 text-xl text-indigo-100">Start planning together today.</p>
-          <div className="mt-8">
-            <a 
-              href="/plans" 
-              className="px-8 py-3 bg-white text-indigo-700 font-medium rounded-md hover:bg-indigo-50 transition"
-            >
-              Get Started
-            </a>
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
