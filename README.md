@@ -1,6 +1,26 @@
 # OpenHouse3.0
 
-A modern home planning application built with Next.js and Cloudflare Pages.
+Collaborative planning made simple. This repository contains the code for UnifyPlan, a real-time collaboration tool.
+
+## Deployment Status
+
+Latest deployment: May 15, 2025 - Updated environment variables for Cloudflare Pages.
+
+## Local Development
+
+To run the application locally with Cloudflare simulation:
+
+```
+npm run debug-cf
+```
+
+## Environment Variables
+
+The application requires the following environment variables:
+
+- `JWT_SECRET`: Secret for JWT token signing
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Google OAuth client ID
+- `NODE_VERSION`: Set to 18.20.8 for compatibility
 
 ## Features
 
@@ -38,13 +58,6 @@ This project is configured for deployment to Cloudflare Pages. See [DEPLOYMENT.m
 2. Install dependencies: `npm install`
 3. Build the project: `npm run build`
 4. Deploy to Cloudflare Pages: `npm run pages:deploy`
-
-## Environment Variables
-
-The following environment variables need to be set in the Cloudflare Pages dashboard:
-
-- `JWT_SECRET` - Secret for signing JWT tokens
-- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - Google OAuth Client ID
 
 ## Authentication
 
