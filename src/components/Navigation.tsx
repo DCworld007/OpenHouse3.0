@@ -1,20 +1,13 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Disclosure, Menu, Transition } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { UserCircleIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useAuth } from '@/app/contexts/AuthContext';
-
-// Define local user type for the component
-interface UserType {
-  id: string;
-  name: string;
-  email: string;
-  picture?: string;
-}
+import { usePathname, useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { authFetch, clearAuthToken, getAuthToken, setupTestAuth } from '@/utils/auth-client';
 
 const navigation = [
   { name: 'Home', href: '/' },
@@ -23,6 +16,13 @@ const navigation = [
 
 function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(' ');
+}
+
+interface UserType {
+  id: string;
+  name: string;
+  email: string;
+  picture?: string;
 }
 
 function UserAvatar({ user }: { user: UserType }) {
@@ -49,11 +49,75 @@ function UserAvatar({ user }: { user: UserType }) {
 }
 
 export default function Navigation() {
-  const pathname = usePathname();
-  const { user, isLoading, logout } = useAuth();
+  const pathname = usePathname() || '/';
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        console.log('Fetching user data...');
+        // Get token from cookies or localStorage
+        const token = getAuthToken();
+        console.log('Auth token present:', !!token);
+        
+        // Use our auth fetch utility that adds the token to headers
+        const res = await authFetch('/api/me');
+        
+        if (res.ok) {
+          const data = await res.json();
+          console.log('User data response:', data);
+          
+          // Check if the response has a nested user object or direct user fields
+          if (data.authenticated && data.user) {
+            // If it has the expected structure from our API route
+            setUser(data.user);
+          } else if (data.id || data.sub) {
+            // If it has a direct user structure
+            setUser({
+              id: data.id || data.sub,
+              name: data.name,
+              email: data.email,
+              picture: data.picture
+            });
+          } else {
+            console.log('Invalid user data format:', data);
+            setUser(null);
+          }
+        } else {
+          console.log('Failed to fetch user:', res.status);
+          setUser(null);
+          
+          // If user is not found and we're not on auth pages, redirect to test auth
+          if (res.status === 401 && 
+              !pathname.startsWith('/auth/') && 
+              process.env.NODE_ENV === 'development') {
+            console.log('Auto-redirecting to test auth page...');
+            setupTestAuth();
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchUser();
+  }, [pathname]);
 
   const handleLogout = async () => {
-    await logout();
+    try {
+    await fetch('/api/auth/logout', { method: 'POST' });
+      // Clear all tokens
+      clearAuthToken();
+      window.location.href = '/auth/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+      clearAuthToken();
+    window.location.href = '/auth/login';
+    }
   };
 
   return (
@@ -84,7 +148,9 @@ export default function Navigation() {
                 </div>
               </div>
               <div className="flex items-center">
-                {isLoading ? null : user ? (
+                {loading ? (
+                  <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>
+                ) : user ? (
                   <Menu as="div" className="relative ml-3">
                     <div>
                       <Menu.Button className="flex rounded-full bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
@@ -125,9 +191,19 @@ export default function Navigation() {
                     </Transition>
                   </Menu>
                 ) : (
-                  <Link href="/auth/login" className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition">
+                  <div className="space-x-2">
+                    <Link href="/auth/login" className="px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition">
                     Sign In
                   </Link>
+                    {process.env.NODE_ENV === 'development' && (
+                      <button 
+                        onClick={() => setupTestAuth()}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-full hover:bg-gray-300 transition"
+                      >
+                        Test Auth
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

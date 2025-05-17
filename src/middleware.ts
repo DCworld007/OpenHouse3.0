@@ -19,16 +19,30 @@ export const config = {
   ],
 };
 
-const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup'];
+// Add auth test page to public paths
+const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup', '/auth/test-token'];
 
 async function verifyJWT(token: string) {
   try {
     // DIRECT HARDCODING: This is needed because the utility function is not working properly in the middleware context
-    const secretValue = "Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz"; // 32-character secret from .dev.vars
-    console.log('[middleware] Using hardcoded secret');
-    console.log('[middleware] Secret length:', secretValue.length);
+    const secretValue = "X7d4KjP9Rt6vQ8sFbZ2mEwHc5LnAaYpG3xNzVuJq"; // New 32-character secret from .dev.vars
     
     const secret = new TextEncoder().encode(secretValue);
+    
+    // For debugging, decode the token header and payload without verification
+    const parts = token.split('.');
+    if (parts.length >= 2) {
+      try {
+        const header = JSON.parse(atob(parts[0]));
+        const payload = JSON.parse(atob(parts[1]));
+        console.log('[middleware] Token header:', header);
+        console.log('[middleware] Token payload:', payload);
+      } catch (e) {
+        console.error('[middleware] Failed to decode token parts:', e);
+      }
+    }
+    
+    // Perform verification
     const { payload } = await jwtVerify(token, secret);
     console.log('[middleware] JWT verified successfully:', { sub: payload.sub, email: payload.email });
     return payload;
@@ -43,8 +57,27 @@ export default async function middleware(request: NextRequest) {
 
   // Debug output
   console.log('[middleware] pathname:', pathname);
-  console.log('[middleware] cookies:', request.cookies.getAll());
-  console.log('[middleware] token:', request.cookies.get('token')?.value);
+  
+  // Get all cookies for thorough debugging
+  const allCookies = request.cookies.getAll();
+  console.log('[middleware] cookies:', allCookies);
+  
+  // Check for a token in cookies
+  const normalToken = request.cookies.get('token')?.value;
+  const altToken = request.cookies.get('auth_token')?.value;
+  
+  // Also check for Authorization header as fallback (client can send localStorage token in header)
+  const authHeader = request.headers.get('authorization');
+  const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+  
+  // Use whatever token we can find
+  const token = normalToken || altToken || headerToken;
+  
+  console.log('[middleware] token sources:', { 
+    cookie: normalToken ? 'present' : 'missing', 
+    altCookie: altToken ? 'present' : 'missing',
+    authHeader: headerToken ? 'present' : 'missing'
+  });
 
   // Allow public paths (home page, login, signup)
   if (PUBLIC_PATHS.includes(pathname)) {
@@ -53,7 +86,6 @@ export default async function middleware(request: NextRequest) {
   }
 
   // Check for JWT in cookies
-  const token = request.cookies.get('token')?.value;
   if (!token) {
     console.log('[middleware] No token found, redirecting to login');
     const url = new URL('/auth/login', request.url);
@@ -61,14 +93,21 @@ export default async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const user = await verifyJWT(token);
-  if (!user) {
-    console.log('[middleware] Invalid token, redirecting to login');
+  try {
+    const user = await verifyJWT(token);
+    if (!user) {
+      console.log('[middleware] Invalid token, redirecting to login');
+      const url = new URL('/auth/login', request.url);
+      url.searchParams.set('callbackUrl', encodeURI(request.url));
+      return NextResponse.redirect(url);
+    }
+
+    console.log('[middleware] Authentication successful, proceeding to:', pathname);
+    return NextResponse.next();
+  } catch (error) {
+    console.error('[middleware] Authentication error:', error);
     const url = new URL('/auth/login', request.url);
     url.searchParams.set('callbackUrl', encodeURI(request.url));
     return NextResponse.redirect(url);
   }
-
-  console.log('[middleware] Authentication successful, proceeding to:', pathname);
-  return NextResponse.next();
 } 

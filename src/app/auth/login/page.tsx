@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { setupTestAuth } from '@/utils/auth-client';
 
 declare global {
   interface Window {
@@ -14,6 +15,9 @@ export default function LoginPage() {
   const pathname = usePathname();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDevMode, setIsDevMode] = useState(false);
+  const [clientIdValid, setClientIdValid] = useState(true);
+  const [originIssue, setOriginIssue] = useState(false);
   
   // Get the base URL for API calls
   const getBaseUrl = () => {
@@ -25,10 +29,20 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Set development mode for UI display
+      setIsDevMode(process.env.NODE_ENV === 'development');
+      
       console.log('[LoginPage] document.cookie:', document.cookie);
       console.log('[LoginPage] pathname:', pathname);
       console.log('[LoginPage] NEXT_PUBLIC_GOOGLE_CLIENT_ID:', process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
       console.log('[LoginPage] Base URL:', getBaseUrl());
+      
+      // Check if we have a valid Google client ID
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+      if (!clientId || clientId === 'test_client_id' || clientId.includes('your_client_id')) {
+        console.warn('[LoginPage] Invalid Google client ID detected:', clientId);
+        setClientIdValid(false);
+      }
     }
 
     // If already logged in, redirect to callbackUrl or /plans
@@ -50,88 +64,120 @@ export default function LoginPage() {
         });
     }
 
-    // Load Google Identity Services script
-    if (!window.google && !document.getElementById('google-identity')) {
+    // Load Google Identity Services script (only if we have a valid client ID)
+    if (clientIdValid && !window.google && !document.getElementById('google-identity')) {
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.defer = true;
       script.id = 'google-identity';
+      script.onerror = () => {
+        console.error('[LoginPage] Failed to load Google Identity script');
+        setError('Failed to load Google authentication. Please try the test authentication option.');
+        setClientIdValid(false);
+      };
       document.body.appendChild(script);
     }
+
+    // Listen for Google origin errors
+    const handleGsiError = (event: MessageEvent) => {
+      if (event.data && typeof event.data === 'string' && event.data.includes('GSI_LOGGER')) {
+        if (event.data.includes('origin is not allowed') || event.data.includes('not allowed for the given client ID')) {
+          console.error('[LoginPage] Google origin error detected:', event.data);
+          setOriginIssue(true);
+        }
+      }
+    };
+    
+    window.addEventListener('message', handleGsiError);
 
     // Wait for script to load, then render button
     const interval = setInterval(() => {
       if (window.google && window.google.accounts && window.google.accounts.id) {
-        window.google.accounts.id.initialize({
-          client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-          callback: async (response: any) => {
-            console.log('[LoginPage] Google Sign-In response:', response);
-            setLoading(true);
-            setError(null);
-            
-            // Send ID token to API
-            try {
-              const loginUrl = `${getBaseUrl()}/login`;
-              console.log('[LoginPage] Sending login request to:', loginUrl);
+        try {
+          window.google.accounts.id.initialize({
+            client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+            callback: async (response: any) => {
+              console.log('[LoginPage] Google Sign-In response:', response);
+              setLoading(true);
+              setError(null);
               
-              const res = await fetch(loginUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ credential: response.credential })
-              });
-              
-              console.log('[LoginPage] Login response status:', res.status);
-              
-              // Try to parse response as JSON, but handle if it's not valid JSON
-              let data;
+              // Send ID token to API
               try {
-                const text = await res.text();
-                console.log('[LoginPage] Login response text:', text);
-                data = text ? JSON.parse(text) : {};
-              } catch (parseError) {
-                console.error('[LoginPage] Error parsing response:', parseError);
-                throw new Error(`Failed to parse server response: ${parseError}`);
-              }
-              
-              console.log('[LoginPage] Login response data:', data);
-              
-              if (res.ok) {
-                // Verify authentication worked by calling /me
-                const meRes = await fetch(`${getBaseUrl()}/me`, { credentials: 'include' });
-                console.log('[LoginPage] /me response status:', meRes.status);
+                const loginUrl = `${getBaseUrl()}/api/auth/login`;
+                console.log('[LoginPage] Sending login request to:', loginUrl);
                 
-                if (meRes.ok) {
-                  const params = new URLSearchParams(window.location.search);
-                  const callbackUrl = params.get('callbackUrl');
-                  window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
-                } else {
-                  setError('Login failed - could not verify authentication');
+                const res = await fetch(loginUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify({ credential: response.credential })
+                });
+                
+                console.log('[LoginPage] Login response status:', res.status);
+                
+                // Try to parse response as JSON, but handle if it's not valid JSON
+                let data;
+                try {
+                  const text = await res.text();
+                  console.log('[LoginPage] Login response text:', text);
+                  data = text ? JSON.parse(text) : {};
+                } catch (parseError) {
+                  console.error('[LoginPage] Error parsing response:', parseError);
+                  throw new Error(`Failed to parse server response: ${parseError}`);
                 }
-              } else {
-                setError('Login failed: ' + (data.error || `Server error: ${res.status}`));
+                
+                console.log('[LoginPage] Login response data:', data);
+                
+                if (res.ok) {
+                  // Verify authentication worked by calling /api/me
+                  const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
+                  console.log('[LoginPage] /api/me response status:', meRes.status);
+                  
+                  if (meRes.ok) {
+                    const params = new URLSearchParams(window.location.search);
+                    const callbackUrl = params.get('callbackUrl');
+                    window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
+                  } else {
+                    setError('Login failed - could not verify authentication');
+                  }
+                } else {
+                  setError('Login failed: ' + (data.error || `Server error: ${res.status}`));
+                }
+              } catch (error) {
+                console.error('[LoginPage] Login error:', error);
+                setError(`Login failed: ${error instanceof Error ? error.message : String(error)}`);
+              } finally {
+                setLoading(false);
               }
-            } catch (error) {
-              console.error('[LoginPage] Login error:', error);
-              setError(`Login failed: ${error instanceof Error ? error.message : String(error)}`);
-            } finally {
-              setLoading(false);
-            }
-          },
-        });
-        
-        window.google.accounts.id.renderButton(
-          document.getElementById('google-signin-btn'),
-          { theme: 'outline', size: 'large', width: 320 }
-        );
-        
-        clearInterval(interval);
+            },
+          });
+          
+          window.google.accounts.id.renderButton(
+            document.getElementById('google-signin-btn'),
+            { theme: 'outline', size: 'large', width: 320 }
+          );
+          
+          clearInterval(interval);
+        } catch (err) {
+          console.error('[LoginPage] Error initializing Google Sign-In:', err);
+          setError('Failed to initialize Google Sign-In');
+          setClientIdValid(false);
+          clearInterval(interval);
+        }
       }
     }, 100);
     
-    return () => clearInterval(interval);
-  }, [pathname]);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('message', handleGsiError);
+    };
+  }, [pathname, clientIdValid]);
+
+  // Handle test authentication
+  const handleTestAuth = () => {
+    setupTestAuth();
+  };
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50">
@@ -151,8 +197,42 @@ export default function LoginPage() {
               </div>
             )}
             
+            {!clientIdValid && isDevMode && (
+              <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
+                <p className="font-medium">Missing or invalid Google Client ID</p>
+                <p className="text-sm mt-1">
+                  You need to set up a valid NEXT_PUBLIC_GOOGLE_CLIENT_ID in your .env.local file.
+                  See GOOGLE_AUTH_SETUP.md for instructions.
+                </p>
+              </div>
+            )}
+            
+            {originIssue && (
+              <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded">
+                <p className="font-medium">Google Sign-In Origin Issue</p>
+                <p className="text-sm mt-1">
+                  Your origin (localhost) is not allowed for this Google Client ID.
+                  You need to add <code>http://localhost:3000</code> as an authorized JavaScript origin in the Google Cloud Console.
+                </p>
+              </div>
+            )}
+            
             <div className="space-y-4 flex flex-col items-center">
-              <div id="google-signin-btn" className="w-full flex justify-center"></div>
+              {clientIdValid && !originIssue && <div id="google-signin-btn" className="w-full flex justify-center"></div>}
+              
+              {isDevMode && (
+                <div className="mt-4 w-full">
+                  <button
+                    onClick={handleTestAuth}
+                    className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    Test Authentication (Dev Only)
+                  </button>
+                  <p className="mt-1 text-xs text-gray-500 text-center">
+                    This option bypasses real login for development purposes
+                  </p>
+                </div>
+              )}
               
               {loading && (
                 <div className="mt-4 flex items-center justify-center">

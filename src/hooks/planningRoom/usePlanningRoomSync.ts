@@ -310,6 +310,7 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       console.log('[Yjs] yLinkedCards:', yLinkedCards.toArray());
       console.log('[Yjs] yCardOrder:', yCardOrder.toArray());
       console.log('[Yjs] yChatMessages:', yChatMessages.toArray());
+      
       // Convert Y.Map to plain JS object
       const reactionsObj: Record<string, Record<string, 'like' | 'dislike' | null>> = {};
       yReactions.forEach((userMap, cardId) => {
@@ -320,14 +321,54 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
           });
         }
       });
+      
+      // Fix any duplicate cardIds in the cardOrder array
+      const cardOrderArray = yCardOrder.toArray() as string[];
+      const uniqueCardOrder = Array.from(new Set(cardOrderArray));
+      
+      // Check for duplicate cards in linkedCards array
+      const cardsArray = yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'];
+      const seenCardIds = new Set<string>();
+      const uniqueLinkedCards: PlanningRoomYjsDoc['linkedCards'] = [];
+      let hasDuplicateCards = false;
+      
+      // Find only unique cards (by ID)
+      for (const card of cardsArray) {
+        if (!seenCardIds.has(card.id)) {
+          seenCardIds.add(card.id);
+          uniqueLinkedCards.push(card);
+        } else {
+          hasDuplicateCards = true;
+          console.log(`[Yjs] Found duplicate card with ID ${card.id}, removing duplicate`);
+        }
+      }
+      
+      // Fix both arrays if we found duplicates
+      if (uniqueCardOrder.length !== cardOrderArray.length || hasDuplicateCards) {
+        console.log('[Yjs] Fixing duplicate entries in Yjs arrays');
+        
+        // Fix linkedCards array if needed
+        if (hasDuplicateCards) {
+          yLinkedCards.delete(0, yLinkedCards.length);
+          yLinkedCards.push(uniqueLinkedCards);
+        }
+        
+        // Fix cardOrder array if needed
+        if (uniqueCardOrder.length !== cardOrderArray.length) {
+          yCardOrder.delete(0, yCardOrder.length);
+          yCardOrder.push(uniqueCardOrder);
+        }
+      }
+      
       setDocState({
-        linkedCards: yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'],
-        cardOrder: yCardOrder.toArray() as PlanningRoomYjsDoc['cardOrder'],
+        linkedCards: uniqueLinkedCards,
+        cardOrder: uniqueCardOrder as PlanningRoomYjsDoc['cardOrder'],
         chatMessages: yChatMessages.toArray() as PlanningRoomYjsDoc['chatMessages'],
         reactions: reactionsObj,
         polls: yPolls.toArray() as PlanningRoomYjsDoc['polls'],
         activityFeed: yActivityFeed.toArray() as PlanningRoomYjsDoc['activityFeed'],
       });
+      
       // Debounced persist to D1 on every change
       debouncedPersistToD1();
     };
@@ -386,6 +427,20 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     const yCardOrder = ydoc.getArray('cardOrder');
     const cards = yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'];
     const order = yCardOrder.toArray() as string[];
+
+    // Check if card with this ID already exists to prevent duplicates
+    const existingCardIndex = cards.findIndex(c => c.id === card.id);
+    if (existingCardIndex !== -1) {
+      console.log(`[Yjs] Card with id ${card.id} already exists, skipping insert`);
+      return;
+    }
+    
+    // Check if card ID already exists in order to prevent duplicates
+    if (order.includes(card.id)) {
+      console.log(`[Yjs] Card ID ${card.id} already exists in order, skipping insert`);
+      return;
+    }
+
     let insertIdx = cards.length;
     let orderIdx = order.length;
     if (afterCardId) {
@@ -426,13 +481,21 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
               lat: card.lat,
               lng: card.lng
             };
-            // Add to cards array
+            
+            // Add to cards array only if it doesn't already exist
             if (!groups[groupIndex].cards) {
               groups[groupIndex].cards = [];
             }
-            groups[groupIndex].cards.push(cardData);
-            localStorage.setItem('openhouse-data', JSON.stringify(groups));
-            console.log('[Yjs] Updated localStorage with new card');
+            
+            // Check if card already exists in local storage to prevent duplicates
+            const existingCardIndexInStorage = groups[groupIndex].cards.findIndex((c: any) => c.id === card.id);
+            if (existingCardIndexInStorage === -1) {
+              groups[groupIndex].cards.push(cardData);
+              localStorage.setItem('openhouse-data', JSON.stringify(groups));
+              console.log('[Yjs] Updated localStorage with new card');
+            } else {
+              console.log(`[Yjs] Card ${card.id} already exists in localStorage, not adding duplicate`);
+            }
           }
         }
       } catch (e) {
@@ -589,6 +652,136 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     const yActivityFeed = ydoc.getArray('activityFeed');
     yActivityFeed.push([activity]);
   }, []);
+
+  // Fix duplicate cards in localStorage
+  useEffect(() => {
+    if (!groupId) return;
+    
+    try {
+      // Check if we've already run this migration for this group
+      const migrationKey = `yjs-migrated-${groupId}`;
+      if (localStorage.getItem(migrationKey)) {
+        return; // Already migrated
+      }
+      
+      const storedData = localStorage.getItem('openhouse-data');
+      if (storedData) {
+        const groups = JSON.parse(storedData);
+        const groupIndex = groups.findIndex((g: any) => g.id === groupId);
+        if (groupIndex >= 0 && groups[groupIndex].cards && Array.isArray(groups[groupIndex].cards)) {
+          // Find duplicate cards
+          const cards = groups[groupIndex].cards;
+          const seenIds = new Set<string>();
+          const uniqueCards: any[] = [];
+          let hasDuplicates = false;
+          
+          for (const card of cards) {
+            if (!seenIds.has(card.id)) {
+              seenIds.add(card.id);
+              uniqueCards.push(card);
+            } else {
+              hasDuplicates = true;
+              console.log(`[Yjs Migration] Found duplicate card with id ${card.id} in localStorage, removing`);
+            }
+          }
+          
+          // If we found duplicates, update localStorage
+          if (hasDuplicates) {
+            console.log(`[Yjs Migration] Fixing ${cards.length - uniqueCards.length} duplicate cards in localStorage`);
+            groups[groupIndex].cards = uniqueCards;
+            localStorage.setItem('openhouse-data', JSON.stringify(groups));
+          }
+          
+          // Mark migration as complete
+          localStorage.setItem(migrationKey, 'true');
+        }
+      }
+    } catch (e) {
+      console.error('[Yjs Migration] Error cleaning up localStorage:', e);
+    }
+  }, [groupId]);
+
+  // Add geocoding migration to ensure all 'where' cards have coordinates
+  useEffect(() => {
+    const geocodeMissingLocations = async () => {
+      if (!groupId || !ydocRef.current) return;
+      
+      const geocodeKey = `geocode-migrated-${groupId}`;
+      if (localStorage.getItem(geocodeKey)) {
+        return; // Already ran geocoding migration
+      }
+      
+      // Get all cards
+      const yLinkedCards = ydocRef.current.getArray('linkedCards');
+      const cards = yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'];
+      
+      // Find 'where' cards missing coordinates
+      const cardsNeedingGeocode = cards.filter(card => 
+        card.cardType === 'where' && 
+        (typeof card.lat !== 'number' || typeof card.lng !== 'number') &&
+        card.content
+      );
+      
+      if (cardsNeedingGeocode.length === 0) {
+        // No cards need geocoding, mark migration as complete
+        localStorage.setItem(geocodeKey, 'true');
+        return;
+      }
+      
+      console.log(`[Geocode Migration] Found ${cardsNeedingGeocode.length} cards needing geocoding`);
+      
+      // Geocode each card
+      for (const card of cardsNeedingGeocode) {
+        try {
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(card.content)}`;
+          const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0' } });
+          const data = await res.json();
+          
+          if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lng = parseFloat(data[0].lon);
+            
+            if (!isNaN(lat) && !isNaN(lng)) {
+              console.log(`[Geocode Migration] Successfully geocoded "${card.content}" to: ${lat}, ${lng}`);
+              
+              // Update card with coordinates
+              const cardIndex = cards.findIndex(c => c.id === card.id);
+              if (cardIndex !== -1) {
+                const updatedCard = { ...card, lat, lng, updatedAt: new Date().toISOString() };
+                yLinkedCards.delete(cardIndex, 1);
+                yLinkedCards.insert(cardIndex, [updatedCard]);
+                
+                // Also update localStorage
+                const storedData = localStorage.getItem('openhouse-data');
+                if (storedData) {
+                  const groups = JSON.parse(storedData);
+                  const groupIndex = groups.findIndex((g: any) => g.id === groupId);
+                  if (groupIndex >= 0 && groups[groupIndex].cards) {
+                    const cardIndex = groups[groupIndex].cards.findIndex((c: any) => c.id === card.id);
+                    if (cardIndex !== -1) {
+                      groups[groupIndex].cards[cardIndex].lat = lat;
+                      groups[groupIndex].cards[cardIndex].lng = lng;
+                      localStorage.setItem('openhouse-data', JSON.stringify(groups));
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Add a small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error(`[Geocode Migration] Error geocoding "${card.content}":`, error);
+        }
+      }
+      
+      // Mark migration as complete
+      localStorage.setItem(geocodeKey, 'true');
+    };
+    
+    geocodeMissingLocations();
+  }, [groupId]);
 
   return {
     linkedCards: docState.linkedCards,

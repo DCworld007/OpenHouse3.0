@@ -266,35 +266,64 @@ export default function PlansPage() {
   };
 
   const geocodeAddress = async (address: string) => {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0 (your@email.com)' } });
-    const data = await res.json();
-    if (data && data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+      const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0' } });
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lng = parseFloat(data[0].lon);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          console.log(`[Geocode] Successfully geocoded "${address}" to: ${lat}, ${lng}`);
+          return { lat, lng };
+        }
+      }
+      console.warn(`[Geocode] Failed to geocode address: "${address}"`);
+      return null;
+    } catch (error) {
+      console.error('[Geocode] Error during geocoding:', error);
+      return null;
     }
-    return null;
   };
 
   // PATCH: IntakeCard always adds to the first group using Yjs
   const handleAddCard = async (data: { type: 'what' | 'where'; content: string; notes?: string }) => {
     if (!groups.length || !planningRoom) return;
-    let newCard: any = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-      ...data,
-      cardType: data.type,
-      userId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    if (data.type === 'where') {
-      const geo = await geocodeAddress(data.content);
-      if (geo) {
-        newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
+    
+    try {
+      let newCard: any = {
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+        ...data,
+        cardType: data.type,
+        userId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      // For 'where' cards, always attempt to geocode to get coordinates
+      if (data.type === 'where') {
+        console.log(`[AddCard] Geocoding address: "${data.content}"`);
+        const geo = await geocodeAddress(data.content);
+        if (geo) {
+          console.log(`[AddCard] Adding coordinates to card:`, geo);
+          newCard = { 
+            ...newCard, 
+            lat: geo.lat, 
+            lng: geo.lng 
+          };
+        } else {
+          console.warn(`[AddCard] Could not geocode address: "${data.content}". Card may not appear in route planning.`);
+        }
       }
+      
+      console.log('[AddCard] Adding new card:', newCard);
+      planningRoom.addCard(newCard);
+      setSelectedGroupId(null);
+      toast.success('Card added successfully!');
+    } catch (error) {
+      console.error('[AddCard] Error adding card:', error);
+      toast.error('Failed to add card. Please try again.');
     }
-    planningRoom.addCard(newCard);
-    setSelectedGroupId(null);
-    toast.success('Card added successfully!');
   };
 
   const handleCardsChange = (groupId: string, newCards: Card[]) => {
@@ -603,51 +632,6 @@ export default function PlansPage() {
         </div>
 
         <TrashZone />
-
-        <div className="mt-6 space-y-4">
-          {groups.map((group, index) => {
-            const ref = planningRoomRefs.current[group.id];
-            return (
-              <div key={group.id} className="relative group pb-4">
-                {group.cards.map((card, cardIndex) => (
-                  <div
-                    key={card.id}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center">
-                        {/* Placeholder for card icon */}
-                      </div>
-                      <div className="ml-4">
-                        {card.content}
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <button
-                        className="text-red-500 hover:text-red-700 mr-2"
-                        onClick={() => {
-                          // Handle remove card
-                          console.log('Removing card:', card.id);
-                        }}
-                      >
-                        Remove
-                      </button>
-                      <button
-                        className="text-blue-500 hover:text-blue-700"
-                        onClick={() => {
-                          // Handle edit card
-                          console.log('Editing card:', card.id);
-                        }}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
       </DndProvider>
     </div>
   );

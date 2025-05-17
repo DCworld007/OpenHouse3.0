@@ -39,8 +39,26 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
     removeCard
   } = usePlanningRoomSync(groupId, userId);
 
+  // Add debugging to see what cards are available
+  useEffect(() => {
+    console.log('[PlanRoute] groupId:', groupId);
+    console.log('[PlanRoute] linkedCards:', linkedCards);
+    console.log('[PlanRoute] cardOrder:', cardOrder);
+    console.log('[PlanRoute] userId:', userId);
+  }, [groupId, linkedCards, cardOrder, userId]);
+
   const locations: Location[] = cardOrder
-    .map(id => linkedCards.find(card => card.id === id))
+    .map(id => {
+      const card = linkedCards.find(card => card.id === id);
+      if (!card) {
+        console.log(`[PlanRoute] Card with id ${id} not found in linkedCards`);
+      } else if (card.cardType !== 'where') {
+        console.log(`[PlanRoute] Card with id ${id} is not a 'where' card: ${card.cardType}`);
+      } else if (typeof card.lat !== 'number' || typeof card.lng !== 'number') {
+        console.log(`[PlanRoute] Card with id ${id} missing valid coordinates:`, card.lat, card.lng);
+      }
+      return card;
+    })
     .filter(card => card && card.cardType === 'where' && typeof card.lat === 'number' && typeof card.lng === 'number')
     .map(card => ({
       id: card!.id,
@@ -49,6 +67,11 @@ export default function PlanRoutePage({ params }: { params: Promise<{ groupId: s
       address: card!.content,
       notes: card!.notes || ''
     }));
+
+  // Log the resulting locations array
+  useEffect(() => {
+    console.log('[PlanRoute] Final locations array:', locations);
+  }, [locations]);
 
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);

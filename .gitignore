@@ -17,11 +17,18 @@
 # misc
 .DS_Store
 *.pem
+
+# Environment Variables
 .env
 .env.local
+.env.*.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Wrangler
+.wrangler/
+.dev.vars
 
 # debug
 npm-debug.log*
@@ -34,4 +41,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-/.wrangler/
