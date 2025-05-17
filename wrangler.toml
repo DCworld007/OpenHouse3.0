@@ -1,45 +1,80 @@
-# OpenHouse3.0 Cloudflare Pages configuration
-# Updated for nodejs_compat flag compatibility
-name = "openhouse3-0"
-compatibility_date = "2024-01-01"
-compatibility_flags = ["nodejs_compat"]
+# name = "openhouse"
+# main = "src/workers/index.ts"
+# compatibility_date = "2024-03-01"
+# pages_build_output_dir = ".next" # Temporarily commenting out for proxy mode
+
+# OpenHouse3.0 Cloudflare configuration
+compatibility_date = "2024-03-01"
 pages_build_output_dir = ".vercel/output/static"
 
-# Environment variables for all environments
 [vars]
+MY_TEST_VAR = "hello_from_wrangler_vars"
+NEXT_PUBLIC_GOOGLE_CLIENT_ID = "199271440618-ispl5hhqcfsp89crgdpldc1kd7us3pud.apps.googleusercontent.com"
 NODE_VERSION = "18.20.8"
+# JWT_SECRET should be set as a secret in the Cloudflare dashboard, not in this file
 
-# Production environment configuration
 [env.production]
-# Production environment variables
-vars = { NODE_VERSION = "18.20.8" }
-compatibility_flags = ["nodejs_compat"]
+name = "openhouse3-prod"
+# Uncomment and update these values if you need custom domain routing
+# route = "openhouse3.com/*"
+# zone_id = "your-zone-id"
+vars = { 
+  NODE_VERSION = "18.20.8",
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID = "199271440618-ispl5hhqcfsp89crgdpldc1kd7us3pud.apps.googleusercontent.com"
+}
 
-# Production D1 database
+# Production database (uncomment and configure if needed)
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "openhouse-local"
 database_id = "527c7d53-4926-4c79-bbe6-21121a10f06b"
 
-# Production KV namespace
+# Production KV namespace (uncomment and configure if needed)
 [[env.production.kv_namespaces]]
 binding = "CACHE"
 id = "99b502ae72564574bb8e2041a983f287"
 
-# Preview environment (development) 
-[env.preview]
-# Preview environment variables are the same as production
-vars = { NODE_VERSION = "18.20.8" }
-compatibility_flags = ["nodejs_compat"]
+[env.staging]
+name = "openhouse3-staging"
+vars = { 
+  NODE_VERSION = "18.20.8",
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID = "199271440618-ispl5hhqcfsp89crgdpldc1kd7us3pud.apps.googleusercontent.com"
+}
 
-# Preview D1 database
-[[env.preview.d1_databases]]
+# Staging database (uncomment and configure if needed)
+[[env.staging.d1_databases]]
 binding = "DB"
-database_name = "openhouse-local-preview"
+database_name = "openhouse-local"
 database_id = "527c7d53-4926-4c79-bbe6-21121a10f06b"
 
-# Preview KV namespace
-[[env.preview.kv_namespaces]]
+# Staging KV namespace (uncomment and configure if needed)
+[[env.staging.kv_namespaces]]
 binding = "CACHE"
 id = "99b502ae72564574bb8e2041a983f287"
 preview_id = "99b502ae72564574bb8e2041a983f287"
+
+[env.development]
+name = "openhouse-dev"
+workers_dev = true
+compatibility_date = "2024-02-05"
+# JWT_SECRET should be set as a secret or in .dev.vars for local development
+vars = { 
+  NODE_VERSION = "18.20.8",
+  NEXT_PUBLIC_GOOGLE_CLIENT_ID = "199271440618-ispl5hhqcfsp89crgdpldc1kd7us3pud.apps.googleusercontent.com"
+}
+
+[site]
+bucket = ".next/static"
+
+# D1 Database configuration for development
+[[d1_databases]]
+binding = "DB"
+database_name = "openhouse-local"
+database_id = "527c7d53-4926-4c79-bbe6-21121a10f06b"
+migrations_dir = "migrations"
+
+# KV Namespace configuration for development
+[[kv_namespaces]]
+binding = "CACHE"
+id = "99b502ae72564574bb8e2041a983f287"
+preview_id = "99b502ae72564574bb8e2041a983f287" 
