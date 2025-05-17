@@ -1,7 +1,7 @@
 import { jwtVerify, SignJWT } from 'jose';
 
-// The fixed JWT secret that matches what's in your .dev.vars file
-const DEV_JWT_SECRET = "X7d4KjP9Rt6vQ8sFbZ2mEwHc5LnAaYpG3xNzVuJq";
+// Default placeholder that doesn't contain actual secret material
+const PLACEHOLDER_SECRET = "JWT_SECRET_MUST_BE_SET_IN_ENVIRONMENT";
 
 /**
  * Resolves the JWT secret based on environment
@@ -9,12 +9,6 @@ const DEV_JWT_SECRET = "X7d4KjP9Rt6vQ8sFbZ2mEwHc5LnAaYpG3xNzVuJq";
  * @returns The appropriate JWT secret for the current environment
  */
 export function getJwtSecret(env?: any): string {
-  // For development and debugging - always use the hardcoded secret
-  // This ensures consistency between middleware and API routes
-  if (process.env.NODE_ENV === 'development') {
-    return DEV_JWT_SECRET;
-  }
-  
   // 1. Try to get from env parameter (Cloudflare Workers)
   if (env?.JWT_SECRET) {
     return env.JWT_SECRET;
@@ -30,9 +24,14 @@ export function getJwtSecret(env?: any): string {
     return (globalThis as any).JWT_SECRET;
   }
   
-  // 4. Fall back to development secret
-  console.warn('JWT_SECRET not found in environment, using development secret');
-  return DEV_JWT_SECRET;
+  // 4. Warn about missing secret and use placeholder for development
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('WARNING: JWT_SECRET not found in environment. Using insecure placeholder for development only.');
+    return PLACEHOLDER_SECRET;
+  }
+  
+  // For production, throw an error if no secret is found
+  throw new Error('JWT_SECRET environment variable is required but not set');
 }
 
 /**
@@ -44,7 +43,11 @@ export function getJwtSecret(env?: any): string {
 export async function verifyToken(token: string, env?: any) {
   // Get the secret key
   const secretValue = getJwtSecret(env);
-  console.log('[jwt] Secret length:', secretValue.length);
+  
+  // Don't log the secret length in production
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[jwt] Secret length:', secretValue.length);
+  }
   
   const secret = new TextEncoder().encode(secretValue);
   
@@ -73,7 +76,11 @@ export async function verifyToken(token: string, env?: any) {
  */
 export async function signToken(payload: any, env?: any) {
   const secretValue = getJwtSecret(env);
-  console.log('[jwt] Using secret to sign, length:', secretValue.length);
+  
+  // Don't log secret details in production
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[jwt] Using secret to sign, length:', secretValue.length);
+  }
   
   const secret = new TextEncoder().encode(secretValue);
   

@@ -41,3 +41,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Authentication and Secrets
+cookies.txt
+*_token.txt
+*.key
+*.pem
+*.crt
+secrets.json
+auth_tokens.json
+credentials.json
+
+# Local development files
+.vscode/settings.json
