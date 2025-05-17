@@ -56,24 +56,24 @@ export default function IntakeCard({ onSubmit, onCancel }: IntakeCardProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3 bg-gray-50 rounded-full px-3 py-1">
-                <span className={`text-sm ${type === 'where' ? 'text-gray-900' : 'text-gray-500'}`}>
-                  Where
+                <span className={`text-sm ${type === 'what' ? 'text-gray-900' : 'text-gray-500'}`}>
+                  What
                 </span>
                 <Switch
-                  checked={type === 'what'}
-                  onChange={() => setType(type === 'what' ? 'where' : 'what')}
+                  checked={type === 'where'}
+                  onChange={() => setType(type === 'where' ? 'what' : 'where')}
                   className={`${
-                    type === 'what' ? 'bg-indigo-600' : 'bg-gray-200'
+                    type === 'where' ? 'bg-indigo-600' : 'bg-gray-200'
                   } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2`}
                 >
                   <span
                     className={`${
-                      type === 'what' ? 'translate-x-5' : 'translate-x-1'
+                      type === 'where' ? 'translate-x-5' : 'translate-x-1'
                     } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
                   />
                 </Switch>
-                <span className={`text-sm ${type === 'what' ? 'text-gray-900' : 'text-gray-500'}`}>
-                  What
+                <span className={`text-sm ${type === 'where' ? 'text-gray-900' : 'text-gray-500'}`}>
+                  Where
                 </span>
               </div>
             </div>

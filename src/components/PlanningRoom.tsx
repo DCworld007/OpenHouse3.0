@@ -215,8 +215,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   // Reactions not yet supported in Yjs chat
   // (removed legacy updateReaction logic)
 
-  const handleAddCard = (type: 'what' | 'where', content: string, notes?: string) => {
-    const newCardData = {
+  const handleAddCard = async (type: 'what' | 'where', content: string, notes?: string) => {
+    // Create base card data
+    const newCardData: any = {
       id: uuidv4(),
       content,
       notes: notes || '',
@@ -225,6 +226,28 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
+    // Geocode location if card type is 'where'
+    if (type === 'where') {
+      try {
+        const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(content)}`;
+        const response = await fetch(geocodeUrl, { headers: { 'User-Agent': 'OpenHouse/3.0' }});
+        const results = await response.json();
+        
+        if (results && results.length > 0) {
+          // Add lat/lng to the card data
+          newCardData.lat = parseFloat(results[0].lat);
+          newCardData.lng = parseFloat(results[0].lon);
+          console.log(`[PlanningRoom] Geocoded location "${content}" to:`, newCardData.lat, newCardData.lng);
+        } else {
+          console.warn(`[PlanningRoom] Couldn't geocode location "${content}"`);
+        }
+      } catch (error) {
+        console.error(`[PlanningRoom] Error geocoding "${content}":`, error);
+      }
+    }
+    
+    // Add the card to the planning room
     planningRoom.addCard(newCardData);
 
     // Explicitly add activity after card is added to Yjs
@@ -735,34 +758,35 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({}) // Send empty JSON object to avoid body parsing issues
       });
       
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || `Server error: ${res.status}`);
+        throw new Error(`Server error: ${res.status}`);
       }
       
       const data = await res.json();
       console.log('[Invite] Response data:', data);
       
-      if (!data.inviteUrl) {
-        // If API doesn't return a URL, construct one from the token
-        if (data.token) {
-          const baseUrl = window.location.origin;
-          const fullUrl = `${baseUrl}/invite?token=${data.token}`;
-          setGeneratedInviteLink(fullUrl);
-        } else {
-          throw new Error('No invite token returned from server');
-        }
-      } else {
+      // Check all possible locations where the URL might be in the response
+      if (data.inviteUrl) {
         setGeneratedInviteLink(data.inviteUrl);
+      } else if (data.invite && data.invite.inviteUrl) {
+        setGeneratedInviteLink(data.invite.inviteUrl);
+      } else if (data.token) {
+        // Construct URL from token if no URL is provided
+        const baseUrl = window.location.origin;
+        const fullUrl = `${baseUrl}/invite?token=${data.token}`;
+        setGeneratedInviteLink(fullUrl);
+      } else {
+        throw new Error('No invite URL or token returned from server');
       }
       
       setShowInviteModal(true);
     } catch (error: any) {
       console.error('[InviteLink] Error generating invite link:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Error: ${error.message || 'Failed to generate invite link'}`);
     } finally {
       setIsGeneratingLink(false);
     }
