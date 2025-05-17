@@ -15,7 +15,9 @@
     "cloudflare-config": "node scripts/cloudflare-runtime-config.js",
     "force-edge-runtime": "node scripts/force-edge-runtime.js",
     "install:ci": "npm install",
-    "cloudflare:build": "npm install && npm run build"
+    "cloudflare:build": "npm install && npm run build",
+    "debug-cf": "node scripts/debug-cloudflare.js",
+    "test-cloudflare": "node scripts/test-cloudflare-local.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -66,6 +68,9 @@
     "@types/cookie": "^0.6.0",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/leaflet": "^1.9.17",
+    "chalk": "^5.4.1",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5",
     "prisma": "^6.7.0"
   }
 }
