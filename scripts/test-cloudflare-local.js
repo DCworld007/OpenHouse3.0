@@ -12,7 +12,13 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const chalk = require('chalk') || { green: text => text, yellow: text => text, red: text => text };
+
+// Define simple colored console output since chalk might be ESM only
+const log = {
+  green: (text) => console.log(`\x1b[32m${text}\x1b[0m`),
+  yellow: (text) => console.log(`\x1b[33m${text}\x1b[0m`),
+  red: (text) => console.log(`\x1b[31m${text}\x1b[0m`)
+};
 
 // Kill any existing processes on port 3000 and 3001
 function killPortProcess(port) {
@@ -22,7 +28,7 @@ function killPortProcess(port) {
       : `lsof -i :${port} | grep LISTEN | awk '{print $2}' | xargs -r kill -9`;
     
     require('child_process').execSync(command, { stdio: 'ignore' });
-    console.log(chalk.green(`✓ Cleared port ${port}`));
+    log.green(`✓ Cleared port ${port}`);
   } catch (e) {
     // Ignore errors if process doesn't exist
   }
@@ -54,19 +60,19 @@ async function setupEnvironment() {
       fs.appendFileSync('.env.local', 'CF_PAGES=true\n');
     }
     
-    console.log(chalk.green('✓ Environment variables set for Cloudflare simulation'));
+    log.green('✓ Environment variables set for Cloudflare simulation');
   } catch (error) {
     console.error('Error setting environment variables:', error);
   }
   
   // Force localStorage in browser
-  console.log(chalk.yellow('! When the app loads, run this in browser console:'));
-  console.log(chalk.yellow('  localStorage.setItem("debug_cloudflare", "true")'));
+  log.yellow('! When the app loads, run this in browser console:');
+  log.yellow('  localStorage.setItem("debug_cloudflare", "true")');
 }
 
 // Start the Next.js development server
 function startNextServer() {
-  console.log(chalk.green('Starting Next.js development server on port 3001...'));
+  log.green('Starting Next.js development server on port 3001...');
   
   const nextProcess = spawn('next', ['dev', '-p', '3001'], { 
     stdio: 'inherit',
@@ -130,15 +136,16 @@ function createSimulationServer(port) {
   
   // Start the server
   app.listen(port, () => {
-    console.log(chalk.green(`✓ Cloudflare Pages simulation running on http://localhost:${port}`));
-    console.log(chalk.green(`  Next.js is running on port 3001, but access the app through port ${port}`));
-    console.log(chalk.yellow(`  This simulates how Cloudflare Pages handles your requests`));
+    log.green(`✓ Cloudflare Pages simulation running on http://localhost:${port}`);
+    log.green(`  Next.js is running on port 3001, but access the app through port ${port}`);
+    log.yellow(`  This simulates how Cloudflare Pages handles your requests`);
+    log.yellow(`\n  Open your browser to http://localhost:${port} to test\n`);
   });
 }
 
 // Run everything
 async function run() {
-  console.log(chalk.green('🚀 Starting Cloudflare Pages local simulation'));
+  log.green('🚀 Starting Cloudflare Pages local simulation');
   await setupEnvironment();
   
   const nextProcess = startNextServer();
@@ -150,7 +157,7 @@ async function run() {
   
   // Handle graceful shutdown
   process.on('SIGINT', () => {
-    console.log(chalk.yellow('\nShutting down...'));
+    log.yellow('\nShutting down...');
     nextProcess.kill();
     process.exit(0);
   });
