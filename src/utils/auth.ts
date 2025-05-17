@@ -1,100 +1,125 @@
+/**
+ * Server-side auth utilities
+ */
 import { SignJWT, jwtVerify } from 'jose';
-import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { NextRequest } from 'next/server';
 
-// User type definition
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  picture: string;
+// Define token expiry - 7 days
+const TOKEN_EXPIRY = 60 * 60 * 24 * 7; // 7 days in seconds
+
+export interface AuthResult {
+  authenticated: boolean;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    picture?: string;
+  };
+  error?: string;
 }
 
-// Auth result type
-export type AuthResult = 
-  | { authenticated: true; user: User } 
-  | { authenticated: false; error: string };
+/**
+ * Gets the JWT secret from environment variables
+ */
+export function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET || 'your-secret-key-for-development-only';
+  return new TextEncoder().encode(secret);
+}
 
 /**
- * Get the JWT secret from environment or use default for development
+ * Signs a JWT token for authentication
  */
-export const getJwtSecret = () => {
-  return process.env.JWT_SECRET || 'Zq83vN!@uXP4w$Kt9sLrB^AmE5cG1dYz';
-};
-
-/**
- * Sign a JWT token with user data
- */
-export async function signToken(payload: any) {
-  const secret = new TextEncoder().encode(getJwtSecret());
+export async function signToken(payload: any): Promise<string> {
+  const secret = getJwtSecret();
   
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
+  const token = await new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setIssuer('openhouse3')
+    .setAudience('openhouse3-users')
+    .setExpirationTime(Math.floor(Date.now() / 1000) + TOKEN_EXPIRY)
     .sign(secret);
+  
+  return token;
 }
 
 /**
- * Verify a JWT token
+ * Verifies a JWT token
  */
 export async function verifyToken(token: string) {
-  const secret = new TextEncoder().encode(getJwtSecret());
-  return await jwtVerify(token, secret);
+  try {
+    const secret = getJwtSecret();
+    const { payload } = await jwtVerify(token, secret);
+    return { valid: true, payload };
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return { valid: false, error: String(error) };
+  }
 }
 
 /**
- * Extract and verify auth token from request
+ * Extract authentication token from request headers, cookies, or URL
  */
-export async function getAuthFromRequest(request: NextRequest): Promise<AuthResult> {
-  // Try both cookie names
-  const authCookie = request.cookies.get('auth_token') || request.cookies.get('token');
-  
-  if (!authCookie || !authCookie.value) {
-    // Try parsing from cookie header as fallback
-    const cookieHeader = request.headers.get('cookie') || '';
-    const cookies = Object.fromEntries(
-      cookieHeader.split('; ')
-        .filter(Boolean)
-        .map(pair => {
-          const [name, ...rest] = pair.split('=');
-          return [name, rest.join('=')];
-        })
-    );
-    
-    const token = cookies['auth_token'] || cookies['token'];
-    if (!token) {
-      return { authenticated: false, error: 'No auth token found' };
-    }
-    
-    try {
-      const { payload } = await verifyToken(token);
-      return { 
-        authenticated: true, 
-        user: {
-          id: String(payload.sub),
-          email: String(payload.email),
-          name: String(payload.name || ''),
-          picture: String(payload.picture || '')
-        }
-      };
-    } catch (error) {
-      return { authenticated: false, error: 'Invalid token' };
-    }
+export function getAuthToken(req: NextRequest): string | null {
+  // Check authorization header first
+  const authHeader = req.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
   }
   
+  // Check cookies - parse from request headers directly for edge compatibility
+  const cookieHeader = req.headers.get('cookie') || '';
+  const parsedCookies: Record<string, string> = {};
+  
+  cookieHeader.split(';').forEach(cookie => {
+    const [name, value] = cookie.trim().split('=');
+    if (name) parsedCookies[name] = value;
+  });
+  
+  const token = parsedCookies['token'] || parsedCookies['auth_token'];
+  if (token) {
+    return token;
+  }
+  
+  // Check URL params (for certain endpoints)
+  const url = new URL(req.url);
+  const tokenFromQuery = url.searchParams.get('token');
+  if (tokenFromQuery) {
+    return tokenFromQuery;
+  }
+  
+  return null;
+}
+
+/**
+ * Get authentication from request
+ */
+export async function getAuthFromRequest(req: NextRequest): Promise<AuthResult> {
   try {
-    const { payload } = await verifyToken(authCookie.value);
-    return { 
-      authenticated: true, 
+    const token = getAuthToken(req);
+    
+    if (!token) {
+      return { authenticated: false, error: 'No authentication token found' };
+    }
+    
+    const { valid, payload, error } = await verifyToken(token);
+    
+    if (!valid || !payload) {
+      return { authenticated: false, error: error || 'Invalid token' };
+    }
+    
+    return {
+      authenticated: true,
       user: {
-        id: String(payload.sub),
-        email: String(payload.email),
-        name: String(payload.name || ''),
-        picture: String(payload.picture || '')
+        id: payload.sub as string,
+        email: payload.email as string,
+        name: payload.name as string,
+        picture: payload.picture as string,
       }
     };
   } catch (error) {
-    return { authenticated: false, error: 'Invalid token' };
+    console.error('Auth error:', error);
+    return { authenticated: false, error: 'Authentication error' };
   }
 } 
