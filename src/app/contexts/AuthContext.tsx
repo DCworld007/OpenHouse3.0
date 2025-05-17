@@ -62,41 +62,68 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       // In Cloudflare fallback mode, return demo user
       const fallbackMode = shouldUseFallback();
-      console.log("[AuthContext] Checking Cloudflare fallback mode:", fallbackMode);
-      
       if (fallbackMode) {
-        console.log("[AuthContext] Using demo user in fallback mode");
-        const demoUser = createDemoUser();
-        setUser(demoUser);
-        setIsLoading(false);
-        return demoUser;
+        console.log("[AuthContext] Using fallback mode with demo user");
+        return createDemoUser();
       }
 
-      const res = await fetch('/api/auth/me', {
-        credentials: 'include',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      // Get the user from the API
+      console.log("[AuthContext] Fetching user from API...");
+      const baseURL = typeof window !== 'undefined' ? window.location.origin : '';
       
-      if (res.ok) {
-        const data = await res.json();
-        if (data.authenticated && data.user) {
-          setUser(data.user);
-          return data.user;
-        } else {
-          setUser(null);
+      // Use a special header to indicate we're in development mode
+      const headers: HeadersInit = {};
+      if (process.env.NODE_ENV === 'development') {
+        headers['X-Development-Mode'] = 'true';
+      }
+      
+      const response = await fetch(`${baseURL}/api/auth/me`, {
+        method: 'GET',
+        credentials: 'include',
+        headers
+      });
+
+      console.log("[AuthContext] Auth response status:", response.status);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.log("[AuthContext] Not authenticated");
           return null;
         }
-      } else {
-        console.log("[AuthContext] Auth API failed with status:", res.status);
-        setUser(null);
+        
+        // For Cloudflare Pages or any other deployment where auth is failing
+        // but we're in a environment that should use fallback
+        if (typeof window !== 'undefined' && 
+            (window.location.hostname.includes('pages.dev') || 
+             localStorage.getItem('debug_cloudflare') === 'true')) {
+          console.log("[AuthContext] Auth failing but in Cloudflare/debug environment - using fallback");
+          return createDemoUser();
+        }
+        
+        throw new Error(`Authentication request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("[AuthContext] Auth response data:", data);
+      
+      if (!data.authenticated || !data.user) {
+        console.log("[AuthContext] User not authenticated or missing from response");
         return null;
       }
+
+      return data.user as User;
     } catch (error) {
-      console.error('Error fetching user:', error);
-      setUser(null);
+      console.error("[AuthContext] Error fetching user:", error);
+      
+      // In Cloudflare Pages environment, use fallback on any errors
+      if (typeof window !== 'undefined' && 
+          (window.location.hostname.includes('pages.dev') || 
+           localStorage.getItem('debug_cloudflare') === 'true')) {
+        console.log("[AuthContext] Error in auth but in Cloudflare/debug environment - using fallback");
+        return createDemoUser();
+      }
+      
       return null;
-    } finally {
-      setIsLoading(false);
     }
   };
 
