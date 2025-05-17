@@ -1,44 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthFromRequest, AuthResult } from '@/utils/auth';
+import { verifyToken } from '@/utils/jwt';
 
 export const runtime = 'edge';
 
+/**
+ * GET handler for the /api/auth/me endpoint
+ * Verifies the user's authentication and returns user info if authenticated
+ */
 export async function GET(request: NextRequest) {
   try {
-    console.log('[API Auth Me] Request received at', new Date().toISOString());
+    console.log('[API Auth Me] Request received');
     
-    // Get all cookies for debugging
-    const allCookies = request.cookies.getAll();
-    console.log('[API Auth Me] All cookies:', JSON.stringify(allCookies.map(c => ({ name: c.name, value: c.value.substring(0, 10) + '...' }))));
+    // Get the token from cookies or headers
+    const token = request.cookies.get('token')?.value || 
+                request.cookies.get('auth_token')?.value || 
+                request.headers.get('authorization')?.replace('Bearer ', '');
     
-    // Get auth from request using our utility
-    const auth: AuthResult = await getAuthFromRequest(request);
-    
-    if (!auth.authenticated) {
-      console.log('[API Auth Me] Authentication failed:', auth.error);
-      
-      // Check for cookie in header directly for debugging
-      const cookieHeader = request.headers.get('cookie') || '';
-      console.log('[API Auth Me] Cookie header:', cookieHeader);
-      
-      return NextResponse.json(
-        { authenticated: false, error: auth.error },
-        { status: 401 }
-      );
+    if (!token) {
+      console.log('[API Auth Me] No token found');
+      return NextResponse.json({
+        authenticated: false,
+        message: 'Not authenticated'
+      }, {
+        status: 401
+      });
     }
 
-    console.log('[API Auth Me] Authentication successful for user:', auth.user.email);
-    
-    // Return user data in the format expected by the frontend
-    return NextResponse.json({
-      authenticated: true,
-      user: auth.user
+    // Verify the token
+    try {
+      const { payload } = await verifyToken(token);
+      
+      console.log('[API Auth Me] Authentication successful for user:', payload.email);
+      
+      // Return user data in the format expected by the frontend
+      return NextResponse.json({
+        authenticated: true,
+        user: {
+          id: payload.sub,
+          email: payload.email,
+          name: payload.name,
+          picture: payload.picture
+        }
+      });
+    } catch (verifyError) {
+      console.error('[API Auth Me] Token verification failed:', verifyError);
+      return NextResponse.json({
+        authenticated: false,
+        message: 'Invalid token'
+      }, {
+        status: 401
+      });
+    }
+  } catch (error: any) {
+    console.error("[API Auth Me] Server error:", error);
+    return NextResponse.json({ 
+      authenticated: false,
+      message: error.message || 'Server error'
+    }, {
+      status: 500
     });
-  } catch (error) {
-    console.error('[API Auth Me] Unexpected error:', error);
-    return NextResponse.json(
-      { authenticated: false, error: 'Authentication failed' },
-      { status: 401 }
-    );
   }
 } 
