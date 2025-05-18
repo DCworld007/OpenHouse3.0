@@ -58,17 +58,45 @@ export const onRequestPost = async (context: { request: Request, env: any, param
       return new Response(JSON.stringify({ error: 'Not authorized to create invites' }), { status: 403 });
     }
 
-    // Generate invite token
+    // For GET requests, return existing active invite if available
+    if (request.method === 'GET') {
+      const existingInvite = await db.prepare(`
+        SELECT token, expiresAt, maxUses, usesCount
+        FROM InviteTokens 
+        WHERE planningRoomId = ? AND isActive = 1 
+        AND (expiresAt IS NULL OR expiresAt > datetime('now'))
+        AND (maxUses IS NULL OR usesCount < maxUses)
+        ORDER BY createdAt DESC LIMIT 1
+      `).bind(groupId).first();
+
+      if (existingInvite) {
+        // Get base URL from environment
+        const requestHost = request.headers.get('host') || request.headers.get('x-forwarded-host');
+        const protocol = request.headers.get('x-forwarded-proto') || 'https';
+        const baseUrl = requestHost ? `${protocol}://${requestHost}` : (env.NEXTAUTH_URL || env.VERCEL_URL || 'http://localhost:3000');
+        const inviteUrl = new URL('/invite', baseUrl);
+        inviteUrl.searchParams.set('token', existingInvite.token);
+
+        return new Response(JSON.stringify({
+          token: existingInvite.token,
+          inviteUrl: inviteUrl.toString(),
+          expiresAt: existingInvite.expiresAt,
+          maxUses: existingInvite.maxUses
+        }));
+      }
+    }
+
+    // Generate new invite token
     const token = generateSimpleToken(32);
     const now = new Date().toISOString();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     // Create invite token
     await db.prepare(`
-      INSERT INTO InviteTokens (token, planningRoomId, createdAt, expiresAt, maxUses, usesCount, isActive)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(token, groupId, now, expiresAt.toISOString(), 10, 0, 1).run();
+      INSERT INTO InviteTokens (token, planningRoomId, generatedByUserId, createdAt, expiresAt, maxUses, usesCount, isActive)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(token, groupId, userId, now, expiresAt.toISOString(), 10, 0, 1).run();
 
     // Get base URL from environment
     const requestHost = request.headers.get('host') || request.headers.get('x-forwarded-host');

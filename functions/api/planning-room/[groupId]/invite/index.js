@@ -8,7 +8,7 @@ export async function onRequest(context) {
   const headers = { 'Content-Type': 'application/json' };
   
   try {
-    if (request.method === 'POST') {
+    if (request.method === 'POST' || request.method === 'GET') {
       // Import and use the onRequestPost handler from invite.ts
       const { onRequestPost } = await import('./invite.ts');
       return await onRequestPost(context);
