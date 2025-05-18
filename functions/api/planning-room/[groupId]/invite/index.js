@@ -2,6 +2,7 @@
 export async function onRequest(context) {
   const { request, env, params } = context;
   console.log('[planning-room/[groupId]/invite/index.js] Received request:', request.method, params);
+  console.log('[DEBUG] Testing invite endpoint deployment');
   
   // Common headers
   const headers = { 'Content-Type': 'application/json' };
@@ -9,7 +10,7 @@ export async function onRequest(context) {
   try {
     if (request.method === 'POST') {
       // Import and use the onRequestPost handler from invite.ts
-      const { onRequestPost } = await import('../invite.ts');
+      const { onRequestPost } = await import('./invite.ts');
       return await onRequestPost(context);
     }
     
