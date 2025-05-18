@@ -3,22 +3,16 @@ import { onRequestGet, onRequestPost } from './invite';
 
 export const runtime = 'edge';
 
-type RouteContext = {
-  params: {
-    groupId: string;
-  };
-};
-
 export async function GET(
-  req: NextRequest,
-  { params }: RouteContext
+  request: NextRequest,
+  { params }: { params: { groupId: string } }
 ) {
-  return onRequestGet(req, params);
+  return onRequestGet(request, params);
 }
 
 export async function POST(
-  req: NextRequest,
-  { params }: RouteContext
+  request: NextRequest,
+  { params }: { params: { groupId: string } }
 ) {
-  return onRequestPost(req, params);
+  return onRequestPost(request, params);
 } 

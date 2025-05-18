@@ -12,6 +12,7 @@ const nextConfig = {
   },
   experimental: {
     serverActions: true,
+    optimizePackageImports: ['@heroicons/react', '@headlessui/react']
   },
   // Disable source maps in production
   productionBrowserSourceMaps: false,
