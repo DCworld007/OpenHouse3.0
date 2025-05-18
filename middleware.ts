@@ -9,18 +9,17 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
 };
 
 // Add auth test page to public paths
-const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup', '/auth/test-token'];
+const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup', '/auth/test-token', '/api/auth/login', '/api/auth/logout', '/api/auth/me'];
 
 async function verifyJWT(token: string) {
   try {
@@ -35,10 +34,24 @@ async function verifyJWT(token: string) {
 
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const response = NextResponse.next();
 
-  // Allow public paths (home page, login, signup)
+  // Add CORS headers to all responses
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle OPTIONS requests for CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: response.headers,
+    });
+  }
+
+  // Allow public paths
   if (PUBLIC_PATHS.includes(pathname)) {
-    return NextResponse.next();
+    return response;
   }
 
   // Check for JWT in cookies
@@ -58,7 +71,7 @@ export default async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    return NextResponse.next();
+    return response;
   } catch (error) {
     const url = new URL('/auth/login', request.url);
     url.searchParams.set('callbackUrl', encodeURI(request.url));
