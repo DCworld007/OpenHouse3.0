@@ -11,8 +11,10 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverActions: true,
-    optimizePackageImports: ['@heroicons/react', '@headlessui/react']
+    serverActions: {
+      allowedOrigins: ['localhost:3000', 'openhouse3-0.vercel.app'],
+      bodySizeLimit: '2mb'
+    },
   },
   // Disable source maps in production
   productionBrowserSourceMaps: false,

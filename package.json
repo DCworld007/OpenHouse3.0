@@ -2,11 +2,13 @@
   "name": "openhouse3",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -45,10 +47,10 @@
     "typescript": "5.2.2",
     "uuid": "^11.1.0",
     "y-websocket": "^1.4.5",
-    "yjs": "^13.6.9"
+    "yjs": "^13.6.9",
+    "@prisma/client": "^6.7.0"
   },
   "devDependencies": {
-    "@prisma/client": "^6.7.0",
     "@types/leaflet": "^1.9.17",
     "prisma": "^6.8.2"
   }
