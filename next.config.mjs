@@ -11,8 +11,8 @@ const nextConfig = {
     ],
   },
   experimental: {
-    optimizePackageImports: ['@heroicons/react', '@headlessui/react'],
     serverActions: true,
+    optimizePackageImports: ['@heroicons/react', '@headlessui/react']
   },
   // Optimize bundle size
   webpack: (config, { dev, isServer }) => {

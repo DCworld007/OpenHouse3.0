@@ -3,10 +3,16 @@ import { onRequestGet, onRequestPost } from './invite';
 
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest, { params }: { params: { groupId: string } }) {
-  return onRequestGet(request, params);
+type Params = {
+  params: {
+    groupId: string;
+  };
+};
+
+export async function GET(request: NextRequest, params: Params) {
+  return onRequestGet(request, params.params);
 }
 
-export async function POST(request: NextRequest, { params }: { params: { groupId: string } }) {
-  return onRequestPost(request, params);
+export async function POST(request: NextRequest, params: Params) {
+  return onRequestPost(request, params.params);
 } 
