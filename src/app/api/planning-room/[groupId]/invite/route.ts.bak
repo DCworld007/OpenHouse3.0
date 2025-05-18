@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export const runtime = 'edge';
+
+// Simple in-memory storage for development
+// In production, this would be replaced with a database
+const inviteStorage = new Map<string, any[]>();
+
+// Generate a simple token for development
+function generateInviteToken(length: number = 12) {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { groupId: string } }
+) {
+  try {
+    const groupId = params.groupId;
+    
+    // Don't try to parse the body if it might be empty
+    // Generate invite token
+    const token = generateInviteToken();
+    const inviteUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/invite/${token}`;
+    
+    const invite = {
+      id: token,
+      groupId,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      inviteUrl
+    };
+    
+    // Get existing invites or create a new array
+    const invites = inviteStorage.get(groupId) || [];
+    
+    // Add the new invite
+    invites.push(invite);
+    
+    // Store updated invites
+    inviteStorage.set(groupId, invites);
+    
+    console.log(`[API] Created invite for planning room ${groupId}`);
+    
+    return NextResponse.json(
+      { 
+        success: true, 
+        invite,
+        token: token,
+        inviteUrl: inviteUrl
+      },
+      { status: 200 }
+    );
+    
+  } catch (error) {
+    console.error('[API] Error in invite POST endpoint:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+} 

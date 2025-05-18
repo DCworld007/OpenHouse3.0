@@ -1,0 +1,75 @@
+// Temporarily disabled due to type issues
+// Will be re-enabled after fixing Next.js App Router types
+
+import { NextRequest, NextResponse } from 'next/server';
+
+export const runtime = 'edge';
+
+// Simple in-memory storage for development
+// In production, this would be replaced with a database
+const activityStorage = new Map<string, any[]>();
+
+interface RouteParams {
+  groupId: string;
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: RouteParams }
+) {
+  try {
+    const { groupId } = params;
+    
+    console.log(`[API] Fetching activity for planning room ${groupId}`);
+    
+    // Return empty activities if none exist
+    const activities = activityStorage.get(groupId) || [];
+    
+    return NextResponse.json({ activities });
+    
+  } catch (error) {
+    console.error('[API] Error in activities GET endpoint:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: RouteParams }
+) {
+  try {
+    const { groupId } = params;
+    
+    const body = await request.json();
+    
+    if (!body.activity) {
+      return NextResponse.json(
+        { error: 'Missing activity in request body' },
+        { status: 400 }
+      );
+    }
+    
+    console.log(`[API] Saving activity for planning room ${groupId}`);
+    
+    // Get existing activities or create a new array
+    const activities = activityStorage.get(groupId) || [];
+    
+    // Add the new activity
+    activities.push(body.activity);
+    
+    // Store updated activities
+    activityStorage.set(groupId, activities);
+    
+    return NextResponse.json({ success: true });
+    
+  } catch (error) {
+    console.error('[API] Error in activity POST endpoint:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+} 

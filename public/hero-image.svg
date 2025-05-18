@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .purple-shirt { fill: #7C3AED; }
+    .light-purple { fill: #C4B5FD; }
+    .navy { fill: #1E293B; }
+    .skin { fill: #FCD34D; }
+    .white { fill: #FFFFFF; }
+  </style>
+  
+  <!-- Background elements -->
+  <rect width="1600" height="900" fill="#FFFFFF"/>
+  
+  <!-- Screen/Board -->
+  <rect x="800" y="100" width="600" height="400" rx="20" fill="#FFFFFF" stroke="#1E293B" stroke-width="2"/>
+  <rect x="850" y="150" width="100" height="30" rx="4" fill="#C4B5FD"/>
+  <rect x="850" y="200" width="80" height="30" rx="4" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="2"/>
+  <rect x="850" y="250" width="120" height="30" rx="4" fill="#C4B5FD"/>
+  
+  <!-- Map elements -->
+  <path d="M 1000 200 Q 1100 250 1200 200" stroke="#C4B5FD" stroke-width="3" fill="none"/>
+  <circle cx="1000" cy="200" r="10" fill="#7C3AED"/>
+  <circle cx="1200" cy="200" r="10" fill="#7C3AED"/>
+  
+  <!-- People -->
+  <!-- Standing woman -->
+  <path d="M 200 300 C 180 200 220 200 200 300" fill="#1E293B"/> <!-- hair -->
+  <circle cx="200" cy="250" r="30" fill="#FCD34D"/> <!-- face -->
+  <rect x="170" y="280" width="60" height="120" rx="10" fill="#7C3AED"/> <!-- body -->
+  <rect x="170" y="400" width="30" height="100" rx="5" fill="#1E293B"/> <!-- legs -->
+  <rect x="200" y="400" width="30" height="100" rx="5" fill="#1E293B"/>
+  
+  <!-- Sitting man with laptop -->
+  <circle cx="400" cy="350" r="30" fill="#FCD34D"/> <!-- face -->
+  <rect x="370" y="380" width="60" height="80" rx="10" fill="#C4B5FD"/> <!-- body -->
+  <rect x="350" y="460" width="100" height="20" rx="5" fill="#1E293B"/> <!-- legs -->
+  <rect x="360" y="420" width="80" height="50" rx="5" fill="#7C3AED"/> <!-- laptop -->
+  
+  <!-- Standing man -->
+  <circle cx="600" cy="250" r="30" fill="#FCD34D"/> <!-- face -->
+  <rect x="570" y="280" width="60" height="120" rx="10" fill="#C4B5FD"/> <!-- body -->
+  <rect x="570" y="400" width="30" height="100" rx="5" fill="#1E293B"/> <!-- legs -->
+  <rect x="600" y="400" width="30" height="100" rx="5" fill="#1E293B"/>
+  
+  <!-- Chat bubble -->
+  <path d="M 450 300 Q 470 280 490 300 L 490 330 Q 470 350 450 330 Z" fill="#C4B5FD"/>
+</svg> 

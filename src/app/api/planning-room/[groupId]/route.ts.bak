@@ -1,0 +1,36 @@
+// Endpoint handler for planning room by ID
+import { NextRequest, NextResponse } from 'next/server';
+
+export const runtime = 'edge';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { groupId: string } }
+) {
+  try {
+    // Properly access params in async context
+    const groupId = params.groupId;
+    
+    console.log(`[API] GET /api/planning-room/${groupId}`);
+    
+    // In development mode, we'll mock the response
+    // In production this would be handled by the Cloudflare Function
+    return NextResponse.json(
+      {
+        id: groupId,
+        name: "To Be Scheduled",
+        description: "",
+        ownerId: "101452305332594244500", // This should match the user's ID from auth
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('[API] Error in planning-room GET endpoint:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+} 
