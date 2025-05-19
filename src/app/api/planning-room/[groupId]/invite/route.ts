@@ -14,7 +14,7 @@ export async function POST(
 ) {
   try {
     // Get the groupId from params - properly awaited
-    const { groupId } = context.params;
+    const groupId = await context.params.groupId;
     if (!groupId) {
       return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
     }

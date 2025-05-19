@@ -7,31 +7,47 @@ export async function GET(
   context: { params: { groupId: string } }
 ) {
   try {
-    const groupId = context.params.groupId;
+    const groupId = await context.params.groupId;
 
     if (!groupId) {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
     }
 
+    // Get the JWT token
     const token = await getToken({ req: request });
-    if (!token) {
+    if (!token?.sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const activities = await prisma.activity.findMany({
-      where: {
-        groupId: groupId
-      },
-      orderBy: {
-        timestamp: 'desc'
-      },
+    // Check if user is a member of the room
+    const room = await prisma.planningRoom.findUnique({
+      where: { id: groupId },
+      include: { members: true }
+    });
+
+    if (!room) {
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+    }
+
+    const isMember = room.members.some(member => member.userId === token.sub);
+    if (!isMember) {
+      return NextResponse.json({ error: 'Not authorized to view activity' }, { status: 403 });
+    }
+
+    // Get activity for the room
+    const activity = await prisma.activity.findMany({
+      where: { groupId: groupId },
+      orderBy: { timestamp: 'desc' },
       take: 50
     });
 
-    return NextResponse.json(activities);
+    return NextResponse.json(activity);
   } catch (error) {
-    console.error('Error fetching activities:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[Activity API] Error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
