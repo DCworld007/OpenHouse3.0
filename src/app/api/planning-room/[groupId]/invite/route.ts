@@ -13,15 +13,15 @@ function generateSimpleToken(length = 32) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { groupId: string } }
+  context: { params: { groupId: string } }
 ) {
-  const { groupId } = params;
-
-  if (!groupId) {
-    return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
-  }
-
   try {
+    const groupId = context.params.groupId;
+
+    if (!groupId) {
+      return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
+    }
+
     // Get user info from JWT token
     const cookie = request.cookies.get('token')?.value;
     let userId = null;
@@ -91,7 +91,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { groupId: string } }
+  context: { params: { groupId: string } }
 ) {
-  return GET(request, { params });
+  return GET(request, context);
 } 
