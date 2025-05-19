@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getToken } from 'next-auth/jwt';
+import { prisma } from '@/lib/prisma';
+import crypto from 'crypto';
+
+interface RoomMember {
+  userId: string;
+  role: string;
+}
 
 // Simple token generator
 function generateSimpleToken(length = 32) {
@@ -23,73 +29,56 @@ async function handleInviteRequest(
       return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
     }
 
-    // Get user info from NextAuth token
     const token = await getToken({ req: request });
-    if (!token?.sub) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = token.sub;
-
-    // Check if user is room owner or member
+    // Check if user is authorized to create invites
     const room = await prisma.planningRoom.findUnique({
       where: { id: groupId },
-      include: {
-        members: {
-          where: { userId: userId },
-          select: { role: true }
-        }
-      }
+      include: { members: true }
     });
 
     if (!room) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    const userMembership = room.members[0];
-    if (!userMembership || (userMembership.role !== 'owner' && userMembership.role !== 'admin')) {
+    const isMember = room.members.some((member: RoomMember) => member.userId === token.sub);
+    if (!isMember) {
       return NextResponse.json({ error: 'Not authorized to create invites' }, { status: 403 });
     }
 
     // Generate new invite token
-    const token = generateSimpleToken(32);
+    const inviteToken = generateSimpleToken(32);
     const now = new Date();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Token expires in 7 days
 
-    // Create invite token in database
-    const invite = await prisma.inviteToken.create({
+    // Store the invite token
+    await prisma.inviteToken.create({
       data: {
-        token: token,
+        token: inviteToken,
         planningRoomId: groupId,
-        generatedByUserId: userId,
-        expiresAt: expiresAt,
-        maxUses: 10, // Default to 10 uses
+        generatedByUserId: token.sub,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        maxUses: 10,
         usesCount: 0,
         isActive: true
       }
     });
 
-    // Get base URL from environment or request
-    const requestHost = request.headers.get('host') || request.headers.get('x-forwarded-host');
-    const protocol = request.headers.get('x-forwarded-proto') || 'https';
-    const baseUrl = requestHost ? `${protocol}://${requestHost}` : process.env.VERCEL_URL || 'http://localhost:3000';
-    const inviteUrl = new URL('/invite', baseUrl);
-    inviteUrl.searchParams.set('token', token);
+    // Return the invite URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
 
     return NextResponse.json({
-      token,
-      inviteUrl: inviteUrl.toString(),
-      expiresAt: expiresAt.toISOString(),
-      maxUses: invite.maxUses,
-      usesCount: invite.usesCount
+      url: inviteUrl,
+      token: inviteToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     });
-  } catch (e: any) {
-    console.error('[API Invite] Error:', e);
-    return NextResponse.json(
-      { error: e.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error creating invite:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
