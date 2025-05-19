@@ -13,16 +13,16 @@ datasource db {
 model Account {
   id                String  @id @default(cuid())
   userId            String
-  type             String
-  provider         String
+  type              String
+  provider          String
   providerAccountId String
-  refresh_token    String?
-  access_token     String?
-  expires_at       Int?
-  token_type       String?
-  scope            String?
-  id_token         String?
-  session_state    String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -38,7 +38,7 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String    @id
   name          String?
   email         String?   @unique
   emailVerified DateTime?
@@ -48,7 +48,9 @@ model User {
   sessions      Session[]
   cards         Card[]
   ownedRooms    PlanningRoom[] @relation("RoomOwner")
-  roomMembers   RoomMember[]
+  roomMemberships RoomMember[]
+  generatedInvites InviteToken[] @relation("InviteGenerator")
+  activities    Activity[]
   messages      Message[]
   reactions     Reaction[]
   createdAt     DateTime  @default(now())
@@ -57,61 +59,60 @@ model User {
 
 model Card {
   id          String    @id @default(cuid())
+  type        String
   content     String
   notes       String?
-  cardType    String    // 'what' or 'where'
-  imageUrl    String?
-  groupId     String?
-  order       Int       @default(0)
-  userId      String    // Owner of the card
-  user        User      @relation(fields: [userId], references: [id])
-  roomLinks   CardRoomLink[]
-  reactions   Reaction[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdById String
+  rooms       CardRoomLink[]
+
+  @@index([createdById])
 }
 
 model PlanningRoom {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
   ownerId     String
-  owner       User      @relation("RoomOwner", fields: [ownerId], references: [id])
+  owner       User     @relation("RoomOwner", fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  cards       CardRoomLink[]
   members     RoomMember[]
+  inviteTokens InviteToken[]
+  activities  Activity[]
   messages    Message[]
-  cardLinks   CardRoomLink[]
-  inviteToken String    @unique
-  shareable   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
   linkedGroups      LinkedGroup[] @relation("SourceGroup")
   linkedToThisRoom  LinkedGroup[] @relation("LinkedGroup")
+
+  @@index([ownerId])
 }
 
 model RoomMember {
-  id          String    @id @default(cuid())
-  userId      String
-  roomId      String
-  role        String    // 'owner', 'editor', 'viewer'
-  user        User      @relation(fields: [userId], references: [id])
-  room        PlanningRoom @relation(fields: [roomId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  role      String   @default("member")
+  joinedAt  DateTime @default(now())
+  room      PlanningRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, roomId])
+  @@unique([roomId, userId])
+  @@index([userId])
 }
 
 model CardRoomLink {
   id          String    @id @default(cuid())
   cardId      String
   roomId      String
-  order       Int       @default(0)
   card        Card      @relation(fields: [cardId], references: [id])
   room        PlanningRoom @relation(fields: [roomId], references: [id])
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
 
   @@unique([cardId, roomId])
+  @@index([roomId])
 }
 
 model Message {
@@ -119,25 +120,26 @@ model Message {
   content     String
   userId      String
   roomId      String
+  createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id])
   room        PlanningRoom @relation(fields: [roomId], references: [id])
   reactions   Reaction[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+
+  @@index([roomId])
+  @@index([userId])
 }
 
 model Reaction {
-  id          String    @id @default(cuid())
-  type        String    // e.g., 'like', 'heart', 'thumbsup'
-  userId      String
-  messageId   String?
-  cardId      String?
-  user        User      @relation(fields: [userId], references: [id])
-  message     Message?  @relation(fields: [messageId], references: [id])
-  card        Card?     @relation(fields: [cardId], references: [id])
-  createdAt   DateTime  @default(now())
+  id        String   @id @default(cuid())
+  emoji     String
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  message   Message  @relation(fields: [messageId], references: [id])
 
-  @@unique([userId, messageId, cardId])
+  @@unique([userId, messageId, emoji])
+  @@index([messageId])
 }
 
 model VerificationToken {
@@ -155,5 +157,38 @@ model LinkedGroup {
   createdAt      DateTime @default(now())
   sourceGroup    PlanningRoom @relation("SourceGroup", fields: [sourceGroupId], references: [id])
   linkedGroup    PlanningRoom @relation("LinkedGroup", fields: [linkedGroupId], references: [id])
+
   @@unique([sourceGroupId, linkedGroupId])
+}
+
+model InviteToken {
+  id               String      @id @default(cuid())
+  token            String      @unique
+  planningRoom     PlanningRoom @relation(fields: [planningRoomId], references: [id], onDelete: Cascade)
+  planningRoomId   String
+  generatedByUser  User       @relation("InviteGenerator", fields: [generatedByUserId], references: [id], onDelete: Cascade)
+  generatedByUserId String
+  createdAt        DateTime   @default(now())
+  expiresAt        DateTime?
+  maxUses          Int?
+  usesCount        Int       @default(0)
+  isActive         Boolean   @default(true)
+
+  @@index([token])
+  @@index([planningRoomId, isActive])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  type      String
+  context   String?
+  timestamp DateTime @default(now())
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     PlanningRoom @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([userId])
+  @@index([timestamp])
 } 
