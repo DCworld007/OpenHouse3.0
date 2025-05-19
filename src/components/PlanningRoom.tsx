@@ -478,7 +478,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   useEffect(() => {
     async function fetchPersistedActivity() {
       try {
-        const res = await fetch(`/api/planning-room/${group.id}/activity`);
+        const res = await fetch(`/api/planning-room/${group.id}/activity`, {
+          credentials: 'include'
+        });
         const data = await res.json();
         if (Array.isArray(data.activities)) {
           // Merge into Yjs activity feed if not already present
@@ -520,7 +522,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/linked-groups?groups=${groupsParam}`;
         console.log('[LinkedGroups] Fetching linked groups:', apiUrl);
         
-        const res = await fetch(apiUrl);
+        const res = await fetch(apiUrl, {
+          credentials: 'include'
+        });
         
         // If we get an error status, just log it and display empty state
         if (!res.ok) {
@@ -759,6 +763,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({}) // Send empty JSON object to avoid body parsing issues
       });
       

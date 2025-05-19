@@ -57,9 +57,9 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
             console.error(`[LinkedGroups Sync] HTTP error: ${res.status}`);
             
             if (isDev && mockSuccessInDev) {
-              console.log('[LinkedGroups Sync] Development mode: Using empty linked groups mock');
+            console.log('[LinkedGroups Sync] Development mode: Using empty linked groups mock');
               // Continue with empty linked groups in dev
-              processLinkedGroups({ linkedGroups: [] });
+            processLinkedGroups({ linkedGroups: [] });
             }
             return;
           }
@@ -83,9 +83,9 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
           console.error('[LinkedGroups Sync] Error:', error);
           
           if (isDev && mockSuccessInDev) {
-            console.log('[LinkedGroups Sync] Development mode: Using empty linked groups mock');
+          console.log('[LinkedGroups Sync] Development mode: Using empty linked groups mock');
             // Continue with empty linked groups in dev
-            processLinkedGroups({ linkedGroups: [] });
+          processLinkedGroups({ linkedGroups: [] });
           }
         }
       } catch (e) {
@@ -451,8 +451,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     }
     
     try {
-      yLinkedCards.insert(insertIdx, [card]);
-      yCardOrder.insert(orderIdx, [card.id]);
+        yLinkedCards.insert(insertIdx, [card]);
+        yCardOrder.insert(orderIdx, [card.id]);
       console.log('[Yjs] After insert, yLinkedCards:', yLinkedCards.toArray());
       console.log('[Yjs] After insert, yCardOrder:', yCardOrder.toArray());
       
@@ -467,32 +467,32 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       });
       
       // Also update localStorage for additional redundancy
-      try {
-        const storedData = localStorage.getItem('openhouse-data');
-        if (storedData) {
-          const groups = JSON.parse(storedData);
-          const groupIndex = groups.findIndex((g: any) => g.id === groupId);
-          if (groupIndex >= 0) {
-            const cardData = {
-              id: card.id,
-              type: card.cardType,
-              content: card.content,
-              notes: card.notes,
-              lat: card.lat,
-              lng: card.lng
-            };
-            
+        try {
+          const storedData = localStorage.getItem('openhouse-data');
+          if (storedData) {
+            const groups = JSON.parse(storedData);
+            const groupIndex = groups.findIndex((g: any) => g.id === groupId);
+            if (groupIndex >= 0) {
+              const cardData = {
+                id: card.id,
+                type: card.cardType,
+                content: card.content,
+                notes: card.notes,
+                lat: card.lat,
+                lng: card.lng
+              };
+              
             // Add to cards array only if it doesn't already exist
-            if (!groups[groupIndex].cards) {
-              groups[groupIndex].cards = [];
-            }
-            
+              if (!groups[groupIndex].cards) {
+                groups[groupIndex].cards = [];
+              }
+              
             // Check if card already exists in local storage to prevent duplicates
             const existingCardIndexInStorage = groups[groupIndex].cards.findIndex((c: any) => c.id === card.id);
             if (existingCardIndexInStorage === -1) {
               groups[groupIndex].cards.push(cardData);
               localStorage.setItem('openhouse-data', JSON.stringify(groups));
-              console.log('[Yjs] Updated localStorage with new card');
+                console.log('[Yjs] Updated localStorage with new card');
             } else {
               console.log(`[Yjs] Card ${card.id} already exists in localStorage, not adding duplicate`);
             }
@@ -516,8 +516,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     const yCardOrder = ydoc.getArray('cardOrder');
     
     try {
-      yCardOrder.delete(0, yCardOrder.length);
-      yCardOrder.push(newOrder);
+        yCardOrder.delete(0, yCardOrder.length);
+        yCardOrder.push(newOrder);
       
       // Force a state update even if observers don't trigger
       setDocState(current => ({
@@ -526,24 +526,24 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       }));
       
       // Also update localStorage for additional redundancy
-      try {
-        const storedData = localStorage.getItem('openhouse-data');
-        if (storedData) {
-          const groups = JSON.parse(storedData);
-          const groupIndex = groups.findIndex((g: any) => g.id === groupId);
-          if (groupIndex >= 0 && groups[groupIndex].cards) {
-            // Create a map of id to card
-            const cardMap = new Map(groups[groupIndex].cards.map((c: any) => [c.id, c]));
+        try {
+          const storedData = localStorage.getItem('openhouse-data');
+          if (storedData) {
+            const groups = JSON.parse(storedData);
+            const groupIndex = groups.findIndex((g: any) => g.id === groupId);
+            if (groupIndex >= 0 && groups[groupIndex].cards) {
+              // Create a map of id to card
+              const cardMap = new Map(groups[groupIndex].cards.map((c: any) => [c.id, c]));
             // Reorder cards based on new order
-            groups[groupIndex].cards = newOrder
-              .filter(id => cardMap.has(id))
-              .map(id => cardMap.get(id));
-            localStorage.setItem('openhouse-data', JSON.stringify(groups));
-            console.log('[Yjs] Updated localStorage after card reordering');
+              groups[groupIndex].cards = newOrder
+                .filter(id => cardMap.has(id))
+                .map(id => cardMap.get(id));
+              localStorage.setItem('openhouse-data', JSON.stringify(groups));
+                console.log('[Yjs] Updated localStorage after card reordering');
+            }
           }
-        }
-      } catch (e) {
-        console.error('[Yjs] Failed to update localStorage:', e);
+        } catch (e) {
+          console.error('[Yjs] Failed to update localStorage:', e);
       }
       
       // Attempt to persist to D1 but don't block on it
@@ -564,8 +564,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     
     try {
       if (idx !== -1) yLinkedCards.delete(idx, 1);
-      const order = yCardOrder.toArray() as string[];
-      const orderIdx = order.indexOf(cardId);
+    const order = yCardOrder.toArray() as string[];
+    const orderIdx = order.indexOf(cardId);
       if (orderIdx !== -1) yCardOrder.delete(orderIdx, 1);
       
       // Force a state update even if observers don't trigger
@@ -579,19 +579,19 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       });
       
       // Also update localStorage for additional redundancy
-      try {
-        const storedData = localStorage.getItem('openhouse-data');
-        if (storedData) {
-          const groups = JSON.parse(storedData);
-          const groupIndex = groups.findIndex((g: any) => g.id === groupId);
-          if (groupIndex >= 0 && groups[groupIndex].cards) {
-            groups[groupIndex].cards = groups[groupIndex].cards.filter((c: any) => c.id !== cardId);
-            localStorage.setItem('openhouse-data', JSON.stringify(groups));
-            console.log('[Yjs] Updated localStorage after card removal');
+        try {
+          const storedData = localStorage.getItem('openhouse-data');
+          if (storedData) {
+            const groups = JSON.parse(storedData);
+            const groupIndex = groups.findIndex((g: any) => g.id === groupId);
+            if (groupIndex >= 0 && groups[groupIndex].cards) {
+              groups[groupIndex].cards = groups[groupIndex].cards.filter((c: any) => c.id !== cardId);
+              localStorage.setItem('openhouse-data', JSON.stringify(groups));
+                console.log('[Yjs] Updated localStorage after card removal');
+            }
           }
-        }
-      } catch (e) {
-        console.error('[Yjs] Failed to update localStorage:', e);
+        } catch (e) {
+          console.error('[Yjs] Failed to update localStorage:', e);
       }
       
       // Attempt to persist to D1 but don't block on it

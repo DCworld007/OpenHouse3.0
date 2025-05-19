@@ -1,25 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getToken } from 'next-auth/jwt';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
   context: { params: { groupId: string } }
 ) {
   try {
-    const { groupId } = context.params;
+    const groupId = context.params.groupId;
 
     if (!groupId) {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
     }
 
-    // Get user info from NextAuth token
     const token = await getToken({ req: request });
-    if (!token?.sub) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get activities for the group
     const activities = await prisma.activity.findMany({
       where: {
         groupId: groupId
@@ -27,16 +25,13 @@ export async function GET(
       orderBy: {
         timestamp: 'desc'
       },
-      take: 50 // Limit to last 50 activities
+      take: 50
     });
 
     return NextResponse.json(activities);
-  } catch (e: any) {
-    console.error('[Activity API] Error:', e);
-    return NextResponse.json(
-      { error: e.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -45,43 +40,37 @@ export async function POST(
   context: { params: { groupId: string } }
 ) {
   try {
-    const { groupId } = context.params;
+    const groupId = context.params.groupId;
 
     if (!groupId) {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
     }
 
-    // Get user info from NextAuth token
     const token = await getToken({ req: request });
-    if (!token?.sub) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = token.sub;
+    const body = await request.json();
+    const { type, details } = body;
 
-    // Parse request body
-    const { type, context: activityContext } = await request.json();
-    if (!type) {
-      return NextResponse.json({ error: 'Missing activity type' }, { status: 400 });
+    if (!type || !details) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Create activity
     const activity = await prisma.activity.create({
       data: {
         groupId,
-        userId,
+        userId: token.sub,
         type,
-        context: activityContext ? JSON.stringify(activityContext) : null,
+        context: JSON.stringify(details),
         timestamp: new Date()
       }
     });
 
-    return NextResponse.json(activity, { status: 201 });
-  } catch (e: any) {
-    console.error('[Activity API] Error:', e);
-    return NextResponse.json(
-      { error: e.message || 'Internal Server Error' },
-      { status: 500 }
-    );
+    return NextResponse.json(activity);
+  } catch (error) {
+    console.error('Error creating activity:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

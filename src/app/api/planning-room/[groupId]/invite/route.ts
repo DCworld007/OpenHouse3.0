@@ -10,11 +10,11 @@ function generateInviteToken() {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { groupId: string } }
+  context: { params: { groupId: string } }
 ) {
   try {
-    // Get the groupId from params
-    const groupId = params.groupId;
+    // Get the groupId from params - properly awaited
+    const { groupId } = context.params;
     if (!groupId) {
       return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
     }
@@ -58,8 +58,10 @@ export async function POST(
       }
     });
 
-    // Generate invite URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    // Generate invite URL using Vercel environment variables
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
 
     return NextResponse.json({
@@ -79,7 +81,7 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { groupId: string } }
+  context: { params: { groupId: string } }
 ) {
-  return POST(request, { params });
+  return POST(request, context);
 } 

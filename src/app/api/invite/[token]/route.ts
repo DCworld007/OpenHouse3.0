@@ -3,10 +3,10 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  context: { params: { token: string } }
 ) {
   try {
-    const { token } = params;
+    const { token } = context.params;
     if (!token) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
     }
