@@ -29,8 +29,8 @@ async function handleInviteRequest(
       return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });
     }
 
-    const token = await getToken({ req: request });
-    if (!token) {
+    const jwtToken = await getToken({ req: request });
+    if (!jwtToken?.sub) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -44,7 +44,7 @@ async function handleInviteRequest(
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    const isMember = room.members.some((member: RoomMember) => member.userId === token.sub);
+    const isMember = room.members.some((member: RoomMember) => member.userId === jwtToken.sub);
     if (!isMember) {
       return NextResponse.json({ error: 'Not authorized to create invites' }, { status: 403 });
     }
@@ -52,15 +52,15 @@ async function handleInviteRequest(
     // Generate new invite token
     const inviteToken = generateSimpleToken(32);
     const now = new Date();
-    const expiresAt = new Date();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     // Store the invite token
     await prisma.inviteToken.create({
       data: {
         token: inviteToken,
         planningRoomId: groupId,
-        generatedByUserId: token.sub,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        generatedByUserId: jwtToken.sub,
+        expiresAt,
         maxUses: 10,
         usesCount: 0,
         isActive: true
@@ -74,7 +74,7 @@ async function handleInviteRequest(
     return NextResponse.json({
       url: inviteUrl,
       token: inviteToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      expiresAt
     });
   } catch (error) {
     console.error('Error creating invite:', error);
