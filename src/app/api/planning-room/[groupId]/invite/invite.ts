@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
 
 // Edge-compatible, not cryptographically secure token generator
 function generateSimpleToken(length = 32) {
@@ -56,32 +57,33 @@ async function handleInviteRequest(request: NextRequest, params: { groupId: stri
     }
 
     // Generate new invite token
-    const token = generateSimpleToken(32);
+    const inviteToken = generateSimpleToken(32);
     const now = new Date();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Update room with new invite token
-    await prisma.planningRoom.update({
-      where: { id: groupId },
-      data: { 
-        inviteToken: token,
-        shareable: true
+    // Store the invite token
+    await prisma.inviteToken.create({
+      data: {
+        token: inviteToken,
+        planningRoomId: groupId,
+        generatedByUserId: userId,
+        expiresAt,
+        maxUses: 10,
+        usesCount: 0,
+        isActive: true
       }
     });
 
-    // Get base URL from environment
-    const requestHost = request.headers.get('host') || request.headers.get('x-forwarded-host');
-    const protocol = request.headers.get('x-forwarded-proto') || 'https';
-    const baseUrl = requestHost ? `${protocol}://${requestHost}` : process.env.VERCEL_URL || 'http://localhost:3000';
-    const inviteUrl = new URL('/invite', baseUrl);
-    inviteUrl.searchParams.set('token', token);
+    // Return the invite URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
 
-    return new Response(JSON.stringify({
-      token,
-      inviteUrl: inviteUrl.toString(),
-      expiresAt: expiresAt.toISOString()
-    }));
+    return NextResponse.json({
+      url: inviteUrl,
+      token: inviteToken,
+      expiresAt
+    });
   } catch (e: any) {
     console.error('[API Invite] Error:', e);
     return new Response(JSON.stringify({ error: e.message || 'Internal Server Error' }), { status: 500 });
