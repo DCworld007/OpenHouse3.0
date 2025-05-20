@@ -1,22 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
+import { getJwtSecret } from '@/utils/jwt';
+
+async function verifyJWT(token: string) {
+  try {
+    const secret = await getJwtSecret();
+    const { payload } = await jwtVerify(token, secret);
+    return payload;
+  } catch (error) {
+    console.error('[activity] JWT verification failed:', error);
+    throw error;
+  }
+}
 
 export async function GET(
   request: NextRequest,
-  context: { params: { groupId: string } }
+  { params }: { params: { groupId: string } }
 ) {
   try {
-    const groupId = await context.params.groupId;
+    const groupId = await Promise.resolve(params.groupId);
 
     if (!groupId) {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
     }
 
-    // Get the JWT token
-    const token = await getToken({ req: request });
-    if (!token?.sub) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Get the JWT token from cookie
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
+    }
+
+    // Verify the token
+    const payload = await verifyJWT(token);
+    if (!payload?.sub) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
     }
 
     // Check if user is a member of the room
@@ -29,7 +47,7 @@ export async function GET(
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    const isMember = room.members.some(member => member.userId === token.sub);
+    const isMember = room.members.some(member => member.userId === payload.sub);
     if (!isMember) {
       return NextResponse.json({ error: 'Not authorized to view activity' }, { status: 403 });
     }
@@ -53,18 +71,25 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  context: { params: { groupId: string } }
+  { params }: { params: { groupId: string } }
 ) {
   try {
-    const groupId = context.params.groupId;
+    const groupId = await Promise.resolve(params.groupId);
 
     if (!groupId) {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
     }
 
-    const token = await getToken({ req: request });
+    // Get the JWT token from cookie
+    const token = request.cookies.get('token')?.value;
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
+    }
+
+    // Verify the token
+    const payload = await verifyJWT(token);
+    if (!payload?.sub) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -77,7 +102,7 @@ export async function POST(
     const activity = await prisma.activity.create({
       data: {
         groupId,
-        userId: token.sub,
+        userId: payload.sub,
         type,
         context: JSON.stringify(details),
         timestamp: new Date()
