@@ -43,6 +43,13 @@ export function getAuthRedirectUrl(): string {
 export function getLoginCallbackUrl(): string {
   if (typeof window === 'undefined') return '/plans';
 
+  // Check for pending invite token in sessionStorage
+  const pendingInviteToken = sessionStorage.getItem('pendingInviteToken');
+  if (pendingInviteToken) {
+    sessionStorage.removeItem('pendingInviteToken');
+    return `/invite?token=${pendingInviteToken}`;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const returnTo = params.get('returnTo');
   

@@ -35,25 +35,32 @@ export async function POST(request: NextRequest) {
         picture: data.picture
       });
 
-      // Get domain for cookies
-      const authDomain = getAuthDomain().replace(/^https?:\/\//, '');
+      // Set up cookie options
       const isProduction = process.env.NODE_ENV === 'production';
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + 7); // 7 days
 
+      // Get the current domain
+      const domain = request.headers.get('host')?.split(':')[0] || '';
+      const isLocalhost = domain === 'localhost';
+      
       // Create response with both cookies
       const nextResponse = NextResponse.json({ ok: true });
       
+      // Common cookie options
+      const cookieOptions = {
+        expires: expirationDate,
+        path: '/',
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax' as const,
+        // Only set domain for non-localhost
+        ...(isLocalhost ? {} : { domain })
+      };
+      
       // Set both token cookies with secure settings
       ['token', 'auth_token'].forEach(name => {
-        nextResponse.cookies.set(name, token, {
-          expires: expirationDate,
-          path: '/',
-          domain: authDomain,
-          httpOnly: true,
-          secure: isProduction,
-          sameSite: isProduction ? 'strict' : 'lax'
-        });
+        nextResponse.cookies.set(name, token, cookieOptions);
       });
       
       return nextResponse;

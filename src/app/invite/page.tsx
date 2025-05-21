@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/utils/jwt';
@@ -92,8 +92,12 @@ export default function InvitePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams?.get('token') || null;
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isSubscribed = true;
+    
     async function handleInvite() {
       if (!token) {
         router.push('/');
@@ -114,10 +118,15 @@ export default function InvitePage() {
         // Check authentication first
         const user = await checkAuth();
         if (!user) {
+          // Store the token in sessionStorage to prevent potential redirect loops
+          sessionStorage.setItem('pendingInviteToken', token);
           const returnTo = `/invite?token=${token}`;
           router.push(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
           return;
         }
+
+        // Clear any stored pending invite token
+        sessionStorage.removeItem('pendingInviteToken');
 
         // Get invite details to validate the token
         const inviteDetails = await getInviteDetails(token);
@@ -137,19 +146,50 @@ export default function InvitePage() {
         }
 
         // Redirect to the planning room
-        const roomUrl = `/planning-room/${joinResult.room.id}`;
-        console.log('[Invite] Redirecting to room:', roomUrl);
-        router.push(roomUrl);
+        if (isSubscribed) {
+          const roomUrl = `/planning-room/${joinResult.room.id}`;
+          console.log('[Invite] Redirecting to room:', roomUrl);
+          router.push(roomUrl);
+        }
       } catch (error) {
         console.error('Invite error:', error);
-        // Preserve the error message from the API
-        const errorMessage = error instanceof Error ? error.message : 'Invalid or expired invite link';
-        router.push(`/?error=${encodeURIComponent(errorMessage)}`);
+        if (isSubscribed) {
+          setError(error instanceof Error ? error.message : 'Invalid or expired invite link');
+          setIsLoading(false);
+        }
       }
     }
 
     handleInvite();
+    
+    return () => {
+      isSubscribed = false;
+    };
   }, [token, router]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white p-8 rounded-lg shadow-md">
+          <div className="flex flex-col items-center">
+            <div className="text-red-500 mb-4">
+              <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-700">Invite Error</h2>
+            <p className="text-gray-500 mt-2 text-center">{error}</p>
+            <button
+              onClick={() => router.push('/plans')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Go to Plans
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading state while processing
   return (
