@@ -12,8 +12,25 @@ CREATE TABLE IF NOT EXISTS PlanningRoom (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   ownerId TEXT NOT NULL,
-  createdAt TEXT NOT NULL
+  description TEXT,
+  createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+-- Create the RoomMember table
+CREATE TABLE IF NOT EXISTS RoomMember (
+  id TEXT PRIMARY KEY,
+  roomId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'member',
+  createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updatedAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  FOREIGN KEY (roomId) REFERENCES PlanningRoom(id) ON DELETE CASCADE,
+  FOREIGN KEY (userId) REFERENCES User(id) ON DELETE CASCADE
+);
+
+-- Create unique index for roomId and userId combination
+CREATE UNIQUE INDEX IF NOT EXISTS idx_room_member_unique ON RoomMember(roomId, userId);
 
 -- Create the Activity table
 CREATE TABLE IF NOT EXISTS Activity (

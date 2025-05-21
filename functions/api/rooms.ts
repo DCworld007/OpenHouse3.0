@@ -1,5 +1,6 @@
 export const onRequest = async (context: { request: Request, env: any }) => {
   const { request, env } = context;
+  const db = env.DB;
 
   // Helper: parse cookies
   function getCookie(name: string) {
@@ -35,37 +36,41 @@ export const onRequest = async (context: { request: Request, env: any }) => {
     jwtError = err instanceof Error ? err.message : String(err);
   }
 
-  const db = env.DB;
   if (!db) {
     return new Response(JSON.stringify({ error: 'Database connection not available' }), { status: 500 });
   }
 
   // Handle POST requests for creating rooms
   if (request.method === 'POST') {
-    let body;
     try {
-      body = await request.json();
-    } catch (error) {
-      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 });
-    }
+      const body = await request.json();
+      const { id, name, userId } = body;
 
-    // Log the request body for debugging
-    console.log('[POST /api/rooms] Body:', body);
-    if (jwtError) {
-      console.log('[POST /api/rooms] JWT error:', jwtError);
-      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid or missing token', details: jwtError }), { status: 401 });
-    }
+      if (!id || !name || !userId) {
+        return new Response(JSON.stringify({ 
+          error: 'Required fields missing', 
+          requiredFields: ['id', 'name', 'userId'] 
+        }), { status: 400 });
+      }
 
-    // Validate required fields
-    const { id, name } = body;
-    if (!id || !name) {
-      return new Response(JSON.stringify({ error: 'Room ID and name are required', received: { id, name } }), { status: 400 });
-    }
-
-    try {
       // Check if room already exists
       const existingRoom = await db.prepare('SELECT id FROM PlanningRoom WHERE id = ?').bind(id).first();
       if (existingRoom) {
+        // Check if user is already a member
+        const existingMember = await db.prepare('SELECT 1 FROM RoomMember WHERE roomId = ? AND userId = ?')
+          .bind(id, userId)
+          .first();
+        
+        if (!existingMember) {
+          // Add user as member if not already a member
+          const memberId = generateUUID();
+          const now = new Date().toISOString();
+          await db.prepare(`
+            INSERT INTO RoomMember (id, roomId, userId, role, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `).bind(memberId, id, userId, 'member', now, now).run();
+        }
+        
         return new Response(JSON.stringify({ 
           success: true, 
           message: 'Room already exists',
@@ -88,20 +93,20 @@ export const onRequest = async (context: { request: Request, env: any }) => {
         now
       ).run();
 
-      // Add user as owner member (optional, only if RoomMember table exists)
-      // const roomMemberId = generateUUID();
-      // const insertMemberStmt = db.prepare(`
-      //   INSERT INTO RoomMember (id, roomId, userId, role, createdAt, updatedAt)
-      //   VALUES (?, ?, ?, ?, ?, ?)
-      // `);
-      // await insertMemberStmt.bind(
-      //   roomMemberId,
-      //   id,
-      //   userId,
-      //   'owner',
-      //   now,
-      //   now
-      // ).run();
+      // Add user as owner member
+      const roomMemberId = generateUUID();
+      const insertMemberStmt = db.prepare(`
+        INSERT INTO RoomMember (id, roomId, userId, role, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      await insertMemberStmt.bind(
+        roomMemberId,
+        id,
+        userId,
+        'owner',
+        now,
+        now
+      ).run();
 
       return new Response(JSON.stringify({ 
         success: true, 
@@ -109,6 +114,7 @@ export const onRequest = async (context: { request: Request, env: any }) => {
         roomId: id
       }), { status: 201 });
     } catch (error: any) {
+      console.error('[API Rooms] Error:', error);
       return new Response(JSON.stringify({ 
         error: 'Failed to create room', 
         details: error.message 

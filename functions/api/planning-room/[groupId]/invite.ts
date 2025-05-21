@@ -35,27 +35,39 @@ export const onRequestPost = async (context: { request: Request, env: any, param
       return new Response(JSON.stringify({ error: 'Not authenticated' }), { status: 401 });
     }
 
-    // Check if user is a member of the room
-    const memberQuery = 'SELECT role FROM PlanningRoomMember WHERE roomId = ? AND userId = ?';
-    const member = await db.prepare(memberQuery).bind(groupId, userId).first();
+    console.log('[Invite API] Checking room existence and membership for:', { groupId, userId });
+
+    // First check if the room exists
+    const room = await db.prepare('SELECT * FROM PlanningRoom WHERE id = ?').bind(groupId).first();
+    if (!room) {
+      console.error(`[Invite API] Room not found: ${groupId}`);
+      return new Response(JSON.stringify({ error: 'Room not found' }), { status: 404 });
+    }
+
+    // Then check if user is a member
+    const member = await db.prepare('SELECT * FROM RoomMember WHERE roomId = ? AND userId = ?')
+      .bind(groupId, userId)
+      .first();
 
     if (!member) {
-      return new Response(JSON.stringify({ error: 'Not a member of this room' }), { status: 403 });
+      console.error(`[Invite API] User ${userId} is not a member of room ${groupId}`);
+      return new Response(JSON.stringify({ error: 'Not authorized to create invites' }), { status: 403 });
     }
 
     // Generate a random token
     const token = 'inv_' + Math.random().toString(36).substring(2, 15);
     const now = new Date().toISOString();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Token expires in 7 days
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     // Create invite token
     await db.prepare(`
-      INSERT INTO InviteTokens (token, planningRoomId, createdAt, expiresAt, maxUses, usesCount, isActive)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO InviteTokens (token, planningRoomId, generatedByUserId, createdAt, expiresAt, maxUses, usesCount, isActive)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       token,
       groupId,
+      userId,
       now,
       expiresAt.toISOString(),
       10, // Max 10 uses
