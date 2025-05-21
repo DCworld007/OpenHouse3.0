@@ -3,6 +3,7 @@ import { jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
 import { nanoid } from 'nanoid';
 import { getJwtSecret } from '@/utils/jwt';
+import { getAuthDomain } from '@/utils/auth-config';
 
 export const runtime = 'nodejs';
 
@@ -82,10 +83,8 @@ export async function POST(
 
     console.log(`[Invite API] Created invite token ${inviteToken} for room ${groupId}`);
 
-    // Generate invite URL
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    // Always use the main domain for invite URLs
+    const baseUrl = getAuthDomain();
     const inviteUrl = `${baseUrl}/invite?token=${inviteToken}`;
 
     return NextResponse.json({
