@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { setupTestAuth } from '@/utils/auth-client';
-import { getBaseUrl, getOAuthConfig } from '@/utils/url';
-
-const MAIN_AUTH_DOMAIN = 'https://unifyplan.vercel.app'; // Your main production domain
+import { shouldRedirectToMainAuth, getAuthRedirectUrl, getAuthDomain, getLoginCallbackUrl } from '@/utils/auth-config';
 
 declare global {
   interface Window {
@@ -16,61 +14,56 @@ declare global {
 
 export default function LoginPage() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDevMode, setIsDevMode] = useState(false);
   const [clientIdValid, setClientIdValid] = useState(true);
   const [originIssue, setOriginIssue] = useState(false);
   
+  // Get the base URL for API calls
+  const getBaseUrl = () => {
+    return getAuthDomain();
+  };
+
   useEffect(() => {
+    // Check if we need to redirect to main domain for auth
+    if (shouldRedirectToMainAuth()) {
+      const redirectUrl = getAuthRedirectUrl();
+      console.log('[LoginPage] Redirecting to main auth domain:', redirectUrl);
+      window.location.href = redirectUrl;
+      return;
+    }
+
     if (typeof window !== 'undefined') {
-      // Set development mode for UI display
       setIsDevMode(process.env.NODE_ENV === 'development');
       
-      // If we're not on the main auth domain and this isn't a local development environment,
-      // redirect to the main auth domain
-      if (window.location.origin !== MAIN_AUTH_DOMAIN && 
-          !window.location.hostname.includes('localhost')) {
-        const currentUrl = encodeURIComponent(window.location.href);
-        window.location.href = `${MAIN_AUTH_DOMAIN}/auth/login?returnTo=${currentUrl}`;
-        return;
-      }
-
-      // Enhanced logging
-      console.log('[LoginPage] Environment:', {
-        nodeEnv: process.env.NODE_ENV,
-        origin: window.location.origin,
-        hostname: window.location.hostname,
-        pathname,
-        isMainDomain: window.location.origin === MAIN_AUTH_DOMAIN
-      });
+      console.log('[LoginPage] document.cookie:', document.cookie);
+      console.log('[LoginPage] pathname:', pathname);
+      console.log('[LoginPage] NEXT_PUBLIC_GOOGLE_CLIENT_ID:', process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+      console.log('[LoginPage] Base URL:', getBaseUrl());
       
-      // Check if we have a valid Google client ID
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
       if (!clientId || clientId === 'test_client_id' || clientId.includes('your_client_id')) {
         console.warn('[LoginPage] Invalid Google client ID detected:', clientId);
         setClientIdValid(false);
       }
-
-      // If this is a return from auth on the main domain, handle the redirect
-      const returnTo = searchParams.get('returnTo');
-      if (returnTo && window.location.origin === MAIN_AUTH_DOMAIN) {
-        // Check if we're authenticated
-        fetch('/api/me', { credentials: 'include' })
-          .then(res => {
-            if (res.ok) {
-              // We're authenticated, redirect back to the original URL
-              window.location.href = returnTo;
-            }
-          })
-          .catch(error => {
-            console.error('[LoginPage] Error checking auth status:', error);
-          });
-      }
     }
 
-    // Load Google Identity Services script (only if we have a valid client ID)
+    // If already logged in, redirect to callbackUrl or /plans
+    if (typeof window !== 'undefined') {
+      fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' })
+        .then(res => {
+          if (res.ok) {
+            const callbackUrl = getLoginCallbackUrl();
+            window.location.href = callbackUrl;
+          }
+        })
+        .catch(error => {
+          console.error('[LoginPage] Error checking auth status:', error);
+        });
+    }
+
+    // Load Google Identity Services script
     if (clientIdValid && !window.google && !document.getElementById('google-identity')) {
       const script = document.createElement('script');
       script.src = 'https://accounts.google.com/gsi/client';
@@ -101,22 +94,13 @@ export default function LoginPage() {
     const interval = setInterval(() => {
       if (window.google && window.google.accounts && window.google.accounts.id) {
         try {
-          console.log('[LoginPage] Current origin:', window.location.origin);
-          console.log('[LoginPage] Initializing Google Sign-In with:', {
-            clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-            origin: window.location.origin
-          });
-
           window.google.accounts.id.initialize({
             client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-            ux_mode: 'redirect',
-            login_uri: `${window.location.origin}/api/auth/login`,
             callback: async (response: any) => {
               console.log('[LoginPage] Google Sign-In response:', response);
               setLoading(true);
               setError(null);
               
-              // Send ID token to API
               try {
                 const loginUrl = `${getBaseUrl()}/api/auth/login`;
                 console.log('[LoginPage] Sending login request to:', loginUrl);
@@ -125,15 +109,11 @@ export default function LoginPage() {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'include',
-                  body: JSON.stringify({ 
-                    credential: response.credential,
-                    redirectUri 
-                  })
+                  body: JSON.stringify({ credential: response.credential })
                 });
                 
                 console.log('[LoginPage] Login response status:', res.status);
                 
-                // Try to parse response as JSON, but handle if it's not valid JSON
                 let data;
                 try {
                   const text = await res.text();
@@ -145,7 +125,6 @@ export default function LoginPage() {
                 }
                 
                 if (res.ok) {
-                  // Create user in database
                   try {
                     console.log('[LoginPage] Creating user in database...');
                     const userRes = await fetch(`${getBaseUrl()}/api/auth/user`, {
@@ -164,17 +143,14 @@ export default function LoginPage() {
                     const userData = await userRes.json();
                     console.log('[LoginPage] User created/verified:', userData);
 
-                    // Wait a moment for the user to be fully created
                     await new Promise(resolve => setTimeout(resolve, 500));
 
-                    // Verify authentication worked by calling /api/me
                     const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
                     console.log('[LoginPage] /api/me response status:', meRes.status);
                     
                     if (meRes.ok) {
-                      const params = new URLSearchParams(window.location.search);
-                      const callbackUrl = params.get('callbackUrl');
-                      window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
+                      const callbackUrl = getLoginCallbackUrl();
+                      window.location.href = callbackUrl;
                     } else {
                       setError('Login failed - could not verify authentication');
                     }
@@ -191,7 +167,7 @@ export default function LoginPage() {
               } finally {
                 setLoading(false);
               }
-            }
+            },
           });
           
           window.google.accounts.id.renderButton(
@@ -213,7 +189,7 @@ export default function LoginPage() {
       clearInterval(interval);
       window.removeEventListener('message', handleGsiError);
     };
-  }, [pathname, clientIdValid, searchParams]);
+  }, [pathname, clientIdValid]);
 
   // Handle test authentication
   const handleTestAuth = () => {
