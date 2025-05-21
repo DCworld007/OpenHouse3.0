@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { setupTestAuth } from '@/utils/auth-client';
+import { getBaseUrl, getOAuthConfig } from '@/utils/url';
+
+const MAIN_AUTH_DOMAIN = 'https://unifyplan.vercel.app'; // Your main production domain
 
 declare global {
   interface Window {
@@ -13,29 +16,35 @@ declare global {
 
 export default function LoginPage() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDevMode, setIsDevMode] = useState(false);
   const [clientIdValid, setClientIdValid] = useState(true);
   const [originIssue, setOriginIssue] = useState(false);
   
-  // Get the base URL for API calls
-  const getBaseUrl = () => {
-    if (typeof window !== 'undefined') {
-      return window.location.origin;
-    }
-    return '';
-  };
-
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // Set development mode for UI display
       setIsDevMode(process.env.NODE_ENV === 'development');
       
-      console.log('[LoginPage] document.cookie:', document.cookie);
-      console.log('[LoginPage] pathname:', pathname);
-      console.log('[LoginPage] NEXT_PUBLIC_GOOGLE_CLIENT_ID:', process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
-      console.log('[LoginPage] Base URL:', getBaseUrl());
+      // If we're not on the main auth domain and this isn't a local development environment,
+      // redirect to the main auth domain
+      if (window.location.origin !== MAIN_AUTH_DOMAIN && 
+          !window.location.hostname.includes('localhost')) {
+        const currentUrl = encodeURIComponent(window.location.href);
+        window.location.href = `${MAIN_AUTH_DOMAIN}/auth/login?returnTo=${currentUrl}`;
+        return;
+      }
+
+      // Enhanced logging
+      console.log('[LoginPage] Environment:', {
+        nodeEnv: process.env.NODE_ENV,
+        origin: window.location.origin,
+        hostname: window.location.hostname,
+        pathname,
+        isMainDomain: window.location.origin === MAIN_AUTH_DOMAIN
+      });
       
       // Check if we have a valid Google client ID
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -43,22 +52,22 @@ export default function LoginPage() {
         console.warn('[LoginPage] Invalid Google client ID detected:', clientId);
         setClientIdValid(false);
       }
-    }
 
-    // If already logged in, redirect to callbackUrl or /plans
-    if (typeof window !== 'undefined') {
-      // Check authentication by calling /api/me
-      fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' })
-        .then(res => {
-          if (res.ok) {
-            const params = new URLSearchParams(window.location.search);
-            const callbackUrl = params.get('callbackUrl');
-            window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
-          }
-        })
-        .catch(error => {
-          console.error('[LoginPage] Error checking auth status:', error);
-        });
+      // If this is a return from auth on the main domain, handle the redirect
+      const returnTo = searchParams.get('returnTo');
+      if (returnTo && window.location.origin === MAIN_AUTH_DOMAIN) {
+        // Check if we're authenticated
+        fetch('/api/me', { credentials: 'include' })
+          .then(res => {
+            if (res.ok) {
+              // We're authenticated, redirect back to the original URL
+              window.location.href = returnTo;
+            }
+          })
+          .catch(error => {
+            console.error('[LoginPage] Error checking auth status:', error);
+          });
+      }
     }
 
     // Load Google Identity Services script (only if we have a valid client ID)
@@ -92,8 +101,16 @@ export default function LoginPage() {
     const interval = setInterval(() => {
       if (window.google && window.google.accounts && window.google.accounts.id) {
         try {
+          console.log('[LoginPage] Current origin:', window.location.origin);
+          console.log('[LoginPage] Initializing Google Sign-In with:', {
+            clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+            origin: window.location.origin
+          });
+
           window.google.accounts.id.initialize({
             client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+            ux_mode: 'redirect',
+            login_uri: `${window.location.origin}/api/auth/login`,
             callback: async (response: any) => {
               console.log('[LoginPage] Google Sign-In response:', response);
               setLoading(true);
@@ -108,7 +125,10 @@ export default function LoginPage() {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'include',
-                  body: JSON.stringify({ credential: response.credential })
+                  body: JSON.stringify({ 
+                    credential: response.credential,
+                    redirectUri 
+                  })
                 });
                 
                 console.log('[LoginPage] Login response status:', res.status);
@@ -123,8 +143,6 @@ export default function LoginPage() {
                   console.error('[LoginPage] Error parsing response:', parseError);
                   throw new Error(`Failed to parse server response: ${parseError}`);
                 }
-                
-                console.log('[LoginPage] Login response data:', data);
                 
                 if (res.ok) {
                   // Create user in database
@@ -145,22 +163,24 @@ export default function LoginPage() {
 
                     const userData = await userRes.json();
                     console.log('[LoginPage] User created/verified:', userData);
+
+                    // Wait a moment for the user to be fully created
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Verify authentication worked by calling /api/me
+                    const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
+                    console.log('[LoginPage] /api/me response status:', meRes.status);
+                    
+                    if (meRes.ok) {
+                      const params = new URLSearchParams(window.location.search);
+                      const callbackUrl = params.get('callbackUrl');
+                      window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
+                    } else {
+                      setError('Login failed - could not verify authentication');
+                    }
                   } catch (error) {
                     console.error('[LoginPage] Error creating user:', error);
                     setError('Failed to create user account');
-                    return;
-                  }
-
-                  // Verify authentication worked by calling /api/me
-                  const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
-                  console.log('[LoginPage] /api/me response status:', meRes.status);
-                  
-                  if (meRes.ok) {
-                    const params = new URLSearchParams(window.location.search);
-                    const callbackUrl = params.get('callbackUrl');
-                    window.location.href = (callbackUrl && typeof callbackUrl === 'string') ? callbackUrl : '/plans';
-                  } else {
-                    setError('Login failed - could not verify authentication');
                   }
                 } else {
                   setError('Login failed: ' + (data.error || `Server error: ${res.status}`));
@@ -171,7 +191,7 @@ export default function LoginPage() {
               } finally {
                 setLoading(false);
               }
-            },
+            }
           });
           
           window.google.accounts.id.renderButton(
@@ -193,7 +213,7 @@ export default function LoginPage() {
       clearInterval(interval);
       window.removeEventListener('message', handleGsiError);
     };
-  }, [pathname, clientIdValid]);
+  }, [pathname, clientIdValid, searchParams]);
 
   // Handle test authentication
   const handleTestAuth = () => {
