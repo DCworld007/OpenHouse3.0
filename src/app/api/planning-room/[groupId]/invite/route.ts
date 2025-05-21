@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { nanoid } from 'nanoid';
 import { getJwtSecret } from '@/utils/jwt';
 
+export const runtime = 'nodejs';
+
 // Generate a secure token using nanoid
 function generateInviteToken() {
   return `inv_${nanoid(32)}`;

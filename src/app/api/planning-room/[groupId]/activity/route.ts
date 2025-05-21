@@ -3,6 +3,8 @@ import { jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
 import { getJwtSecret } from '@/utils/jwt';
 
+export const runtime = 'nodejs';
+
 async function verifyJWT(token: string) {
   try {
     const secret = await getJwtSecret();
