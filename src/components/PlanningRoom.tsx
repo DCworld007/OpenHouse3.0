@@ -769,7 +769,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0]}`
         },
         credentials: 'include',
         body: JSON.stringify({
@@ -792,7 +791,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0]}`
         },
         credentials: 'include',
       });
@@ -811,7 +809,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0]}`
         },
         credentials: 'include',
         body: JSON.stringify({}) // Send empty JSON object to avoid body parsing issues
