@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/utils/jwt';
-import { getAuthDomain } from '@/utils/auth-config';
+import { getAuthDomain, shouldRedirectToMainAuth } from '@/utils/auth-config';
 
 function getBaseUrl() {
   return getAuthDomain();
@@ -35,6 +35,8 @@ async function checkAuth() {
 async function getInviteDetails(token: string) {
   try {
     const baseUrl = getBaseUrl();
+    console.log('[Invite] Fetching invite details from:', baseUrl);
+    
     const response = await fetch(`${baseUrl}/api/invite/${token}`, {
       method: 'GET',
       headers: {
@@ -59,6 +61,8 @@ async function getInviteDetails(token: string) {
 async function joinRoom(token: string) {
   try {
     const baseUrl = getBaseUrl();
+    console.log('[Invite] Joining room with token at:', baseUrl);
+    
     const response = await fetch(`${baseUrl}/api/invite/${token}/join`, {
       method: 'POST',
       headers: {
@@ -93,14 +97,17 @@ export default function InvitePage() {
       }
 
       try {
-        // Get invite details first to validate the token
-        const inviteDetails = await getInviteDetails(token);
-        
-        if (!inviteDetails || !inviteDetails.roomId) {
-          throw new Error('Invalid invite details');
+        // Check if we need to redirect to main domain for auth
+        if (shouldRedirectToMainAuth()) {
+          const currentUrl = `/invite?token=${token}`;
+          const mainDomain = getAuthDomain();
+          const redirectUrl = `${mainDomain}/auth/login?returnTo=${encodeURIComponent(currentUrl)}`;
+          console.log('[Invite] Redirecting to main auth domain:', redirectUrl);
+          window.location.href = redirectUrl;
+          return;
         }
 
-        // Check authentication
+        // Check authentication first
         const user = await checkAuth();
         if (!user) {
           const returnTo = `/invite?token=${token}`;
@@ -108,7 +115,14 @@ export default function InvitePage() {
           return;
         }
 
-        // If user is authenticated, try to join the room
+        // Get invite details to validate the token
+        const inviteDetails = await getInviteDetails(token);
+        
+        if (!inviteDetails || !inviteDetails.roomId) {
+          throw new Error('Invalid invite details');
+        }
+
+        // If user is authenticated and invite is valid, try to join the room
         const joinResult = await joinRoom(token);
         
         if (!joinResult || !joinResult.room?.id) {
