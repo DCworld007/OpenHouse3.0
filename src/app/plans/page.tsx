@@ -74,17 +74,24 @@ async function syncLocalGroupsToD1(groups: Group[]) {
         const createRes = await fetch('/api/rooms', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             id: group.id,
             name: group.name,
             description: 'description' in group ? (group as any).description || '' : '',
-            // ownerId will be extracted from JWT cookie in the API
           }),
         });
         
         if (!createRes.ok) {
-          const errorData = await createRes.json();
+          const errorText = await createRes.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch (e) {
+            errorData = { error: errorText };
+          }
           console.error(`[Sync] Failed to create room ${group.id} in D1:`, errorData);
+          
           // Retry with a delay if there's a specific error that might be temporary
           if (createRes.status === 400 && errorData.error?.includes('ownerId')) {
             console.log(`[Sync] Retrying room creation after short delay...`);
@@ -93,6 +100,7 @@ async function syncLocalGroupsToD1(groups: Group[]) {
             const retryRes = await fetch('/api/rooms', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
               body: JSON.stringify({
                 id: group.id,
                 name: group.name,
@@ -103,7 +111,8 @@ async function syncLocalGroupsToD1(groups: Group[]) {
             if (retryRes.ok) {
               console.log(`[Sync] Successfully created room ${group.id} in D1 on retry`);
             } else {
-              console.error(`[Sync] Failed to create room ${group.id} in D1 even on retry`);
+              const retryErrorText = await retryRes.text();
+              console.error(`[Sync] Failed to create room ${group.id} in D1 even on retry:`, retryErrorText);
             }
           }
         } else {
@@ -177,8 +186,22 @@ export default function PlansPage() {
       }));
       if (migratedGroups.length > 0) {
         setGroups(migratedGroups);
-        // Ensure all existing groups are persisted to D1 (robust sync)
-        syncLocalGroupsToD1(migratedGroups);
+        // Ensure user exists before syncing groups
+        fetch('/api/auth/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        }).then(async (res) => {
+          if (res.ok) {
+            console.log('[PlansPage] User created/verified');
+            // Now sync groups
+            syncLocalGroupsToD1(migratedGroups);
+          } else {
+            console.error('[PlansPage] Failed to create/verify user:', await res.text());
+          }
+        }).catch(error => {
+          console.error('[PlansPage] Error creating/verifying user:', error);
+        });
       } else {
         const defaultGroup: Group = {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
@@ -186,8 +209,22 @@ export default function PlansPage() {
           cards: [],
         };
         setGroups([defaultGroup]);
-        // Persist the default group to D1
-        syncLocalGroupsToD1([defaultGroup]);
+        // Ensure user exists before syncing groups
+        fetch('/api/auth/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        }).then(async (res) => {
+          if (res.ok) {
+            console.log('[PlansPage] User created/verified');
+            // Now sync groups
+            syncLocalGroupsToD1([defaultGroup]);
+          } else {
+            console.error('[PlansPage] Failed to create/verify user:', await res.text());
+          }
+        }).catch(error => {
+          console.error('[PlansPage] Error creating/verifying user:', error);
+        });
       }
     } catch (error) {
       console.error('Error loading groups:', error);
@@ -197,8 +234,22 @@ export default function PlansPage() {
         cards: [],
       };
       setGroups([defaultGroup]);
-      // Persist the default group to D1
-      syncLocalGroupsToD1([defaultGroup]);
+      // Ensure user exists before syncing groups
+      fetch('/api/auth/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      }).then(async (res) => {
+        if (res.ok) {
+          console.log('[PlansPage] User created/verified');
+          // Now sync groups
+          syncLocalGroupsToD1([defaultGroup]);
+        } else {
+          console.error('[PlansPage] Failed to create/verify user:', await res.text());
+        }
+      }).catch(error => {
+        console.error('[PlansPage] Error creating/verifying user:', error);
+      });
     }
   }, []);
 

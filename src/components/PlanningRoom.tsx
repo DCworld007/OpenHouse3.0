@@ -757,34 +757,91 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     setInviteLinkCopied(false);
     
     try {
-      console.log(`[Invite] Generating invite link for group ${group.id}`);
+      console.log(`[Invite] Starting invite generation for group:`, {
+        groupId: group.id,
+        groupName: group.name,
+        // Add more relevant group info for debugging
+        cards: cards.length,
+      });
+
+      // First ensure the room exists in the database
+      const createRoomRes = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0]}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          id: group.id,
+          name: group.name
+        })
+      });
+
+      if (!createRoomRes.ok) {
+        console.error(`[Invite] Failed to ensure room exists:`, {
+          status: createRoomRes.status,
+          statusText: createRoomRes.statusText,
+          groupId: group.id
+        });
+        throw new Error(`Failed to prepare room for invite. Please try again.`);
+      }
+
+      // Verify the room exists and is accessible
+      const roomCheckRes = await fetch(`/api/planning-room/${group.id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0]}`
+        },
+        credentials: 'include',
+      });
+
+      if (!roomCheckRes.ok) {
+        console.error(`[Invite] Room check failed:`, {
+          status: roomCheckRes.status,
+          statusText: roomCheckRes.statusText,
+          groupId: group.id
+        });
+        throw new Error(`Room not found or not accessible. Please refresh the page and try again.`);
+      }
+
+      // Now generate the invite
       const res = await fetch(`/api/planning-room/${group.id}/invite`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${document.cookie.split('token=')[1]?.split(';')[0]}`
         },
         credentials: 'include',
         body: JSON.stringify({}) // Send empty JSON object to avoid body parsing issues
       });
       
       if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
+        const errorText = await res.text();
+        console.error(`[Invite] Failed to generate invite:`, {
+          status: res.status,
+          statusText: res.statusText,
+          error: errorText,
+          groupId: group.id
+        });
+        throw new Error(`Failed to generate invite: ${res.status} ${res.statusText}`);
       }
       
       const data = await res.json();
       console.log('[Invite] Response data:', data);
       
       // Check all possible locations where the URL might be in the response
-      if (data.inviteUrl) {
+      if (data.url) {
+        setGeneratedInviteLink(data.url);
+      } else if (data.inviteUrl) {
         setGeneratedInviteLink(data.inviteUrl);
-      } else if (data.invite && data.invite.inviteUrl) {
-        setGeneratedInviteLink(data.invite.inviteUrl);
       } else if (data.token) {
         // Construct URL from token if no URL is provided
-          const baseUrl = window.location.origin;
-          const fullUrl = `${baseUrl}/invite?token=${data.token}`;
-          setGeneratedInviteLink(fullUrl);
-        } else {
+        const baseUrl = window.location.origin;
+        const fullUrl = `${baseUrl}/invite/${data.token}`;
+        setGeneratedInviteLink(fullUrl);
+      } else {
         throw new Error('No invite URL or token returned from server');
       }
       

@@ -86,7 +86,7 @@ export async function POST(
     const baseUrl = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}`
       : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const inviteUrl = `${baseUrl}/invite/${inviteToken}`;
+    const inviteUrl = `${baseUrl}/invite?token=${inviteToken}`;
 
     return NextResponse.json({
       url: inviteUrl,

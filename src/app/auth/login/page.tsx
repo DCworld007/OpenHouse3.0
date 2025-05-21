@@ -127,6 +127,30 @@ export default function LoginPage() {
                 console.log('[LoginPage] Login response data:', data);
                 
                 if (res.ok) {
+                  // Create user in database
+                  try {
+                    console.log('[LoginPage] Creating user in database...');
+                    const userRes = await fetch(`${getBaseUrl()}/api/auth/user`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include'
+                    });
+                    
+                    if (!userRes.ok) {
+                      const errorText = await userRes.text();
+                      console.error('[LoginPage] Failed to create user:', errorText);
+                      setError('Failed to create user account');
+                      return;
+                    }
+
+                    const userData = await userRes.json();
+                    console.log('[LoginPage] User created/verified:', userData);
+                  } catch (error) {
+                    console.error('[LoginPage] Error creating user:', error);
+                    setError('Failed to create user account');
+                    return;
+                  }
+
                   // Verify authentication worked by calling /api/me
                   const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
                   console.log('[LoginPage] /api/me response status:', meRes.status);
