@@ -48,16 +48,38 @@ export function getLoginCallbackUrl(): string {
   
   if (returnTo) {
     try {
-      // Validate the URL to prevent open redirect vulnerabilities
-      const url = new URL(returnTo);
-      // Only allow redirects to our known domains
+      // First try to parse as a full URL
+      let url: URL;
+      try {
+        url = new URL(returnTo);
+      } catch {
+        // If parsing as full URL fails, try as a relative URL
+        url = new URL(returnTo, window.location.origin);
+      }
+
+      // Extract the path and query parameters
+      const path = url.pathname;
+      const searchParams = url.searchParams;
+
+      // Special handling for invite links
+      if (path === '/invite' && searchParams.has('token')) {
+        const token = searchParams.get('token');
+        // Always use relative path for invite links to ensure proper domain handling
+        return `/invite?token=${token}`;
+      }
+
+      // For other URLs, validate the domain
       if (url.hostname === 'unifyplan.vercel.app' ||
           url.hostname === 'localhost' ||
           url.hostname.endsWith('.vercel.app')) {
+        // Convert to relative path if it's on the same domain
+        if (url.origin === window.location.origin) {
+          return url.pathname + url.search;
+        }
         return returnTo;
       }
     } catch (e) {
-      console.error('Invalid return URL:', e);
+      console.error('[Auth Config] Invalid return URL:', e);
     }
   }
 
