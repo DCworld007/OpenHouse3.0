@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
+import { getJwtSecret } from '@/utils/jwt';
+
+export const runtime = 'nodejs';
+
+async function verifyAuth(request: NextRequest) {
+  const token = request.cookies.get('token')?.value || request.cookies.get('auth_token')?.value;
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const secret = await getJwtSecret();
+    const { payload } = await jwtVerify(token, secret);
+    return payload?.sub ? { id: payload.sub } : null;
+  } catch (error) {
+    console.error('[Join API] Auth verification error:', error);
+    return null;
+  }
+}
 
 export async function POST(
   request: NextRequest,
@@ -12,16 +31,24 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
     }
 
-    // Get the JWT token
-    const jwtToken = await getToken({ req: request });
-    if (!jwtToken?.sub) {
+    // Verify authentication
+    const user = await verifyAuth(request);
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Find and validate the invite token
+    // Find and validate the invite token with room details
     const inviteToken = await prisma.inviteToken.findUnique({
       where: { token },
-      include: { planningRoom: true }
+      include: {
+        planningRoom: {
+          include: {
+            members: {
+              where: { userId: user.id }
+            }
+          }
+        }
+      }
     });
 
     if (!inviteToken) {
@@ -46,49 +73,55 @@ export async function POST(
     }
 
     // Check if user is already a member
-    const existingMember = await prisma.planningRoom.findFirst({
-      where: {
-        id: inviteToken.planningRoomId,
-        members: {
-          some: {
-            userId: jwtToken.sub
-          }
-        }
-      }
-    });
-
-    if (existingMember) {
+    if (inviteToken.planningRoom.members.length > 0) {
       return NextResponse.json({ error: 'You are already a member of this room' }, { status: 400 });
     }
 
-    // Add user as member and increment uses count in a transaction
-    await prisma.$transaction([
-      prisma.planningRoom.update({
-        where: { id: inviteToken.planningRoomId },
-        data: {
-          members: {
-            create: {
-              userId: jwtToken.sub,
-              role: 'MEMBER'
+    try {
+      // Add user as member and increment uses count in a transaction
+      const result = await prisma.$transaction([
+        prisma.planningRoom.update({
+          where: { id: inviteToken.planningRoomId },
+          data: {
+            members: {
+              create: {
+                userId: user.id,
+                role: 'MEMBER'
+              }
+            }
+          },
+          include: {
+            members: {
+              where: { userId: user.id },
+              select: { role: true }
             }
           }
-        }
-      }),
-      prisma.inviteToken.update({
-        where: { token },
-        data: {
-          usesCount: { increment: 1 }
-        }
-      })
-    ]);
+        }),
+        prisma.inviteToken.update({
+          where: { token },
+          data: {
+            usesCount: { increment: 1 }
+          }
+        })
+      ]);
 
-    return NextResponse.json({
-      success: true,
-      roomId: inviteToken.planningRoomId,
-      roomName: inviteToken.planningRoom.name
-    });
+      const [updatedRoom] = result;
+
+      return NextResponse.json({
+        success: true,
+        roomId: updatedRoom.id,
+        roomName: updatedRoom.name,
+        role: updatedRoom.members[0]?.role || 'MEMBER'
+      });
+    } catch (transactionError) {
+      console.error('[Join API] Transaction error:', transactionError);
+      return NextResponse.json(
+        { error: 'Failed to join room. Please try again.' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('[Invite Join API] Error:', error);
+    console.error('[Join API] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -1,22 +1,55 @@
-import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { headers } from 'next/headers';
+'use client';
 
-async function getBaseUrl() {
-  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  const host = headers().get('host') || '';
-  return `${protocol}://${host}`;
+import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/utils/jwt';
+
+function getBaseUrl() {
+  if (typeof window === 'undefined') return '';
+  
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  
+  return window.location.origin;
+}
+
+async function checkAuth() {
+  try {
+    // Get token from cookies
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('token=') || row.startsWith('auth_token='))
+      ?.split('=')[1];
+    
+    if (!token) {
+      return null;
+    }
+
+    const secret = await getJwtSecret();
+    const { payload } = await jwtVerify(token, secret);
+    
+    return payload?.sub ? { id: payload.sub } : null;
+  } catch (error) {
+    console.error('Error checking auth:', error);
+    return null;
+  }
 }
 
 async function getInviteDetails(token: string) {
   try {
-    const baseUrl = await getBaseUrl();
-
+    const baseUrl = getBaseUrl();
     const response = await fetch(`${baseUrl}/api/invite/${token}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       cache: 'no-store',
     });
 
@@ -33,13 +66,13 @@ async function getInviteDetails(token: string) {
 
 async function joinRoom(token: string) {
   try {
-    const baseUrl = await getBaseUrl();
-
+    const baseUrl = getBaseUrl();
     const response = await fetch(`${baseUrl}/api/invite/${token}/join`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       cache: 'no-store',
     });
 
@@ -54,34 +87,63 @@ async function joinRoom(token: string) {
   }
 }
 
-export default async function InvitePage({
-  searchParams,
-}: {
-  searchParams: { token: string };
-}) {
-  const token = searchParams.token;
-  const session = await getServerSession();
+export default function InvitePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams?.get('token') || null;
 
-  if (!token) {
-    redirect('/');
-  }
+  useEffect(() => {
+    async function handleInvite() {
+      if (!token) {
+        router.push('/');
+        return;
+      }
 
-  try {
-    const inviteDetails = await getInviteDetails(token);
-    
-    // If user is not authenticated, redirect to sign-in with return URL
-    if (!session) {
-      const returnUrl = `/invite?token=${token}`;
-      redirect(`/sign-in?callbackUrl=${encodeURIComponent(returnUrl)}`);
+      try {
+        // Get invite details first to validate the token
+        const inviteDetails = await getInviteDetails(token);
+        
+        if (!inviteDetails || !inviteDetails.roomId) {
+          throw new Error('Invalid invite details');
+        }
+
+        // Check authentication
+        const user = await checkAuth();
+        if (!user) {
+          const returnUrl = `/invite?token=${token}`;
+          router.push(`/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+          return;
+        }
+
+        // If user is authenticated, try to join the room
+        const joinResult = await joinRoom(token);
+        
+        if (!joinResult || !joinResult.roomId) {
+          throw new Error('Failed to join room');
+        }
+
+        // Redirect to the planning room
+        router.push(`/planning-room/${joinResult.roomId}`);
+      } catch (error) {
+        console.error('Invite error:', error);
+        // Handle invalid or expired invites
+        router.push(`/?error=${encodeURIComponent('Invalid or expired invite link')}`);
+      }
     }
 
-    // If user is authenticated, try to join the room
-    const joinResult = await joinRoom(token);
-    
-    // Redirect to the planning room
-    redirect(`/planning-room/${joinResult.roomId}`);
-  } catch (error) {
-    // Handle invalid or expired invites
-    redirect(`/?error=${encodeURIComponent('Invalid or expired invite link')}`);
-  }
+    handleInvite();
+  }, [token, router]);
+
+  // Show loading state while processing
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="bg-white p-8 rounded-lg shadow-md">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-700">Processing Invite...</h2>
+          <p className="text-gray-500 mt-2">Please wait while we verify your invite.</p>
+        </div>
+      </div>
+    </div>
+  );
 } 
