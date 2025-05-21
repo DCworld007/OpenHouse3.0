@@ -27,9 +27,9 @@ export async function POST(
   { params }: { params: { groupId: string } }
 ) {
   try {
-    console.log('[Invite API] Starting invite generation for room:', params.groupId);
-    
-    const groupId = await Promise.resolve(params.groupId);
+    const groupId = params.groupId;
+    console.log('[Invite API] Starting invite generation for room:', groupId);
+
     if (!groupId) {
       console.error('[Invite API] Invalid or missing groupId');
       return NextResponse.json({ error: 'Invalid or missing groupId' }, { status: 400 });

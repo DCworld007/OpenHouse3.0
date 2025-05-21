@@ -21,7 +21,7 @@ export async function GET(
   { params }: { params: { groupId: string } }
 ) {
   try {
-    const groupId = await Promise.resolve(params.groupId);
+    const groupId = params.groupId;
 
     if (!groupId) {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
@@ -76,7 +76,7 @@ export async function POST(
   { params }: { params: { groupId: string } }
 ) {
   try {
-    const groupId = await Promise.resolve(params.groupId);
+    const groupId = params.groupId;
 
     if (!groupId) {
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
