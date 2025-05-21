@@ -1,46 +1,111 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/utils/jwt';
 
-export const runtime = 'edge';
-
-// Simple in-memory storage for development
-// In production, this would be replaced with a database
-const rooms = new Map<string, { id: string; name: string; description: string }>();
+async function verifyJWT(token: string) {
+  try {
+    const secret = await getJwtSecret();
+    const { payload } = await jwtVerify(token, secret);
+    return payload;
+  } catch (error) {
+    console.error('[rooms] JWT verification failed:', error);
+    throw error;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // Get the JWT token from cookie
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
+    }
+
+    // Verify the token
+    const payload = await verifyJWT(token);
+    if (!payload?.sub) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
+    }
+
+    // Parse request body
     const body = await request.json();
-    
-    if (!body.id || !body.name) {
-      return NextResponse.json(
-        { error: 'Missing required fields: id, name' },
-        { status: 400 }
-      );
-    }
-    
     const { id, name, description = '' } = body;
-    
-    // Check if room already exists
-    if (rooms.has(id)) {
-      console.log(`[API] Room ${id} already exists`);
-      return NextResponse.json(
-        { success: true, message: 'Room already exists', roomId: id },
-        { status: 200 }
-      );
+
+    if (!id || !name) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    
-    // Store room
-    rooms.set(id, { id, name, description });
+
+    console.log(`[API] Creating room with ID ${id} for user ${payload.sub}`);
+
+    // Check if user exists, create if not
+    let user = await prisma.user.findUnique({
+      where: { id: payload.sub }
+    });
+
+    if (!user) {
+      console.log(`[API] Creating user ${payload.sub} before creating room`);
+      user = await prisma.user.create({
+        data: {
+          id: payload.sub,
+          email: payload.email as string,
+          name: payload.name as string,
+          image: payload.picture as string | undefined,
+        }
+      });
+    }
+
+    // Check if room already exists
+    const existingRoom = await prisma.planningRoom.findUnique({
+      where: { id },
+      include: { members: true }
+    });
+
+    if (existingRoom) {
+      console.log(`[API] Room ${id} already exists`);
+      
+      // Check if user is a member
+      const isMember = existingRoom.members.some(member => member.userId === payload.sub);
+      if (!isMember) {
+        // Add user as a member
+        await prisma.planningRoom.update({
+          where: { id },
+          data: {
+            members: {
+              create: {
+                userId: payload.sub,
+                role: 'member'
+              }
+            }
+          }
+        });
+      }
+      
+      return NextResponse.json(existingRoom, { status: 200 });
+    }
+
+    // Create room and add creator as owner and member
+    const room = await prisma.planningRoom.create({
+      data: {
+        id,
+        name,
+        description,
+        ownerId: user.id,
+        members: {
+          create: {
+            userId: user.id,
+            role: 'owner'
+          }
+        }
+      }
+    });
+
     console.log(`[API] Created room ${id}`);
-    
-    return NextResponse.json(
-      { success: true, id },
-      { status: 201 }
-    );
-    
+    return NextResponse.json(room, { status: 201 });
   } catch (error) {
     console.error('[API] Error in rooms POST endpoint:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Internal Server Error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

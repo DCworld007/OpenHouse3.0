@@ -11,17 +11,6 @@ function generateInviteToken() {
   return `inv_${nanoid(32)}`;
 }
 
-async function verifyJWT(token: string) {
-  try {
-    const secret = await getJwtSecret();
-    const { payload } = await jwtVerify(token, secret);
-    return payload;
-  } catch (error) {
-    console.error('[invite] JWT verification failed:', error);
-    throw error;
-  }
-}
-
 export async function POST(
   request: NextRequest,
   { params }: { params: { groupId: string } }
@@ -43,18 +32,24 @@ export async function POST(
     }
 
     // Verify the token
-    const payload = await verifyJWT(token);
+    const secret = await getJwtSecret();
+    const { payload } = await jwtVerify(token, secret);
     if (!payload?.sub) {
       console.error('[Invite API] Invalid token payload:', payload);
       return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
     }
 
-    console.log('[Invite API] User authenticated:', payload.sub);
+    const userId = payload.sub;
+    console.log('[Invite API] User authenticated:', userId);
 
-    // Check if user is a member of the room
+    // Check if room exists and user is a member
     const room = await prisma.planningRoom.findUnique({
       where: { id: groupId },
-      include: { members: true }
+      include: {
+        members: {
+          where: { userId: userId }
+        }
+      }
     });
 
     if (!room) {
@@ -62,12 +57,8 @@ export async function POST(
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    console.log('[Invite API] Room found:', room.id);
-    console.log('[Invite API] Room members:', room.members);
-
-    const isMember = room.members.some(member => member.userId === payload.sub);
-    if (!isMember) {
-      console.error(`[Invite API] User ${payload.sub} is not a member of room ${groupId}`);
+    if (room.members.length === 0) {
+      console.error(`[Invite API] User ${userId} is not a member of room ${groupId}`);
       return NextResponse.json({ error: 'Not authorized to create invites' }, { status: 403 });
     }
 
@@ -76,12 +67,12 @@ export async function POST(
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
 
-    // Create invite token record
+    // Create invite token
     const invite = await prisma.inviteToken.create({
       data: {
         token: inviteToken,
         planningRoomId: groupId,
-        generatedByUserId: payload.sub,
+        generatedByUserId: userId,
         expiresAt,
         maxUses: 10,
         usesCount: 0,
@@ -91,7 +82,7 @@ export async function POST(
 
     console.log(`[Invite API] Created invite token ${inviteToken} for room ${groupId}`);
 
-    // Generate invite URL using environment variables
+    // Generate invite URL
     const baseUrl = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}`
       : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
