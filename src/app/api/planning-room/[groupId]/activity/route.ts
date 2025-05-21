@@ -27,8 +27,8 @@ export async function GET(
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
     }
 
-    // Get the JWT token from cookie
-    const token = request.cookies.get('token')?.value;
+    // Get the JWT token from cookie - try both token names
+    const token = request.cookies.get('token')?.value || request.cookies.get('auth_token')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
     }
@@ -82,8 +82,8 @@ export async function POST(
       return NextResponse.json({ error: 'Missing groupId' }, { status: 400 });
     }
 
-    // Get the JWT token from cookie
-    const token = request.cookies.get('token')?.value;
+    // Get the JWT token from cookie - try both token names
+    const token = request.cookies.get('token')?.value || request.cookies.get('auth_token')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
     }

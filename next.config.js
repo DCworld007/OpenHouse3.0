@@ -30,4 +30,15 @@ module.exports = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Configure API routes to use Node.js runtime
+  experimental: {
+    serverComponentsExternalPackages: ['@prisma/client'],
+  },
+  // Ensure Prisma works in production
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [...config.externals, '@prisma/client'];
+    }
+    return config;
+  },
 } 
