@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { signToken } from '@/utils/jwt';
-import { jwtVerify } from 'jose';
+import { verifyToken, signToken } from '@/utils/jwt';
+import { getAuthDomain } from '@/utils/auth-config';
 
 export const runtime = 'edge';
 
@@ -10,78 +10,53 @@ export const runtime = 'edge';
  */
 export async function POST(request: NextRequest) {
   try {
-    // Parse the request body
-    const body = await request.json();
-    const { credential } = body;
-
+    const { credential } = await request.json();
     if (!credential) {
-      return NextResponse.json(
-        { error: 'Missing Google credential' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing credential' }, { status: 400 });
     }
 
     try {
-      // In production, you would verify this token with Google's API
-      // For now, we'll decode it and trust it in development mode
-      
-      // Split the JWT and decode the payload
-      const parts = credential.split('.');
-      if (parts.length !== 3) {
-        throw new Error('Invalid token format');
+      // Verify Google token
+      const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+      if (!googleResponse.ok) {
+        return NextResponse.json({ error: 'Invalid credential' }, { status: 401 });
       }
-      
-      // Base64 decode the payload
-      const payload = JSON.parse(
-        Buffer.from(parts[1], 'base64').toString('utf8')
-      );
-      
-      console.log('[API] Google credential payload:', payload);
-      
-      // Extract user information
-      const user = {
-        sub: payload.sub,
-        email: payload.email,
-        name: payload.name,
-        picture: payload.picture
-      };
-      
-      // Generate our own JWT token
-      const secret = process.env.JWT_SECRET || '';
-      if (!secret) {
-        throw new Error('JWT_SECRET not configured');
-      }
-      
-      const token = await signToken(user);
-      
-      // Set cookies
-      const response = NextResponse.json(
-        { 
-          success: true, 
-          user
-        },
-        { status: 200 }
-      );
-      
-      // Set cookies with a 7-day expiration
-      const expirationDate = new Date();
-      expirationDate.setDate(expirationDate.getDate() + 7);
 
-      // Determine if we're in production
+      const data = await googleResponse.json();
+      if (!data.email_verified) {
+        return NextResponse.json({ error: 'Email not verified' }, { status: 401 });
+      }
+
+      // Create JWT token
+      const token = await signToken({
+        sub: data.sub,
+        email: data.email,
+        name: data.name,
+        picture: data.picture
+      });
+
+      // Get domain for cookies
+      const authDomain = getAuthDomain().replace(/^https?:\/\//, '');
       const isProduction = process.env.NODE_ENV === 'production';
+      const expirationDate = new Date();
+      expirationDate.setDate(expirationDate.getDate() + 7); // 7 days
+
+      // Create response with both cookies
+      const nextResponse = NextResponse.json({ ok: true });
       
       // Set both token cookies with secure settings
       ['token', 'auth_token'].forEach(name => {
-        response.cookies.set(name, token, {
+        nextResponse.cookies.set(name, token, {
           expires: expirationDate,
           path: '/',
+          domain: authDomain,
           httpOnly: true,
           secure: isProduction,
           sameSite: isProduction ? 'strict' : 'lax'
         });
       });
       
-      return response;
+      return nextResponse;
     } catch (error) {
       console.error('[API] Error verifying Google credential:', error);
       return NextResponse.json(
