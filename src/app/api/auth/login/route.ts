@@ -66,25 +66,19 @@ export async function POST(request: NextRequest) {
       // Set cookies with a 7-day expiration
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + 7);
+
+      // Determine if we're in production
+      const isProduction = process.env.NODE_ENV === 'production';
       
-      // Set the token cookie
-      response.cookies.set({
-        name: 'token',
-        value: token,
-        expires: expirationDate,
-        path: '/',
-        httpOnly: false, // Set to true in production
-        sameSite: 'lax'
-      });
-      
-      // Set an alternate token cookie for compatibility
-      response.cookies.set({
-        name: 'auth_token',
-        value: token,
-        expires: expirationDate,
-        path: '/',
-        httpOnly: false, // Set to true in production
-        sameSite: 'lax'
+      // Set both token cookies with secure settings
+      ['token', 'auth_token'].forEach(name => {
+        response.cookies.set(name, token, {
+          expires: expirationDate,
+          path: '/',
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? 'strict' : 'lax'
+        });
       });
       
       return response;
