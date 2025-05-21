@@ -4,19 +4,10 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/utils/jwt';
+import { getAuthDomain } from '@/utils/auth-config';
 
 function getBaseUrl() {
-  if (typeof window === 'undefined') return '';
-  
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
-  
-  return window.location.origin;
+  return getAuthDomain();
 }
 
 async function checkAuth() {
@@ -54,7 +45,8 @@ async function getInviteDetails(token: string) {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch invite details');
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to fetch invite details');
     }
 
     return await response.json();
@@ -77,7 +69,8 @@ async function joinRoom(token: string) {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to join room');
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to join room');
     }
 
     return await response.json();
@@ -110,24 +103,25 @@ export default function InvitePage() {
         // Check authentication
         const user = await checkAuth();
         if (!user) {
-          const returnUrl = `/invite?token=${token}`;
-          router.push(`/auth/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+          const returnTo = `/invite?token=${token}`;
+          router.push(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
           return;
         }
 
         // If user is authenticated, try to join the room
         const joinResult = await joinRoom(token);
         
-        if (!joinResult || !joinResult.roomId) {
+        if (!joinResult || !joinResult.room?.id) {
           throw new Error('Failed to join room');
         }
 
         // Redirect to the planning room
-        router.push(`/planning-room/${joinResult.roomId}`);
+        router.push(`/planning-room/${joinResult.room.id}`);
       } catch (error) {
         console.error('Invite error:', error);
-        // Handle invalid or expired invites
-        router.push(`/?error=${encodeURIComponent('Invalid or expired invite link')}`);
+        // Preserve the error message from the API
+        const errorMessage = error instanceof Error ? error.message : 'Invalid or expired invite link';
+        router.push(`/?error=${encodeURIComponent(errorMessage)}`);
       }
     }
 
