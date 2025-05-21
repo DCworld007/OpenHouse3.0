@@ -40,23 +40,34 @@ export async function POST(request: NextRequest) {
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + 7); // 7 days
 
-      // Get the current domain
-      const domain = request.headers.get('host')?.split(':')[0] || '';
-      const isLocalhost = domain === 'localhost';
+      // Get the current hostname
+      const hostname = request.headers.get('host') || '';
+      const isLocalhost = hostname === 'localhost' || hostname.startsWith('localhost:');
+      const isVercelPreview = hostname.includes('vercel.app');
       
       // Create response with both cookies
       const nextResponse = NextResponse.json({ ok: true });
       
       // Common cookie options
-      const cookieOptions = {
+      const cookieOptions: {
+        expires: Date;
+        path: string;
+        httpOnly: boolean;
+        secure: boolean;
+        sameSite: 'lax';
+        domain?: string;
+      } = {
         expires: expirationDate,
         path: '/',
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax' as const,
-        // Only set domain for non-localhost
-        ...(isLocalhost ? {} : { domain })
+        sameSite: 'lax',
       };
+
+      // Only set domain for production (unifyplan.vercel.app)
+      if (isProduction && !isLocalhost && !isVercelPreview) {
+        cookieOptions.domain = 'unifyplan.vercel.app';
+      }
       
       // Set both token cookies with secure settings
       ['token', 'auth_token'].forEach(name => {

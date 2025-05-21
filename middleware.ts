@@ -19,7 +19,7 @@ export const config = {
 };
 
 // Add auth test page to public paths
-const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup', '/auth/test-token', '/api/auth/login', '/api/auth/logout', '/api/auth/me'];
+const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup', '/auth/test-token', '/api/auth/login', '/api/auth/logout', '/api/auth/me', '/invite'];
 
 async function verifyJWT(token: string) {
   try {
