@@ -51,7 +51,9 @@ async function getInviteDetails(token: string) {
       throw new Error(error.error || 'Failed to fetch invite details');
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log('[Invite] Got invite details:', data);
+    return data;
   } catch (error) {
     console.error('Error fetching invite details:', error);
     throw error;
@@ -77,7 +79,9 @@ async function joinRoom(token: string) {
       throw new Error(error.error || 'Failed to join room');
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log('[Invite] Join room response:', data);
+    return data;
   } catch (error) {
     console.error('Error joining room:', error);
     throw error;
@@ -117,6 +121,7 @@ export default function InvitePage() {
 
         // Get invite details to validate the token
         const inviteDetails = await getInviteDetails(token);
+        console.log('[Invite] Processing invite for room:', inviteDetails.roomId);
         
         if (!inviteDetails || !inviteDetails.roomId) {
           throw new Error('Invalid invite details');
@@ -124,13 +129,17 @@ export default function InvitePage() {
 
         // If user is authenticated and invite is valid, try to join the room
         const joinResult = await joinRoom(token);
+        console.log('[Invite] Successfully joined room:', joinResult);
         
         if (!joinResult || !joinResult.room?.id) {
-          throw new Error('Failed to join room');
+          console.error('[Invite] Invalid join result:', joinResult);
+          throw new Error('Failed to join room - missing room ID in response');
         }
 
         // Redirect to the planning room
-        router.push(`/planning-room/${joinResult.room.id}`);
+        const roomUrl = `/planning-room/${joinResult.room.id}`;
+        console.log('[Invite] Redirecting to room:', roomUrl);
+        router.push(roomUrl);
       } catch (error) {
         console.error('Invite error:', error);
         // Preserve the error message from the API

@@ -108,10 +108,12 @@ export async function POST(
       const [updatedRoom] = result;
 
       return NextResponse.json({
-        success: true,
-        roomId: updatedRoom.id,
-        roomName: updatedRoom.name,
-        role: updatedRoom.members[0]?.role || 'MEMBER'
+        room: {
+          id: updatedRoom.id,
+          name: updatedRoom.name,
+          description: updatedRoom.description || '',
+          role: updatedRoom.members[0]?.role || 'MEMBER'
+        }
       });
     } catch (transactionError) {
       console.error('[Join API] Transaction error:', transactionError);
