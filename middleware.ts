@@ -59,7 +59,7 @@ export default async function middleware(request: NextRequest) {
 
   if (!token) {
     const url = new URL('/auth/login', request.url);
-    url.searchParams.set('callbackUrl', encodeURI(request.url));
+    url.searchParams.set('returnTo', encodeURI(request.url));
     return NextResponse.redirect(url);
   }
 
@@ -67,14 +67,14 @@ export default async function middleware(request: NextRequest) {
     const user = await verifyJWT(token);
     if (!user) {
       const url = new URL('/auth/login', request.url);
-      url.searchParams.set('callbackUrl', encodeURI(request.url));
+      url.searchParams.set('returnTo', encodeURI(request.url));
       return NextResponse.redirect(url);
     }
 
     return response;
   } catch (error) {
     const url = new URL('/auth/login', request.url);
-    url.searchParams.set('callbackUrl', encodeURI(request.url));
+    url.searchParams.set('returnTo', encodeURI(request.url));
     return NextResponse.redirect(url);
   }
 } 
