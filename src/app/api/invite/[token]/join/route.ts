@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { prisma } from '@/lib/prisma';
 import { getJwtSecret } from '@/utils/jwt';
+import { Prisma } from '@prisma/client';
 
 export const runtime = 'nodejs';
 
@@ -31,101 +32,101 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
     }
 
-    // Verify authentication
     const user = await verifyAuth(request);
-    if (!user) {
+    if (!user || !user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Find and validate the invite token with room details
-    const inviteToken = await prisma.inviteToken.findUnique({
+    const inviteTokenData = await prisma.inviteToken.findUnique({
       where: { token },
       include: {
         planningRoom: {
-          include: {
-            members: {
-              where: { userId: user.id }
-            }
-          }
+          select: { id: true, name: true, description: true }
         }
       }
     });
 
-    if (!inviteToken) {
+    if (!inviteTokenData) {
       return NextResponse.json({ error: 'Invalid invite link' }, { status: 404 });
     }
-
-    // Check if token is active
-    if (!inviteToken.isActive) {
+    if (!inviteTokenData.isActive) {
       return NextResponse.json({ error: 'This invite link is no longer active' }, { status: 400 });
     }
-
-    // Check if token has expired
-    const expiresAt = inviteToken.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = inviteTokenData.expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     if (new Date() > expiresAt) {
       return NextResponse.json({ error: 'This invite link has expired' }, { status: 400 });
     }
-
-    // Check if max uses reached
-    const maxUses = inviteToken.maxUses || 10;
-    if (inviteToken.usesCount >= maxUses) {
-      return NextResponse.json({ error: 'This invite link has reached its maximum uses' }, { status: 400 });
+    
+    const maxUses = inviteTokenData.maxUses || 10;
+    if (inviteTokenData.usesCount >= maxUses) {
+      const roomForMaxUsesCheck = await prisma.planningRoom.findUnique({
+        where: { id: inviteTokenData.planningRoomId },
+        select: { members: { where: { userId: user.id }, select: { userId: true } } }
+      });
+      const isAlreadyMember = roomForMaxUsesCheck && roomForMaxUsesCheck.members.length > 0;
+      if (!isAlreadyMember) {
+        return NextResponse.json({ error: 'This invite link has reached its maximum uses for new members.' }, { status: 400 });
+      }
     }
 
-    // Check if user is already a member
-    if (inviteToken.planningRoom.members.length > 0) {
-      return NextResponse.json({ error: 'You are already a member of this room' }, { status: 400 });
+    let isMember = false;
+    let memberRole = 'MEMBER';
+
+    const roomWithSpecificMember = await prisma.planningRoom.findUnique({
+      where: { id: inviteTokenData.planningRoomId },
+      select: {
+        members: {
+          where: { userId: user.id },
+          select: { role: true }
+        }
+      }
+    });
+
+    if (roomWithSpecificMember && roomWithSpecificMember.members.length > 0) {
+      isMember = true;
+      memberRole = roomWithSpecificMember.members[0]?.role || 'MEMBER';
     }
 
-    try {
-      // Add user as member and increment uses count in a transaction
-      const result = await prisma.$transaction([
-        prisma.planningRoom.update({
-          where: { id: inviteToken.planningRoomId },
+    let joinedNew = false;
+    if (!isMember) {
+      await prisma.$transaction(async (tx) => {
+        await tx.planningRoom.update({
+          where: { id: inviteTokenData.planningRoomId },
           data: {
             members: {
               create: {
                 userId: user.id,
-                role: 'MEMBER'
+                role: 'MEMBER',
               }
             }
-          },
-          include: {
-            members: {
-              where: { userId: user.id },
-              select: { role: true }
-            }
           }
-        }),
-        prisma.inviteToken.update({
-          where: { token },
-          data: {
-            usesCount: { increment: 1 }
-          }
-        })
-      ]);
-
-      const [updatedRoom] = result;
-
-      return NextResponse.json({
-        room: {
-          id: updatedRoom.id,
-          name: updatedRoom.name,
-          description: updatedRoom.description || '',
-          role: updatedRoom.members[0]?.role || 'MEMBER'
-        }
+        });
+        await tx.inviteToken.update({
+          where: { token: token },
+          data: { usesCount: { increment: 1 } },
+        });
       });
-    } catch (transactionError) {
-      console.error('[Join API] Transaction error:', transactionError);
-      return NextResponse.json(
-        { error: 'Failed to join room. Please try again.' },
-        { status: 500 }
-      );
+      joinedNew = true;
+      memberRole = 'MEMBER';
     }
+
+    return NextResponse.json({
+      room: {
+        id: inviteTokenData.planningRoom.id,
+        name: inviteTokenData.planningRoom.name,
+        description: inviteTokenData.planningRoom.description || '',
+        role: memberRole,
+        joinedNow: joinedNew
+      }
+    });
+
   } catch (error) {
     console.error('[Join API] Error:', error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error('[Join API] Prisma Error Code:', error.code, error.message);
+    }
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error. Please try again.' },
       { status: 500 }
     );
   }

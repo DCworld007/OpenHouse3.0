@@ -72,15 +72,6 @@ export async function GET(
       return NextResponse.json({ error: 'This invite link has reached its maximum uses' }, { status: 400 });
     }
 
-    // Check if the user is already a member
-    const user = await verifyAuth(request);
-    if (user) {
-      const isMember = inviteToken.planningRoom.members.some(member => member.userId === user.id);
-      if (isMember) {
-        return NextResponse.json({ error: 'You are already a member of this room' }, { status: 400 });
-      }
-    }
-
     return NextResponse.json({
       roomId: inviteToken.planningRoomId,
       roomName: inviteToken.planningRoom.name,
