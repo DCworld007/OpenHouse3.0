@@ -3,34 +3,29 @@ const LOCAL_DOMAIN = 'http://localhost:3000';
 
 export function getAuthDomain(): string {
   if (typeof window === 'undefined') {
+    // Server-side: Default to MAIN_DOMAIN, but could be made more flexible with env vars if needed
     return MAIN_DOMAIN;
   }
-
-  // For local development
-  if (window.location.hostname === 'localhost') {
-    return LOCAL_DOMAIN;
-  }
-
-  // For production
-  if (window.location.hostname === 'unifyplan.vercel.app') {
-    return MAIN_DOMAIN;
-  }
-
-  // For preview deployments, use the main domain for auth
-  return MAIN_DOMAIN;
+  // Client-side: Always use the current origin. This ensures preview deployments use their own domain.
+  return window.location.origin;
 }
 
 export function shouldRedirectToMainAuth(): boolean {
   if (typeof window === 'undefined') return false;
 
-  // Don't redirect if we're already on the main domain
-  if (window.location.origin === MAIN_DOMAIN) return false;
+  const hostname = window.location.hostname;
+  // Don't redirect if we're already on the main production domain
+  if (hostname === 'unifyplan.vercel.app') return false;
 
   // Don't redirect for local development
-  if (window.location.hostname === 'localhost') return false;
+  if (hostname === 'localhost' || hostname.startsWith('localhost:')) return false;
 
-  // Redirect for all other cases (preview deployments, etc.)
-  return true;
+  // Don't redirect for Vercel preview deployments (they use *.vercel.app but are not the main production domain)
+  if (hostname.endsWith('.vercel.app')) return false;
+  
+  // For any other custom domains or scenarios where you might want to centralize auth,
+  // you could return true, but for now, default to false to keep auth on the current domain.
+  return false;
 }
 
 export function getAuthRedirectUrl(): string {
