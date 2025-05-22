@@ -4,6 +4,20 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getAuthDomain, shouldRedirectToMainAuth } from '@/utils/auth-config';
 
+// Helper function to set or update a meta tag
+function setMetaTag(property: string, content: string, type: 'name' | 'property' = 'property') {
+  if (typeof window === 'undefined') return;
+  let element = document.querySelector(`meta[${type}='${property}']`) as HTMLMetaElement | null;
+  if (element) {
+    element.setAttribute('content', content);
+  } else {
+    element = document.createElement('meta');
+    element.setAttribute(type, property);
+    element.setAttribute('content', content);
+    document.getElementsByTagName('head')[0].appendChild(element);
+  }
+}
+
 function getBaseUrl() {
   return getAuthDomain();
 }
@@ -96,6 +110,30 @@ export default function InvitePage() {
   const token = searchParams?.get('token') || null;
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [roomNameForMeta, setRoomNameForMeta] = useState<string | null>(null);
+
+  // Effect to set default meta tags on initial load and when roomNameForMeta changes
+  useEffect(() => {
+    const defaultTitle = 'UnifyPlan Invite';
+    const defaultDescription = 'You have been invited to join a collaborative planning room on UnifyPlan.';
+    const title = roomNameForMeta ? `🗂️ ${roomNameForMeta} – Collaborative Plan` : defaultTitle;
+    const description = roomNameForMeta 
+      ? `Join this planning room (${roomNameForMeta}) to review ideas, vote on options, and chat live with your group.`
+      : defaultDescription;
+
+    document.title = title; // Also set the page title
+    setMetaTag('og:title', title);
+    setMetaTag('og:description', description);
+    setMetaTag('description', description, 'name');
+    // You can add more tags like og:image, og:url, twitter:card, etc.
+    // For og:url, you might want to use the current window.location.href
+    if (typeof window !== 'undefined') {
+        setMetaTag('og:url', window.location.href);
+    }
+    // Example for a static image (replace with your actual image URL)
+    // setMetaTag('og:image', 'https://yourdomain.com/path-to-your-logo-or-preview-image.png');
+
+  }, [roomNameForMeta]);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -107,6 +145,16 @@ export default function InvitePage() {
       }
 
       try {
+        // Try to get invite details for meta tags
+        try {
+          const preliminaryInviteDetails = await getInviteDetails(token);
+          if (preliminaryInviteDetails && preliminaryInviteDetails.roomName && isSubscribed) {
+            setRoomNameForMeta(preliminaryInviteDetails.roomName);
+          }
+        } catch (e) {
+          console.warn('[InvitePage] Failed to get preliminary invite details for meta tags:', e);
+        }
+
         // Check if we need to redirect to main domain for auth
         if (shouldRedirectToMainAuth()) {
           const currentUrl = `/invite?token=${token}`;
@@ -120,37 +168,40 @@ export default function InvitePage() {
         // Check authentication first
         const user = await checkAuth();
         if (!user) {
-          // Store the token in sessionStorage to prevent potential redirect loops
           sessionStorage.setItem('pendingInviteToken', token);
           const returnTo = `/invite?token=${token}`;
           router.push(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
           return;
         }
 
-        // Clear any stored pending invite token
+        // Clear the pending token since we're now processing it
         sessionStorage.removeItem('pendingInviteToken');
 
-        // Get invite details to validate the token
+        // Get invite details after authentication
         const inviteDetails = await getInviteDetails(token);
-        console.log('[Invite] Processing invite for room:', inviteDetails.roomId);
+        if (isSubscribed && inviteDetails.roomName && !roomNameForMeta) {
+          setRoomNameForMeta(inviteDetails.roomName);
+        }
         
         if (!inviteDetails || !inviteDetails.roomId) {
           throw new Error('Invalid invite details');
         }
 
-        // If user is authenticated and invite is valid, try to join the room
         const joinResult = await joinRoom(token);
-        console.log('[Invite] Successfully joined room:', joinResult);
-        
         if (!joinResult || !joinResult.room?.id) {
           console.error('[Invite] Invalid join result:', joinResult);
           throw new Error('Failed to join room - missing room ID in response');
         }
 
-        // Redirect to the planning room
         if (isSubscribed) {
           const roomUrl = `/planning-room/${joinResult.room.id}`;
           console.log('[Invite] Redirecting to room:', roomUrl);
+          
+          // Add a message if user was already a member
+          if (joinResult.room.alreadyMember) {
+            console.log('[Invite] User was already a member of this room');
+          }
+          
           router.push(roomUrl);
         }
       } catch (error) {
@@ -167,7 +218,7 @@ export default function InvitePage() {
     return () => {
       isSubscribed = false;
     };
-  }, [token, router]);
+  }, [token, router, roomNameForMeta]);
 
   if (error) {
     return (
@@ -193,7 +244,6 @@ export default function InvitePage() {
     );
   }
 
-  // Show loading state while processing
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white p-8 rounded-lg shadow-md">

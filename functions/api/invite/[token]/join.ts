@@ -59,7 +59,15 @@ export const onRequestPost = async (context: { request: Request, env: any, param
     }
 
     if (invite.maxUses !== null && invite.usesCount >= invite.maxUses) {
-      return new Response(JSON.stringify({ error: 'Invite token has reached maximum uses' }), { status: 400 });
+      // Check if user is already a member before enforcing max uses
+      const existingMember = await db.prepare(`
+        SELECT 1 FROM PlanningRoomMember 
+        WHERE roomId = ? AND userId = ?
+      `).bind(invite.planningRoomId, userId).first();
+
+      if (!existingMember) {
+        return new Response(JSON.stringify({ error: 'Invite token has reached maximum uses' }), { status: 400 });
+      }
     }
 
     // Check if user is already a member
@@ -68,24 +76,22 @@ export const onRequestPost = async (context: { request: Request, env: any, param
       WHERE roomId = ? AND userId = ?
     `).bind(invite.planningRoomId, userId).first();
 
-    if (existingMember) {
-      return new Response(JSON.stringify({ error: 'Already a member of this room' }), { status: 400 });
+    // If not a member, add them
+    if (!existingMember) {
+      await db.prepare(`
+        INSERT INTO PlanningRoomMember (roomId, userId, role, joinedAt)
+        VALUES (?, ?, 'member', ?)
+      `).bind(invite.planningRoomId, userId, new Date().toISOString()).run();
+
+      // Increment uses count only for new members
+      await db.prepare(`
+        UPDATE InviteTokens 
+        SET usesCount = usesCount + 1
+        WHERE id = ?
+      `).bind(invite.id).run();
     }
 
-    // Add user as member
-    await db.prepare(`
-      INSERT INTO PlanningRoomMember (roomId, userId, role, joinedAt)
-      VALUES (?, ?, 'member', ?)
-    `).bind(invite.planningRoomId, userId, new Date().toISOString()).run();
-
-    // Increment uses count
-    await db.prepare(`
-      UPDATE InviteTokens 
-      SET usesCount = usesCount + 1
-      WHERE id = ?
-    `).bind(invite.id).run();
-
-    // Get room details
+    // Get room details - return these regardless of whether user was already a member
     const room = await db.prepare(`
       SELECT id, name, description, ownerId, createdAt, updatedAt
       FROM PlanningRoom
@@ -99,7 +105,8 @@ export const onRequestPost = async (context: { request: Request, env: any, param
         description: room.description || '',
         ownerId: room.ownerId || '',
         createdAt: room.createdAt || new Date().toISOString(),
-        updatedAt: room.updatedAt || new Date().toISOString()
+        updatedAt: room.updatedAt || new Date().toISOString(),
+        alreadyMember: !!existingMember
       }
     }));
   } catch (e: any) {
