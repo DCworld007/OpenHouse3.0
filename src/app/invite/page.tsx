@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { jwtVerify } from 'jose';
-import { getJwtSecret } from '@/utils/jwt';
 import { getAuthDomain, shouldRedirectToMainAuth } from '@/utils/auth-config';
 
 function getBaseUrl() {
@@ -12,22 +10,26 @@ function getBaseUrl() {
 
 async function checkAuth() {
   try {
-    // Get token from cookies
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('token=') || row.startsWith('auth_token='))
-      ?.split('=')[1];
-    
-    if (!token) {
+    const response = await fetch('/api/me', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      console.warn('[InvitePage] /api/me checkAuth call not OK:', response.status);
       return null;
     }
 
-    const secret = await getJwtSecret();
-    const { payload } = await jwtVerify(token, secret);
-    
-    return payload?.sub ? { id: payload.sub } : null;
+    const data = await response.json();
+    if (data.authenticated && data.user?.id) {
+      return { id: data.user.id };
+    }
+    return null;
   } catch (error) {
-    console.error('Error checking auth:', error);
+    console.error('[InvitePage] Error in checkAuth via /api/me:', error);
     return null;
   }
 }
