@@ -147,9 +147,15 @@ export default function PlansPage() {
   const [actionHistory, setActionHistory] = useState<{ [groupId: string]: Action[] }>({});
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = React.useState<Error | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { user } = useUser();
-  const userId = user?.id || '';
+  // Get user data from useUser hook
+  const { user: meApiResponse } = useUser(); 
+  const isUserLoading = meApiResponse === null; // Considered loading if meApiResponse is null
+  const actualUser = meApiResponse?.user;      // The actual user object nested in the response
+  const isAuthenticated = meApiResponse?.authenticated; // Authentication status
+
+  const userId = actualUser?.id || ''; // Use actualUser here
 
   // Always call the hook in the same order to avoid React hook order errors
   const firstGroupId = groups.length > 0 ? groups[0].id : '';
@@ -175,83 +181,95 @@ export default function PlansPage() {
 
   // On mount, load groups from storage or create a default group with a unique ID
   useEffect(() => {
-    try {
-      const savedGroups = getGroups();
-      const migratedGroups = savedGroups.map(group => ({
-        ...group,
-        cards: group.cards.map((card: Card & { cardType?: string }) => ({
-          ...card,
-          type: card.type || card.cardType || 'what',
-        })),
-      }));
-      if (migratedGroups.length > 0) {
-        setGroups(migratedGroups);
-        // Ensure user exists before syncing groups
-        fetch('/api/auth/user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        }).then(async (res) => {
-          if (res.ok) {
-            console.log('[PlansPage] User created/verified');
-            // Now sync groups
-            syncLocalGroupsToD1(migratedGroups);
+    async function loadInitialGroups() {
+      setIsLoading(true); // This is for the page's content loading
+      try {
+        // Use isAuthenticated to check if user session is valid
+        if (isAuthenticated && actualUser && actualUser.id) { 
+          console.log('[PlansPage] User authenticated, fetching groups from server...');
+          const response = await fetch('/api/me/groups', { credentials: 'include' });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.groups && data.groups.length > 0) {
+              console.log('[PlansPage] Groups fetched from server:', data.groups);
+              setGroups(data.groups);
+              saveGroups(data.groups);
+            } else {
+              console.log('[PlansPage] No groups found on server, initializing default group.');
+              const defaultGroup: Group = {
+                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+                name: 'To Be Scheduled',
+                cards: [],
+              };
+              setGroups([defaultGroup]);
+              saveGroups([defaultGroup]);
+              await ensureGroupExistsInD1(defaultGroup, actualUser.id); // Pass actualUser.id
+            }
           } else {
-            console.error('[PlansPage] Failed to create/verify user:', await res.text());
+            console.error('[PlansPage] Failed to fetch groups from server, falling back to localStorage. Status:', response.status);
+            const savedGroups = getGroups();
+            const migratedGroups = savedGroups.map(group => ({
+              ...group,
+              cards: group.cards.map((card: Card & { cardType?: string }) => ({
+                ...card,
+                type: card.type || card.cardType || 'what',
+              })),
+            }));
+            if (migratedGroups.length > 0) {
+              setGroups(migratedGroups);
+            } else {
+              const defaultGroup: Group = {
+                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+                name: 'To Be Scheduled',
+                cards: [],
+              };
+              setGroups([defaultGroup]);
+              saveGroups([defaultGroup]);
+            }
           }
-        }).catch(error => {
-          console.error('[PlansPage] Error creating/verifying user:', error);
-        });
-      } else {
+        } else if (!isUserLoading) { // User is not authenticated (and user loading is complete)
+          console.log('[PlansPage] User not authenticated, loading from localStorage.');
+          const savedGroups = getGroups();
+          const migratedGroups = savedGroups.map(group => ({
+            ...group,
+            cards: group.cards.map((card: Card & { cardType?: string }) => ({
+              ...card,
+              type: card.type || card.cardType || 'what',
+            })),
+          }));
+          if (migratedGroups.length > 0) {
+            setGroups(migratedGroups);
+          } else {
+            const defaultGroup: Group = {
+              id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+              name: 'To Be Scheduled',
+              cards: [],
+            };
+            setGroups([defaultGroup]);
+            saveGroups([defaultGroup]);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading initial groups:', error);
+        setError(error instanceof Error ? error : new Error('Failed to load groups'));
         const defaultGroup: Group = {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
           name: 'To Be Scheduled',
           cards: [],
         };
         setGroups([defaultGroup]);
-        // Ensure user exists before syncing groups
-        fetch('/api/auth/user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        }).then(async (res) => {
-          if (res.ok) {
-            console.log('[PlansPage] User created/verified');
-            // Now sync groups
-            syncLocalGroupsToD1([defaultGroup]);
-          } else {
-            console.error('[PlansPage] Failed to create/verify user:', await res.text());
-          }
-        }).catch(error => {
-          console.error('[PlansPage] Error creating/verifying user:', error);
-        });
+        saveGroups([defaultGroup]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading groups:', error);
-      const defaultGroup: Group = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-        name: 'To Be Scheduled',
-        cards: [],
-      };
-      setGroups([defaultGroup]);
-      // Ensure user exists before syncing groups
-      fetch('/api/auth/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      }).then(async (res) => {
-        if (res.ok) {
-          console.log('[PlansPage] User created/verified');
-          // Now sync groups
-          syncLocalGroupsToD1([defaultGroup]);
-        } else {
-          console.error('[PlansPage] Failed to create/verify user:', await res.text());
-        }
-      }).catch(error => {
-        console.error('[PlansPage] Error creating/verifying user:', error);
-      });
     }
-  }, []);
+
+    if (!isUserLoading) { // Only run if user loading from useUser is complete
+        loadInitialGroups();
+    }
+    // IMPORTANT: Add all dependencies of loadInitialGroups if they are used inside it and come from component scope
+    // For now, main dependencies are actualUser (derived from meApiResponse) and isUserLoading.
+  }, [meApiResponse, isUserLoading]); // Re-run when meApiResponse changes (which implies user or isUserLoading change)
 
   // Re-sync groups from storage on window focus or tab visibility
   useEffect(() => {
@@ -443,7 +461,7 @@ export default function PlansPage() {
     setSelectedGroupId(newGroup.id);
     
     // Persist the new group to D1
-    ensureGroupExistsInD1(newGroup).catch(error => {
+    ensureGroupExistsInD1(newGroup, actualUser?.id).catch(error => {
       console.error('Failed to persist new group to D1:', error);
       toast.error('Group created locally but failed to sync to server');
     });
@@ -605,10 +623,11 @@ export default function PlansPage() {
   }, [groups]);
 
   // Helper function to ensure a group exists in D1 database
-  const ensureGroupExistsInD1 = async (group: Group) => {
-    // Skip if no userId (user not logged in)
-    if (!userId) {
-      console.warn('Cannot persist group to D1: No user ID');
+  const ensureGroupExistsInD1 = async (group: Group, currentUserId?: string) => {
+    const effectiveUserId = currentUserId || actualUser?.id; // Use actualUser here too
+    // Skip if no userId (user not logged in or not available yet)
+    if (!effectiveUserId) {
+      console.warn('Cannot persist group to D1: No user ID available yet.');
       return;
     }
     
@@ -619,7 +638,7 @@ export default function PlansPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: group.id, // Use the same ID as localStorage
+          id: group.id,
           name: group.name,
           description: 'description' in group ? (group as any).description || '' : '',
         }),
@@ -642,6 +661,19 @@ export default function PlansPage() {
 
   // Wrap the main logic in a try/catch to catch and log errors
   try {
+    if (isLoading || isUserLoading) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <p className="ml-4 text-gray-700 text-lg">Loading your plans...</p>
+        </div>
+      );
+    }
+
+    if (error && !(error instanceof Error && error.message.includes("Cannot read properties of undefined (reading 'id')"))) {
+      return <ErrorBoundary error={error} />;
+    }
+
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Debug: Dump State Button (removed for production) */}
