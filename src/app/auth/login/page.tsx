@@ -51,16 +51,43 @@ export default function LoginPage() {
 
     // If already logged in, redirect to callbackUrl or /plans
     if (typeof window !== 'undefined') {
-      fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' })
-        .then(res => {
-          if (res.ok) {
-            const callbackUrl = getLoginCallbackUrl();
-            window.location.href = callbackUrl;
+      const checkAuthAndRedirect = async () => {
+        try {
+          const meRes = await fetch(`${getBaseUrl()}/api/me`, { 
+            credentials: 'include',
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          
+          if (meRes.ok) {
+            const data = await meRes.json();
+            if (data.authenticated) {
+              console.log('[LoginPage] User already authenticated, getting callback URL');
+              const callbackUrl = getLoginCallbackUrl();
+              console.log('[LoginPage] Redirecting to:', callbackUrl);
+              
+              // Wait for auth to be fully established
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // Verify authentication one more time
+              const verifyRes = await fetch(`${getBaseUrl()}/api/me`, { 
+                credentials: 'include',
+                headers: { 'Cache-Control': 'no-cache' }
+              });
+              
+              if (verifyRes.ok) {
+                const verifyData = await verifyRes.json();
+                if (verifyData.authenticated) {
+                  window.location.href = callbackUrl;
+                }
+              }
+            }
           }
-        })
-        .catch(error => {
+        } catch (error) {
           console.error('[LoginPage] Error checking auth status:', error);
-        });
+        }
+      };
+
+      checkAuthAndRedirect();
     }
 
     // Load Google Identity Services script
@@ -143,14 +170,25 @@ export default function LoginPage() {
                     const userData = await userRes.json();
                     console.log('[LoginPage] User created/verified:', userData);
 
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Wait for auth to be established
+                    await new Promise(resolve => setTimeout(resolve, 1000));
 
-                    const meRes = await fetch(`${getBaseUrl()}/api/me`, { credentials: 'include' });
+                    // Verify authentication is established
+                    const meRes = await fetch(`${getBaseUrl()}/api/me`, { 
+                      credentials: 'include',
+                      headers: { 'Cache-Control': 'no-cache' }
+                    });
                     console.log('[LoginPage] /api/me response status:', meRes.status);
                     
                     if (meRes.ok) {
-                      const callbackUrl = getLoginCallbackUrl();
-                      window.location.href = callbackUrl;
+                      const meData = await meRes.json();
+                      if (meData.authenticated) {
+                        const callbackUrl = getLoginCallbackUrl();
+                        console.log('[LoginPage] Authentication verified, redirecting to:', callbackUrl);
+                        window.location.href = callbackUrl;
+                      } else {
+                        throw new Error('Authentication not established');
+                      }
                     } else {
                       setError('Login failed - could not verify authentication');
                     }
