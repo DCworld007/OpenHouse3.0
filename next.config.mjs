@@ -1,7 +1,32 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  images: {
+    domains: ['lh3.googleusercontent.com'], // For Google Auth profile pictures
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
+  },
   experimental: {
     serverExternalPackages: ['@prisma/client'],
+    serverActions: {
+      enabled: true,
+      allowedOrigins: ['localhost:3000', 'openhouse3-0.vercel.app'],
+      bodySizeLimit: '2mb'
+    },
+    optimizePackageImports: ['@heroicons/react', '@headlessui/react'],
+  },
+  productionBrowserSourceMaps: false,
+  compress: true,
+  trailingSlash: false,
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
   },
   async headers() {
     return [

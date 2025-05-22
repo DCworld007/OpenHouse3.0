@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/utils/jwt';
 import { prisma } from '@/lib/prisma'; // Assuming prisma client is exported from here
 
-export const runtime = 'edge'; // Or remove if not using edge runtime
-
 export async function GET(request: NextRequest) {
   try {
     const token = request.cookies.get('token')?.value;
