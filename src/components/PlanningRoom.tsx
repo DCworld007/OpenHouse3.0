@@ -957,29 +957,29 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                             lg.cards.map((card: any) => {
                               console.log(`Card in ${isCopied ? 'copied' : 'linked'} group:`, card);
                               return (
-                              <div key={card.id || Math.random().toString()} 
-                                className={`rounded border px-3 py-2 text-sm text-gray-900 ${
-                                  isCopied ? 'bg-white border-green-200' : 'bg-white border-indigo-200'
-                                }`}
-                              >
-                                <div className="font-medium">{card.content || '(No content)'}</div>
-                              {card.notes && <div className="text-xs text-gray-500 mt-1">{card.notes}</div>}
-                                <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
-                                  <span className={`px-1.5 py-0.5 rounded text-xs ${
-                                    card.cardType === 'where' 
-                                      ? 'bg-blue-50 text-blue-700' 
-                                      : 'bg-green-50 text-green-700'
-                                  }`}>
-                                    {card.cardType === 'where' ? 'Where' : 'What'}
-                                  </span>
-                                  {isCopied && (
-                                    <span className="text-xs text-gray-500">
-                                      Copied from original card
+                                <div key={card.id || Math.random().toString()} 
+                                  className={`rounded border px-3 py-2 text-sm text-gray-900 ${
+                                    isCopied ? 'bg-white border-green-200' : 'bg-white border-indigo-200'
+                                  }`}
+                                >
+                                  <div className="font-medium">{card.content || '(No content)'}</div>
+                                  {card.notes && <div className="text-xs text-gray-500 mt-1">{card.notes}</div>}
+                                  <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                                    <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                      card.cardType === 'where' 
+                                        ? 'bg-blue-50 text-blue-700' 
+                                        : 'bg-green-50 text-green-700'
+                                    }`}>
+                                      {card.cardType === 'where' ? 'Where' : 'What'}
                                     </span>
-                                  )}
-                            </div>
-                        </div>
-                            );
+                                    {isCopied && (
+                                      <span className="text-xs text-gray-500">
+                                        Copied from original card
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
                             })
                           ) : (
                             <div className="bg-gray-50 rounded border border-gray-200 px-3 py-2 text-sm text-gray-500">
@@ -990,7 +990,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                               >
                                 Open this group to add cards
                               </button>
-                      </div>
+                            </div>
                           )}
                         </div>
                       </div>
