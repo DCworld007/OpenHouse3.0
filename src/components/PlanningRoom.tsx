@@ -1,6 +1,7 @@
 import { useState, Fragment, useEffect, useRef } from 'react';
 import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
-import { EMOJI_REACTIONS, Message, Poll, PollOption, ChatMessage, ChatMessageInput } from '@/types/message';
+import { EMOJI_REACTIONS } from '@/types/message';
+import { ChatMessage, ChatMessageInput, MessageType, Poll, PollOption, Message } from '@/types/message-types';
 import { ListingGroup } from '@/types/listing';
 import { 
   ChatBubbleLeftRightIcon, 
@@ -14,7 +15,8 @@ import {
   LinkIcon,
   UserPlusIcon,
   ClipboardDocumentIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import Card from './Card';
@@ -27,8 +29,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { Listing } from '@/types/listing';
 import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
 import { useUser } from '@/lib/useUser';
-import { PlanningRoomYjsDoc } from '@/types/planning-room';
+import { PlanningRoomYjsDoc, PresentUser } from '@/types/planning-room';
 import { getGroups } from '@/lib/groupStorage';
+import * as Y from 'yjs';
 
 interface ExtendedMessage extends Message {
   sender: string;
@@ -66,9 +69,18 @@ interface CustomReactionActivity extends CustomActivity {
   reactionType: 'thumbsUp' | 'thumbsDown';
 }
 
+interface PlanningRoomSync extends PlanningRoomYjsDoc {
+  addCard: (card: Listing, afterCardId?: string) => void;
+  addChatMessage: (message: ChatMessageInput) => void;
+  addPoll: (poll: Poll) => void;
+  addActivity: (activity: Activity) => void;
+  reorderCards: (newOrder: string[]) => void;
+  ydoc: Y.Doc | null;
+}
+
 interface PlanningRoomProps {
   group: ListingGroup;
-  onGroupUpdate: (group: ListingGroup) => void;
+  onGroupUpdate: (updatedGroup: ListingGroup) => void;
 }
 
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
@@ -78,8 +90,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const currentUserEmail = user?.email;
   const currentUserAvatar = user?.picture || undefined;
 
-  const planningRoom = usePlanningRoomSync(group.id, currentUserId);
-  const messages: ChatMessage[] = planningRoom.chatMessages as ChatMessage[];
+  const planningRoomResult = usePlanningRoomSync(group.id, currentUserId, currentUserName, currentUserEmail, currentUserAvatar);
+  const planningRoom = planningRoomResult as unknown as PlanningRoomSync;
+  
+  const messages = planningRoom.chatMessages;
+  const presentUsers = planningRoom.presentUsers;
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -98,9 +113,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
   const cards = planningRoom.cardOrder
-    .map((cardId: string) => planningRoom.linkedCards.find((card: any) => card.id === cardId))
-    .filter((card: any): card is NonNullable<typeof card> => Boolean(card));
-  console.log('Rendering Yjs cards:', cards.map(c => c.id));
+    .map((cardId: string) => planningRoom.linkedCards.find((card: Listing) => card.id === cardId))
+    .filter((card: Listing | undefined): card is Listing => Boolean(card));
+  console.log('Rendering Yjs cards:', cards.map((c: Listing) => c.id));
 
   const chatRef = useRef<HTMLDivElement>(null);
   const [showJumpToUnread, setShowJumpToUnread] = useState(false);
@@ -166,50 +181,95 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     if (unreadElem) unreadElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleCreatePoll = (question: string, optionsTexts: string[]) => {
+  const handleCreatePoll = (question: string, optionTexts: string[]) => {
     const pollId = uuidv4();
+    const now = Date.now();
     const newPoll: Poll = {
       id: pollId,
+      timestamp: now,
+      userId: currentUserId,
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      userAvatar: currentUserAvatar,
       question,
-      options: optionsTexts.map((text, index) => ({ 
+      options: optionTexts.map((text, index) => ({
         id: `${pollId}-opt-${index}`,
         text,
-        votes: [] 
+        votes: []
       })),
-      createdBy: currentUserId,
-      userName: currentUserName,
-      userEmail: currentUserEmail,
-      userAvatar: currentUserAvatar,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
+      isActive: true
     };
+
     planningRoom.addPoll(newPoll);
-
-    const messageInput: ChatMessageInput = {
+    
+    addActivity('poll_created', {
       userId: currentUserId,
       userName: currentUserName,
       userEmail: currentUserEmail,
-      userAvatar: currentUserAvatar,
-      text: `Poll created: ${question}`,
-      type: 'poll',
-      pollId,
-    };
-    planningRoom.addChatMessage(messageInput);
-
-    planningRoom.addActivity({
-      id: uuidv4(),
-      type: 'poll_created',
-      userId: currentUserId,
-      context: { pollId, pollQuestion: question },
-      timestamp: Date.now(),
+      pollId: newPoll.id,
+      pollQuestion: question
     });
-
+    
+    // Clear form
     setPollQuestion('');
     setPollOptions([{ text: '' }, { text: '' }]);
     setShowPollCreator(false);
   };
 
+  const handleVote = (pollId: string, optionId: string) => {
+    const poll = planningRoom.polls.find(p => p.id === pollId);
+    if (!poll) return;
+
+    const option = poll.options.find(opt => opt.id === optionId);
+    if (!option) return;
+
+    const now = Date.now();
+    const updatedPoll: Poll = {
+      id: poll.id,
+      timestamp: now,
+      userId: poll.userId,
+      userName: poll.userName,
+      userEmail: poll.userEmail,
+      userAvatar: poll.userAvatar,
+      question: poll.question,
+      options: poll.options.map(opt => ({
+        ...opt,
+        votes: opt.id === optionId 
+          ? [...opt.votes, currentUserId]
+          : opt.votes.filter(uid => uid !== currentUserId)
+      })),
+      createdAt: poll.createdAt,
+      updatedAt: now,
+      isActive: poll.isActive
+    };
+
+    planningRoom.addPoll(updatedPoll);
+    
+    addActivity('vote_cast', {
+      userId: currentUserId,
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      pollId,
+      pollOptionId: optionId,
+      pollQuestion: poll.question,
+      optionText: option.text
+    });
+  };
+
+  const addActivity = (type: ActivityType, details: ActivityDetails) => {
+    const activity: Activity = {
+      id: uuidv4(),
+      type,
+      details,
+      timestamp: Date.now()
+    };
+    planningRoom.addActivity(activity);
+  };
+
   const handleAddCard = async (type: 'what' | 'where', content: string, notes?: string) => {
-    const newCardData: any = {
+    const newCardData: Listing = {
       id: uuidv4(),
       content,
       notes: notes || '',
@@ -239,15 +299,30 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     
     planningRoom.addCard(newCardData);
 
-    addActivity('card_add', { 
-      cardTitle: newCardData.content, 
-      timestamp: Date.now()
+    addActivity('card_add', {
+      userId: currentUserId,
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      cardId: newCardData.id,
+      context: { cardType: type, content }
     });
-
+    
+    // Clear form
     setShowNewCardForm(false);
     setShowActionsMenu(false);
     setNewCardContent('');
     setNewCardNotes('');
+  };
+
+  const handleReorderCards = (newOrder: string[]) => {
+    planningRoom.reorderCards(newOrder);
+    
+    addActivity('card_reorder', {
+      userId: currentUserId,
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      context: { type: 'reorder' }
+    });
   };
 
   const handleCreateNewCard = (e: React.FormEvent) => {
@@ -256,220 +331,111 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     handleAddCard(cardType, newCardContent, newCardNotes);
   };
 
-  const addActivity = async (type: string, details: any) => {
-    const activity = {
-      id: uuidv4(),
-      type: type as any,
+  const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
+    const card = planningRoom.linkedCards.find(c => c.id === cardId);
+    if (!card) return;
+
+    addActivity('card_reaction', {
       userId: currentUserId,
       userName: currentUserName,
       userEmail: currentUserEmail,
-      context: details,
-      timestamp: Date.now(),
-    };
-    planningRoom.addActivity(activity);
-    try {
-      await fetch(`/api/planning-room/${group.id}/activity`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(activity),
-      });
-    } catch (e) {
-      console.error('[ActivityFeed] Failed to persist activity to D1:', e);
-    }
-  };
-
-  const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
-    const updatedGroup = { ...group };
-    const updatedListings = updatedGroup.listings.map(listing => {
-      if (listing.id === cardId) {
-        const reactions = listing.reactions || [];
-        const existingReactionIndex = reactions.findIndex(
-          r => r.type === reactionType && r.userId === currentUserId
-        );
-
-        let updatedReactions = [...reactions];
-        if (existingReactionIndex >= 0) {
-          updatedReactions.splice(existingReactionIndex, 1);
-        } else {
-          updatedReactions.push({ type: reactionType, userId: currentUserId });
-          const cardTitle =
-            typeof listing === 'object'
-              ? ('address' in listing && listing.address)
-                ? listing.address
-                : ('content' in listing && (listing as any).content)
-                  ? (listing as any).content
-                  : ''
-              : '';
-          addActivity('card_reaction', {
-            cardTitle,
-            reactionType,
-            timestamp: Date.now()
-          });
-        }
-
-        return {
-          ...listing,
-          reactions: updatedReactions
-        };
-      }
-      return listing;
+      cardId,
+      reactionType
     });
-
-    updatedGroup.listings = updatedListings;
-    onGroupUpdate(updatedGroup);
   };
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = cards.findIndex((item) => item && item.id === active.id);
-    const newIndex = cards.findIndex((item) => item && item.id === over.id);
-    if (oldIndex !== -1 && newIndex !== -1) {
-      const newOrder = Array.from(planningRoom.cardOrder);
-      const [moved] = newOrder.splice(oldIndex, 1);
-      newOrder.splice(newIndex, 0, moved);
-      planningRoom.reorderCards(newOrder);
-      const card = cards[oldIndex];
-      if (card) {
-        const cardTitle = typeof card === 'object' && 'address' in card ? (card as any).address : (card as any).content;
-        addActivity('card_reorder', {
-          cardTitle,
-          fromIndex: oldIndex,
-          toIndex: newIndex,
-          timestamp: Date.now()
-        });
-      }
-    }
-  };
+    if (!active || !over || active.id === over.id) return;
 
-  const handleVote = (pollId: string, optionId: string) => {
-    const ydoc = planningRoom.ydoc;
-    if (!ydoc) return;
-    const yPolls = ydoc.getArray<Poll>('polls');
-    const pollIndex = planningRoom.polls.findIndex(p => p.id === pollId);
-    if (pollIndex === -1) return;
+    const oldIndex = planningRoom.cardOrder.indexOf(active.id);
+    const newIndex = planningRoom.cardOrder.indexOf(over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
 
-    const poll = yPolls.get(pollIndex);
-    const optionIndex = poll.options.findIndex(opt => opt.id === optionId);
-    if (optionIndex === -1) return;
+    const newOrder = [...planningRoom.cardOrder];
+    newOrder.splice(oldIndex, 1);
+    newOrder.splice(newIndex, 0, active.id);
+    planningRoom.reorderCards(newOrder);
 
-    const currentVotes = poll.options[optionIndex].votes || [];
-    const userVoteIndex = currentVotes.indexOf(currentUserId);
-
-    let newOptions = [...poll.options];
-    if (userVoteIndex > -1) {
-      newOptions = newOptions.map(opt => ({
-        ...opt,
-        votes: opt.votes.filter(uid => uid !== currentUserId)
-      }));
-      newOptions[optionIndex] = {
-          ...newOptions[optionIndex],
-          votes: [...newOptions[optionIndex].votes, currentUserId]
-      };
-    } else {
-      newOptions = newOptions.map(opt => ({
-        ...opt,
-        votes: opt.votes.filter(uid => uid !== currentUserId)
-      }));
-      newOptions[optionIndex] = {
-          ...newOptions[optionIndex],
-          votes: [...newOptions[optionIndex].votes, currentUserId]
-      };
-    }
-    
-    const updatedPoll: Poll = { ...poll, options: newOptions, updatedAt: Date.now() };
-    yPolls.delete(pollIndex, 1);
-    yPolls.insert(pollIndex, [updatedPoll]);
-
-    planningRoom.addActivity({
-      id: uuidv4(),
-      type: 'vote_cast',
+    addActivity('card_reorder', {
       userId: currentUserId,
-      context: { pollId, pollOptionId: optionId, pollQuestion: poll.question, optionText: poll.options[optionIndex].text },
-      timestamp: Date.now(),
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      context: { fromIndex: oldIndex, toIndex: newIndex }
     });
   };
 
-  function renderMessage(message: ChatMessage) {
-    if (message.type === 'poll' && message.pollId) {
-      const poll = planningRoom.polls.find(p => p.id === message.pollId);
-      if (poll) {
-        return <PollMessage key={message.id} poll={poll} senderId={message.userId} timestamp={message.timestamp} />;
-      }
-      return <div key={message.id} className="text-xs text-gray-400 italic p-2">Poll data not found for message ID: {message.id}</div>;
-    }
-    
-    const isCurrentUser = message.userId === currentUserId;
-    const displayName = message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`;
-    
-    return (
-      <div key={message.id} className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} w-full`}>
-        <div className="mb-0.5 flex items-center gap-2">
-          {message.userAvatar && !isCurrentUser && (
-            <img src={message.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
-          )}
-          <span className={`text-xs font-medium ${isCurrentUser ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
-          <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
-        </div>
-        <div className={`flex flex-col rounded-xl p-3 shadow-sm max-w-[80%] ${isCurrentUser ? 'ml-auto bg-indigo-50 border border-indigo-200' : 'mr-auto bg-white border border-gray-200'}`}>
-          <p className="text-gray-700">{message.text || ''}</p>
-        </div>
+  const PresentUsersDisplay = () => (
+    <div className="flex flex-col space-y-2 p-4 bg-gray-50 rounded-lg">
+      <div className="flex items-center space-x-2 text-gray-600 mb-2">
+        <UserGroupIcon className="h-5 w-5" />
+        <span className="font-medium">Present Users ({presentUsers.length})</span>
       </div>
-    );
-  }
-
-  function PollMessage({ poll, senderId, timestamp }: { poll: Poll, senderId: string, timestamp: number }) {
-    const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
-    const isCurrentUser = senderId === currentUserId;
-    const hasUserVoted = poll.options.some(o => o.votes.includes(currentUserId));
-    const displayName = poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`;
-
-    return (
-      <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} w-full`}>
-        <div className="mb-0.5 flex items-center gap-2">
-          {poll.userAvatar && !isCurrentUser && (
-            <img src={poll.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
-          )}
-          <span className={`text-xs font-medium ${isCurrentUser ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
-          <span className="text-xs text-gray-400">{new Date(timestamp).toLocaleTimeString()}</span>
-        </div>
-        <div className={`bg-indigo-50 border border-indigo-200 rounded-lg p-4 my-1 shadow-sm max-w-[80%] ${isCurrentUser ? 'ml-auto' : 'mr-auto'}`}>
-          <div className="font-medium text-indigo-900 mb-2">{poll.question}</div>
-          <div className="space-y-2">
-            {poll.options.map((option) => {
-              const optionVotesCount = option.votes.length;
-              const percent = totalVotesOnPoll > 0 ? Math.round((optionVotesCount / totalVotesOnPoll) * 100) : 0;
-              const isUserVote = option.votes.includes(currentUserId);
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => handleVote(poll.id, option.id)}
-                  className={`w-full flex items-center justify-between px-4 py-2 rounded-lg border transition-colors
-                    ${isUserVote ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-semibold' : 'bg-white border-gray-200 hover:bg-indigo-50 hover:border-indigo-300'}
-                  `}
-                >
-                  <span>{option.text}</span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{optionVotesCount} vote{optionVotesCount !== 1 ? 's' : ''}</span>
-                    <span className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden ml-2">
-                      <span
-                        className="block h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${percent}%`, background: isUserVote ? '#6366f1' : '#a5b4fc' }}
-                      />
-                    </span>
-                    <span className="ml-2 text-xs font-medium text-gray-500">{percent}%</span>
-                  </span>
-                </button>
-              );
-            })}
+      <div className="flex flex-wrap gap-2">
+        {presentUsers.map((user) => (
+          <div
+            key={user.id}
+            className="flex items-center space-x-2 bg-white p-2 rounded-full shadow-sm"
+          >
+            {user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name || user.id}
+                className="h-6 w-6 rounded-full"
+              />
+            ) : (
+              <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center">
+                <span className="text-xs text-gray-500">
+                  {(user.name || user.id).charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <span className="text-sm font-medium text-gray-700">
+              {user.name || user.id}
+            </span>
+            <span className="h-2 w-2 rounded-full bg-green-400" />
           </div>
-          {hasUserVoted && (
-            <div className="mt-2 text-xs text-indigo-600 font-medium">You voted: {poll.options.find(o => o.votes.includes(currentUserId))?.text}</div>
-          )}
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderMessage = (message: ChatMessage) => {
+    const isCurrentUser = message.userId === currentUserId;
+    const sender = presentUsers.find(u => u.id === message.userId);
+    
+    return (
+      <div
+        key={message.id}
+        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-4`}
+      >
+        <div className={`flex ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-start max-w-[80%]`}>
+          <div className="flex-shrink-0">
+            {message.userAvatar ? (
+              <img
+                src={message.userAvatar}
+                alt={message.userName || message.userId}
+                className="h-8 w-8 rounded-full"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                <span className="text-sm text-gray-500">
+                  {(message.userName || message.userId).charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          <div className={`mx-2 ${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded-lg px-4 py-2`}>
+            <div className="text-xs text-gray-500 mb-1">
+              {message.userName || message.userId}
+            </div>
+            {message.text}
+          </div>
         </div>
       </div>
     );
-  }
+  };
 
   const [linkedGroups, setLinkedGroups] = useState<any[]>([]);
   const [showLinkModal, setShowLinkModal] = useState(false);
@@ -822,324 +788,270 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Link href="/plans" className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100">
-                <ArrowLeftIcon className="h-5 w-5" />
-              </Link>
-              <h1 className="text-xl font-semibold text-gray-900">{group.name}</h1>
-              <span className="px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">Planning Room</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleGenerateInviteLink}
-                disabled={isGeneratingLink}
-                className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition disabled:opacity-50"
-                title="Invite Users"
-              >
-                {isGeneratingLink ? 
-                  <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg> : 
-                  <UserPlusIcon className="h-5 w-5" />
-                }
-              </button>
-              <button
-                onClick={() => setShowLinkModal(true)}
-                className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
-                title="Link Group"
-              >
-                <LinkIcon className="h-5 w-5" />
-              </button>
-              <button
-                onClick={() => {
-                  setShowNewCardForm(true);
-                }}
-                className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition"
-                title="Add new card"
-              >
-                <PlusIcon className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b">
+        <PresentUsersDisplay />
       </div>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-3">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowLinkModal(true)}
-                      className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
-                      title="Link Group"
-                    >
-                      <LinkIcon className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => setShowNewCardForm(true)}
-                      className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50"
-                      title="Add new card"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                    </button>
+      
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="grid grid-cols-12 gap-6">
+            <div className="col-span-3">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowLinkModal(true)}
+                        className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
+                        title="Link Group"
+                      >
+                        <LinkIcon className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => setShowNewCardForm(true)}
+                        className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50"
+                        title="Add new card"
+                      >
+                        <PlusIcon className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-4">
-                <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-4">
-                      {cards.map((card, index) => (
-                        card ? (
-                          <SortableCard
-                            key={card.id}
-                            card={card}
-                            index={index}
-                            setActiveCardId={setActiveCardId}
-                            setShowNewCardForm={setShowNewCardForm}
-                            planningRoom={planningRoom}
-                            userId={currentUserId}
-                            addActivity={addActivity}
-                          />
-                        ) : null
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-                {linkedGroups.length > 0 && (
-                  <div className="mt-8">
-                    <h3 className="text-sm font-semibold text-indigo-700 mb-2">Linked Groups ({linkedGroups.length})</h3>
-                    {linkedGroups.map(lg => {
-                      console.log(`Rendering linked group ${lg.group.name} with ${lg?.cards?.length || 0} cards`);
-                      const isCopied = lg.group.isCopied === true;
-                      const isLinked = lg.group.isLinked === true;
-                      
-                      return (
-                      <div key={lg.group.id} className={`mb-6 border rounded-lg p-3 ${isCopied ? 'bg-green-50 border-green-200' : 'bg-indigo-50 border-indigo-100'}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-indigo-700">
-                              {isCopied ? 'Copied from ' : 'Linked to '}
-                              {lg.group.name}
-                            </span>
-                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${isCopied ? 'bg-green-100 text-green-800' : 'bg-indigo-100 text-indigo-800'}`}>
-                              {isCopied ? 'Copied' : 'Linked'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => window.open(`/planning-room/${lg.group.id}`, '_blank')}
-                              className="text-xs text-blue-500 hover:underline"
-                              title="Open linked group in new tab"
-                            >
-                              View
-                            </button>
-                            {isCopied && (
+                <div className="p-4">
+                  <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-4">
+                        {cards.map((card, index) => (
+                          card ? (
+                            <SortableCard
+                              key={card.id}
+                              card={card}
+                              index={index}
+                              setActiveCardId={setActiveCardId}
+                              setShowNewCardForm={setShowNewCardForm}
+                              planningRoom={planningRoom}
+                              userId={currentUserId}
+                              addActivity={addActivity}
+                            />
+                          ) : null
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                  {linkedGroups.length > 0 && (
+                    <div className="mt-8">
+                      <h3 className="text-sm font-semibold text-indigo-700 mb-2">Linked Groups ({linkedGroups.length})</h3>
+                      {linkedGroups.map(lg => {
+                        console.log(`Rendering linked group ${lg.group.name} with ${lg?.cards?.length || 0} cards`);
+                        const isCopied = lg.group.isCopied === true;
+                        const isLinked = lg.group.isLinked === true;
+                        
+                        return (
+                        <div key={lg.group.id} className={`mb-6 border rounded-lg p-3 ${isCopied ? 'bg-green-50 border-green-200' : 'bg-indigo-50 border-indigo-100'}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-indigo-700">
+                                {isCopied ? 'Copied from ' : 'Linked to '}
+                                {lg.group.name}
+                              </span>
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${isCopied ? 'bg-green-100 text-green-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                                {isCopied ? 'Copied' : 'Linked'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
                               <button
-                                onClick={() => handleSyncCopiedCards(lg.group.id)}
-                                className="text-xs text-green-600 hover:underline"
-                                title="Update cards with the latest changes from original group"
+                                onClick={() => window.open(`/planning-room/${lg.group.id}`, '_blank')}
+                                className="text-xs text-blue-500 hover:underline"
+                                title="Open linked group in new tab"
                               >
-                                Sync
+                                View
                               </button>
-                            )}
-                          <button
-                            onClick={() => handleUnlinkGroup(lg.group.id)}
-                            className="text-xs text-red-500 hover:underline"
-                              title={`${isCopied ? 'Remove these copies' : 'Unlink this group'}`}
-                            >
-                              {isCopied ? 'Remove' : 'Unlink'}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          {lg.cards && Array.isArray(lg.cards) && lg.cards.length > 0 ? (
-                            lg.cards.map((card: any) => {
-                              console.log(`Card in ${isCopied ? 'copied' : 'linked'} group:`, card);
-                              return (
-                                <div key={card.id || Math.random().toString()} 
-                                  className={`rounded border px-3 py-2 text-sm text-gray-900 ${
-                                    isCopied ? 'bg-white border-green-200' : 'bg-white border-indigo-200'
-                                  }`}
+                              {isCopied && (
+                                <button
+                                  onClick={() => handleSyncCopiedCards(lg.group.id)}
+                                  className="text-xs text-green-600 hover:underline"
+                                  title="Update cards with the latest changes from original group"
                                 >
-                                  <div className="font-medium">{card.content || '(No content)'}</div>
-                                  {card.notes && <div className="text-xs text-gray-500 mt-1">{card.notes}</div>}
-                                  <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
-                                    <span className={`px-1.5 py-0.5 rounded text-xs ${
-                                      card.cardType === 'where' 
-                                        ? 'bg-blue-50 text-blue-700' 
-                                        : 'bg-green-50 text-green-700'
-                                    }`}>
-                                      {card.cardType === 'where' ? 'Where' : 'What'}
-                                    </span>
-                                    {isCopied && (
-                                      <span className="text-xs text-gray-500">
-                                        Copied from original card
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <div className="bg-gray-50 rounded border border-gray-200 px-3 py-2 text-sm text-gray-500">
-                              No cards in this group - try adding some cards to this group and they'll appear here.
-                              <button 
-                                onClick={() => window.open(`/planning-room/${lg.group.id}`, '_blank')} 
-                                className="mt-2 block text-blue-500 hover:underline text-xs"
+                                  Sync
+                                </button>
+                              )}
+                            <button
+                              onClick={() => handleUnlinkGroup(lg.group.id)}
+                              className="text-xs text-red-500 hover:underline"
+                                title={`${isCopied ? 'Remove these copies' : 'Unlink this group'}`}
                               >
-                                Open this group to add cards
+                                {isCopied ? 'Remove' : 'Unlink'}
                               </button>
                             </div>
-                          )}
+                          </div>
+                          <div className="space-y-2">
+                            {lg.cards && Array.isArray(lg.cards) && lg.cards.length > 0 ? (
+                              lg.cards.map((card: any) => {
+                                console.log(`Card in ${isCopied ? 'copied' : 'linked'} group:`, card);
+                                return (
+                                  <div key={card.id || Math.random().toString()} 
+                                    className={`rounded border px-3 py-2 text-sm text-gray-900 ${
+                                      isCopied ? 'bg-white border-green-200' : 'bg-white border-indigo-200'
+                                    }`}
+                                  >
+                                    <div className="font-medium">{card.content || '(No content)'}</div>
+                                    {card.notes && <div className="text-xs text-gray-500 mt-1">{card.notes}</div>}
+                                    <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                                      <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                        card.cardType === 'where' 
+                                          ? 'bg-blue-50 text-blue-700' 
+                                          : 'bg-green-50 text-green-700'
+                                      }`}>
+                                        {card.cardType === 'where' ? 'Where' : 'What'}
+                                      </span>
+                                      {isCopied && (
+                                        <span className="text-xs text-gray-500">
+                                          Copied from original card
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="bg-gray-50 rounded border border-gray-200 px-3 py-2 text-sm text-gray-500">
+                                No cards in this group - try adding some cards to this group and they'll appear here.
+                                <button 
+                                  onClick={() => window.open(`/planning-room/${lg.group.id}`, '_blank')} 
+                                  className="mt-2 block text-blue-500 hover:underline text-xs"
+                                >
+                                  Open this group to add cards
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )})}
-                  </div>
-                )}
-                
-                {linkedGroups.length === 0 && (
-                  <div className="mt-8 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-sm text-gray-500">No linked groups yet. Click the link icon to connect another group.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="col-span-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[600px] flex flex-col">
-              <div className="p-4 border-b border-gray-200 flex-shrink-0">
-                <h2 className="text-lg font-semibold flex items-center text-gray-900">
-                  <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 text-gray-400" />
-                  Group Chat
-                </h2>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatRef}>
-                {messages.map((message, i) => {
-                  if (unreadIndex === i) {
-                    return (
-                      <Fragment key={message.id}>
-                        <div className="flex items-center my-2">
-                          <div className="flex-1 border-t border-gray-300" />
-                          <span className="mx-3 text-xs text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-full">New messages</span>
-                          <div className="flex-1 border-t border-gray-300" />
-                        </div>
-                        {renderMessage(message)}
-                      </Fragment>
-                    );
-                  }
-                  return renderMessage(message);
-                })}
-                {messages.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    No messages yet. Start the conversation!
-                  </div>
-                )}
-                {showJumpToUnread && unreadIndex !== null && (
-                  <button
-                    onClick={jumpToUnread}
-                    className="fixed bottom-24 right-1/2 translate-x-1/2 z-20 bg-indigo-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-indigo-700 transition-all"
-                  >
-                    Jump to Unread
-                  </button>
-                )}
-              </div>
-
-              <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
-                <form onSubmit={handleSendMessage} className="flex items-center gap-3">
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setShowActionsMenu(!showActionsMenu)}
-                      className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                    </button>
-                    
-                    {showActionsMenu && (
-                      <div className="absolute bottom-full left-0 mb-2 w-48 rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 py-1 z-10">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowPollCreator(true);
-                            setShowActionsMenu(false);
-                          }}
-                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                        >
-                          <ChartBarIcon className="h-5 w-5 mr-3 text-gray-400" />
-                          Create Poll
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowNewCardForm(true);
-                            setShowActionsMenu(false);
-                          }}
-                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
-                        >
-                          <DocumentPlusIcon className="h-5 w-5 mr-3 text-gray-400" />
-                          Add New Card
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                      )})}
+                    </div>
+                  )}
                   
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 rounded-xl border-0 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 text-sm py-3 px-4"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newMessage.trim()}
-                    className="px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                  >
-                    Send
-                  </button>
-                </form>
+                  {linkedGroups.length === 0 && (
+                    <div className="mt-8 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-sm text-gray-500">No linked groups yet. Click the link icon to connect another group.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="col-span-3">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
+            <div className="col-span-6">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[600px] flex flex-col">
+                <div className="p-4 border-b border-gray-200 flex-shrink-0">
+                  <h2 className="text-lg font-semibold flex items-center text-gray-900">
+                    <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 text-gray-400" />
+                    Group Chat
+                  </h2>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatRef}>
+                  {messages.map(renderMessage)}
+                  {messages.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      No messages yet. Start the conversation!
+                    </div>
+                  )}
+                  {showJumpToUnread && unreadIndex !== null && (
+                    <button
+                      onClick={jumpToUnread}
+                      className="fixed bottom-24 right-1/2 translate-x-1/2 z-20 bg-indigo-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-indigo-700 transition-all"
+                    >
+                      Jump to Unread
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+                  <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowActionsMenu(!showActionsMenu)}
+                        className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                      >
+                        <PlusIcon className="h-5 w-5" />
+                      </button>
+                      
+                      {showActionsMenu && (
+                        <div className="absolute bottom-full left-0 mb-2 w-48 rounded-xl bg-white shadow-lg ring-1 ring-black ring-opacity-5 py-1 z-10">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowPollCreator(true);
+                              setShowActionsMenu(false);
+                            }}
+                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                          >
+                            <ChartBarIcon className="h-5 w-5 mr-3 text-gray-400" />
+                            Create Poll
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNewCardForm(true);
+                              setShowActionsMenu(false);
+                            }}
+                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                          >
+                            <DocumentPlusIcon className="h-5 w-5 mr-3 text-gray-400" />
+                            Add New Card
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 rounded-xl border-0 bg-gray-50 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 text-sm py-3 px-4"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newMessage.trim()}
+                      className="px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                    >
+                      Send
+                    </button>
+                  </form>
+                </div>
               </div>
-              <div className="h-[550px] overflow-y-auto">
-                <ActivityFeed activities={uniqueActivitiesById(
-                  planningRoom.activityFeed.slice().reverse().map((a: any) => { 
-                  let type: any = a.type;
-                  if (type === 'poll_created') type = 'poll_create';
-                  if (type === 'card_linked') type = 'card_add';
-                  if (type === 'card_reordered') type = 'card_reorder';
-                  if (type === 'vote_cast') type = 'poll_vote';
-                  const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
-                  if (!validTypes.includes(type)) return null;
-                  return {
-                      id: a.id,
-                    type,
-                      timestamp: a.timestamp,
-                      userId: a.userId,
-                      userName: a.userName,
-                      userEmail: a.userEmail,
-                    details: a.context || {},
-                  };
-                  })
-                ) as Activity[]} />
+            </div>
+
+            <div className="col-span-3">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
+                </div>
+                <div className="h-[550px] overflow-y-auto">
+                  <ActivityFeed activities={uniqueActivitiesById(
+                    planningRoom.activityFeed.slice().reverse().map((a: any) => { 
+                    let type: any = a.type;
+                    if (type === 'poll_created') type = 'poll_create';
+                    if (type === 'card_linked') type = 'card_add';
+                    if (type === 'card_reordered') type = 'card_reorder';
+                    if (type === 'vote_cast') type = 'poll_vote';
+                    const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
+                    if (!validTypes.includes(type)) return null;
+                    return {
+                        id: a.id,
+                      type,
+                        timestamp: a.timestamp,
+                        userId: a.userId,
+                        userName: a.userName,
+                        userEmail: a.userEmail,
+                      details: a.context || {},
+                    };
+                    })
+                  ) as Activity[]} />
+                </div>
               </div>
             </div>
           </div>
@@ -1165,9 +1077,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 e.preventDefault();
                 if (!pollQuestion.trim() || pollOptions.some(opt => !opt.text.trim())) return;
                 handleCreatePoll(pollQuestion, pollOptions.map(opt => opt.text));
-                setPollQuestion('');
-                setPollOptions([{ text: '' }, { text: '' }]);
-                setShowPollCreator(false);
               }} className="space-y-6">
                 <div>
                   <label htmlFor="pollQuestion" className="block text-sm font-medium text-gray-700">

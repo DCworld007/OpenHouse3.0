@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
 // @ts-ignore
 import { WebsocketProvider } from 'y-websocket';
-import { PlanningRoomYjsDoc } from '@/types/planning-room';
-import { ChatMessage, MessageType } from '@/types/message';
+import { PlanningRoomYjsDoc, PresentUser } from '@/types/planning-room';
+import { ChatMessage, MessageType, ChatMessageInput } from '@/types/message';
 import { Listing } from '@/types/listing';
 
 // Replace with your actual y-websocket server URL (from Railway)
@@ -21,19 +21,30 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
     timeout = setTimeout(() => fn(...args), delay);
   };
 }
-
-export function usePlanningRoomSync(groupId: string, currentUserId: string) {
-  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages' | 'reactions' | 'polls' | 'activityFeed'>>({
+const PRESENCE_TIMEOUT = 5 * 60 * 1000; 
+const PRESENCE_UPDATE_INTERVAL = 60 * 1000;
+export function usePlanningRoomSync(
+  groupId: string,
+  currentUserId: string,
+  currentUserName?: string,
+  currentUserEmail?: string,
+  currentUserAvatar?: string
+) {
+  const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages' | 'reactions' | 'polls' | 'activityFeed' | 'presentUsers'>>({
     linkedCards: [],
     cardOrder: [],
     chatMessages: [] as ChatMessage[],
     reactions: {},
     polls: [],
     activityFeed: [],
+    presentUsers: [], 
   });
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const hasLoadedFromD1 = useRef(false);
+  const presenceUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const joinedAtRef = useRef<number>(Date.now());
+  const [isConnected, setIsConnected] = useState(false);
 
   // NEW: Sync with linked groups - fetch linked groups and add their cards to this group
   useEffect(() => {
@@ -285,11 +296,14 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
     const yReactions = ydoc.getMap('reactions');
     const yPolls = ydoc.getArray('polls');
     const yActivityFeed = ydoc.getArray('activityFeed');
+    const yPresentUsers = ydoc.getArray<PresentUser>('presentUsers');
     if (!provider) {
+      console.log('[Yjs] Creating new WebSocket provider with URL:', Y_WEBSOCKET_URL);
       provider = new WebsocketProvider(
         Y_WEBSOCKET_URL,
         `planningRoom:${groupId}`,
-        ydoc
+        ydoc,
+        { connect: true }
       );
       providerMap.set(groupId, provider);
       isNew = true;
@@ -300,12 +314,40 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
     } else {
       console.log('[Yjs PATCH] Reusing persistent Y.Doc and provider for groupId:', groupId);
     }
-    provider.on('status', (event: any) => {
+
+    // Enhanced WebSocket connection monitoring
+    provider.on('status', (event: { status: 'connected' | 'disconnected' }) => {
       console.log('[Yjs] WebsocketProvider status:', event.status);
+      setIsConnected(event.status === 'connected');
+      if (event.status === 'disconnected') {
+        console.error('[Yjs] WebSocket disconnected - messages may not sync in real-time');
+        // Try to reconnect
+        setTimeout(() => {
+          if (provider && !provider.shouldConnect) {
+            console.log('[Yjs] Attempting to reconnect...');
+            provider.connect();
+          }
+        }, 1000);
+      }
     });
+
     provider.on('sync', (isSynced: boolean) => {
       console.log('[Yjs] WebsocketProvider sync:', isSynced);
+      if (!isSynced) {
+        console.error('[Yjs] Failed to sync with WebSocket server - messages may not sync in real-time');
+      }
     });
+
+    provider.on('connection-error', (error: Error) => {
+      console.error('[Yjs] WebSocket connection error:', error);
+      setIsConnected(false);
+    });
+
+    // Force initial connection
+    if (!provider.connected) {
+      provider.connect();
+    }
+
     // Observe changes and update React state
     const updateState = () => {
       console.log('[Yjs] updateState called');
@@ -369,6 +411,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
         reactions: reactionsObj,
         polls: yPolls.toArray() as PlanningRoomYjsDoc['polls'],
         activityFeed: yActivityFeed.toArray() as PlanningRoomYjsDoc['activityFeed'],
+        presentUsers: yPresentUsers.toArray().filter(user => (Date.now() - user.lastActive) < PRESENCE_TIMEOUT),
       });
       
       // Debounced persist to D1 on every change
@@ -380,8 +423,59 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
     yReactions.observeDeep(updateState);
     yPolls.observe(updateState);
     yActivityFeed.observe(updateState);
+    yPresentUsers.observe(updateState);
     updateState();
-    // Cleanup: only remove observers, do NOT destroy doc/provider (persist for group lifetime)
+
+    // Function to update or add current user's presence
+    const updateCurrentUserPresence = () => {
+      if (!ydocRef.current || !currentUserId) return;
+      const yPresent = ydocRef.current.getArray<PresentUser>('presentUsers');
+      const now = Date.now();
+      const existingUserIndex = yPresent.toArray().findIndex(u => u.id === currentUserId);
+
+      const currentUserData: PresentUser = {
+        id: currentUserId,
+        name: currentUserName,
+        email: currentUserEmail,
+        avatar: currentUserAvatar,
+        lastActive: now,
+        joinedAt: existingUserIndex !== -1 ? yPresent.get(existingUserIndex).joinedAt : joinedAtRef.current,
+      };
+
+      if (existingUserIndex !== -1) {
+        // Smart update: only update if necessary to reduce Yjs traffic
+        const existing = yPresent.get(existingUserIndex);
+        if (existing.name !== currentUserData.name || 
+            existing.avatar !== currentUserData.avatar || 
+            existing.email !== currentUserData.email ||
+            (now - existing.lastActive) > (PRESENCE_UPDATE_INTERVAL / 2)) { // Update if lastActive is a bit old
+             // Create a new object to ensure Yjs detects a change if only sub-properties of an object change.
+            const updatedUser = { ...existing, ...currentUserData, lastActive: now };
+            yPresent.delete(existingUserIndex, 1);
+            yPresent.insert(existingUserIndex, [updatedUser]);
+        } else if (existing.lastActive !== now) { // just update lastActive if it's the only change
+            const updatedUser = { ...existing, lastActive: now };
+            yPresent.delete(existingUserIndex, 1);
+            yPresent.insert(existingUserIndex, [updatedUser]);
+        }
+      } else {
+        yPresent.push([currentUserData]);
+        joinedAtRef.current = now; // Update joinedAt if newly added
+      }
+      // Clean up stale users from other sessions that might not have cleaned up
+      const allUsers = yPresent.toArray();
+      for (let i = allUsers.length - 1; i >= 0; i--) {
+        if ((now - allUsers[i].lastActive) > PRESENCE_TIMEOUT && allUsers[i].id !== currentUserId) {
+          yPresent.delete(i, 1);
+        }
+      }
+    };
+
+    updateCurrentUserPresence(); // Initial presence update
+    if (presenceUpdateIntervalRef.current) clearInterval(presenceUpdateIntervalRef.current);
+    presenceUpdateIntervalRef.current = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
+
+    // Cleanup
     return () => {
       yLinkedCards.unobserve(updateState);
       yCardOrder.unobserve(updateState);
@@ -389,9 +483,22 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
       yReactions.unobserveDeep(updateState);
       yPolls.unobserve(updateState);
       yActivityFeed.unobserve(updateState);
-      // Do not destroy provider or doc here!
+      yPresentUsers.unobserve(updateState); // Unobserve presentUsers
+      if (presenceUpdateIntervalRef.current) {
+        clearInterval(presenceUpdateIntervalRef.current);
+      }
+      // Attempt to remove user from presence on unmount/disconnect
+      // This is best-effort as browser might close before this runs reliably.
+      // Stale entries are handled by the timeout logic anyway.
+      if (ydocRef.current && currentUserId) {
+        const yPresent = ydocRef.current.getArray<PresentUser>('presentUsers');
+        const userIdx = yPresent.toArray().findIndex(u => u.id === currentUserId);
+        if (userIdx !== -1) {
+          yPresent.delete(userIdx, 1);
+        }
+      }
     };
-  }, [groupId]);
+  }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
   // Debounced persist function
   const persistToD1 = useCallback(() => {
@@ -604,14 +711,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
   }, [groupId, docState.reactions, persistToD1]);
 
   // Add chat message (Yjs-powered)
-  const addChatMessage = useCallback((messageInput: {
-    userId: string;
-    userName: string;
-    userAvatar?: string;
-    text?: string;
-    pollId?: string;
-    type: MessageType;
-  }) => {
+  const addChatMessage = useCallback((messageInput: ChatMessageInput) => {
     const ydoc = ydocRef.current;
     if (!ydoc) return;
     const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
@@ -621,6 +721,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
       timestamp: Date.now(),
       userId: messageInput.userId,
       userName: messageInput.userName,
+      userEmail: messageInput.userEmail,
       userAvatar: messageInput.userAvatar,
       text: messageInput.text,
       pollId: messageInput.pollId,
@@ -628,6 +729,29 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
     };
     yChatMessages.push([newMessage]);
   }, []);
+
+  // Load messages from localStorage on initial mount
+  useEffect(() => {
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+    const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
+
+    try {
+      const key = `planningRoom:${groupId}:messages`;
+      const storedMessages = JSON.parse(localStorage.getItem(key) || '[]');
+      
+      // Only add messages that aren't already in Yjs
+      const existingIds = new Set(yChatMessages.toArray().map(m => m.id));
+      const newMessages = storedMessages.filter((m: ChatMessage) => !existingIds.has(m.id));
+      
+      if (newMessages.length > 0) {
+        console.log('[Yjs] Adding stored messages from localStorage:', newMessages.length);
+        yChatMessages.push(newMessages);
+      }
+    } catch (e) {
+      console.error('[Yjs] Failed to load messages from localStorage:', e);
+    }
+  }, [groupId]);
 
   // Add or update a reaction for a card
   const addReaction = useCallback((cardId: string, reaction: 'like' | 'dislike' | null) => {
@@ -726,104 +850,4 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
     const geocodeMissingLocations = async () => {
       if (!groupId || !ydocRef.current) return;
       
-      const geocodeKey = `geocode-migrated-${groupId}`;
-      if (localStorage.getItem(geocodeKey)) {
-        return; // Already ran geocoding migration
-      }
-      
-      // Get all cards
-      const yLinkedCards = ydocRef.current.getArray('linkedCards');
-      const cards = yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'];
-      
-      // Find 'where' cards missing coordinates
-      const cardsNeedingGeocode = cards.filter(card => 
-        card.cardType === 'where' && 
-        (typeof card.lat !== 'number' || typeof card.lng !== 'number') &&
-        card.address // Only check if address exists
-      );
-      
-      if (cardsNeedingGeocode.length === 0) {
-        // No cards need geocoding, mark migration as complete
-        localStorage.setItem(geocodeKey, 'true');
-        return;
-      }
-      
-      console.log(`[Geocode Migration] Found ${cardsNeedingGeocode.length} cards needing geocoding`);
-      
-      // Geocode each card
-      for (const card of cardsNeedingGeocode) {
-        try {
-          const locationQuery = card.address; // Use address for the query
-          if (!locationQuery) continue; // Skip if no address
-          
-          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}`;
-          const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0' } });
-          const data = await res.json();
-          
-          if (data && data.length > 0) {
-            const lat = parseFloat(data[0].lat);
-            const lng = parseFloat(data[0].lon);
-            
-            if (!isNaN(lat) && !isNaN(lng)) {
-              console.log(`[Geocode Migration] Successfully geocoded "${locationQuery}" to: ${lat}, ${lng}`);
-              
-              // Update card with coordinates
-              const cardIndex = cards.findIndex(c => c.id === card.id);
-              if (cardIndex !== -1) {
-                const existingCardData = yLinkedCards.get(cardIndex) as PlanningRoomYjsDoc['linkedCards'][0];
-                const updatedCardData = { ...existingCardData, lat, lng, updatedAt: new Date().toISOString() };
-                yLinkedCards.delete(cardIndex, 1);
-                yLinkedCards.insert(cardIndex, [updatedCardData]);
-                
-                // Also update localStorage
-                const storedDataLS = localStorage.getItem('openhouse-data');
-                if (storedDataLS) {
-                  const groupsLS = JSON.parse(storedDataLS);
-                  const groupIndexLS = groupsLS.findIndex((g: any) => g.id === groupId);
-                  if (groupIndexLS >= 0 && groupsLS[groupIndexLS].cards) {
-                    const cardIndexLS = groupsLS[groupIndexLS].cards.findIndex((c: any) => c.id === card.id);
-                    if (cardIndexLS !== -1) {
-                      groupsLS[groupIndexLS].cards[cardIndexLS].lat = lat;
-                      groupsLS[groupIndexLS].cards[cardIndexLS].lng = lng;
-                      groupsLS[groupIndexLS].cards[cardIndexLS].updatedAt = updatedCardData.updatedAt;
-                      localStorage.setItem('openhouse-data', JSON.stringify(groupsLS));
-                    }
-                  }
-                }
-              }
-            }
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-          console.error(`[Geocode Migration] Error geocoding card ${card.id}:`, error);
-        }
-      }
-      
-      // Mark migration as complete
-      localStorage.setItem(geocodeKey, 'true');
-    };
-    
-    geocodeMissingLocations();
-  }, [groupId]);
-
-  return {
-    linkedCards: docState.linkedCards,
-    cardOrder: docState.cardOrder,
-    chatMessages: docState.chatMessages as ChatMessage[],
-    reactions: docState.reactions,
-    polls: docState.polls,
-    activityFeed: docState.activityFeed,
-    addChatMessage,
-    addCard,
-    reorderCards,
-    removeCard,
-    addReaction,
-    removeReaction,
-    addPoll,
-    addActivity,
-    // Expose Yjs doc and provider for advanced use if needed
-    ydoc: ydocRef.current,
-    provider: providerRef.current,
-  };
-} 
+      const geocodeKey = `geocode-migrated-${groupId}`
