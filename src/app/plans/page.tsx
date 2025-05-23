@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
@@ -138,7 +138,7 @@ function ErrorBoundary({ error }: { error: Error }) {
   );
 }
 
-export default function PlansPage() {
+function PlansPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -807,4 +807,17 @@ export default function PlansPage() {
     if (!error && err instanceof Error) setError(err);
     return error ? <ErrorBoundary error={error} /> : null;
   }
+}
+
+export default function PlansPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <p className="ml-4 text-gray-700 text-lg">Loading your plans...</p>
+      </div>
+    }>
+      <PlansPageContent />
+    </Suspense>
+  );
 } 
