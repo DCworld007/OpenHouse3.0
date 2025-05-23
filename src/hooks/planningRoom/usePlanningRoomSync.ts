@@ -1,6 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { yDoc } from '../../utils/yDoc';
-import { PresentUser } from '../../types/types';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+import { PlanningRoomYjsDoc, PresentUser } from '@/types/planning-room';
+import { ChatMessage, ChatMessageInput, Poll } from '@/types/message-types';
+import { Listing } from '@/types/listing';
+import { Activity } from '@/types/activity';
+
+const Y_WEBSOCKET_URL = process.env.NEXT_PUBLIC_Y_WEBSOCKET_URL || 'wss://y-websocket-production-d87f.up.railway.app';
+const PRESENCE_TIMEOUT = 5 * 60 * 1000;
+const PRESENCE_UPDATE_INTERVAL = 30 * 1000;
+
+// Persistent Y.Doc/Provider per groupId
+const yDocMap: Map<string, Y.Doc> = new Map();
+const providerMap: Map<string, WebsocketProvider> = new Map();
+
+interface PlanningRoomSync extends PlanningRoomYjsDoc {
+  addCard: (card: Listing, afterCardId?: string) => void;
+  addChatMessage: (message: ChatMessageInput) => void;
+  addPoll: (poll: Poll) => void;
+  addActivity: (activity: Activity) => void;
+  ydoc: Y.Doc | null;
+}
 
 export function usePlanningRoomSync(
   groupId: string,
@@ -8,20 +28,7 @@ export function usePlanningRoomSync(
   currentUserName?: string,
   currentUserEmail?: string,
   currentUserAvatar?: string
-): {
-  linkedCards: Listing[];
-  cardOrder: string[];
-  chatMessages: ChatMessage[];
-  reactions: Record<string, Record<string, 'like' | 'dislike' | null>>;
-  polls: Poll[];
-  activityFeed: any[];
-  presentUsers: PresentUser[];
-  addCard: (card: Listing, afterCardId?: string) => void;
-  addChatMessage: (message: ChatMessageInput) => void;
-  addPoll: (poll: Poll) => void;
-  addActivity: (activity: Activity) => void;
-  ydoc: Y.Doc | null;
-} {
+): PlanningRoomSync {
   const [docState, setDocState] = useState<PlanningRoomYjsDoc>({
     linkedCards: [],
     cardOrder: [],
@@ -32,10 +39,14 @@ export function usePlanningRoomSync(
     presentUsers: [],
   });
 
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const providerRef = useRef<WebsocketProvider | null>(null);
+  const joinedAtRef = useRef<number>(Date.now());
+
   const updateCurrentUserPresence = () => {
-    if (!ydoc || !currentUserId) return;
+    if (!ydocRef.current || !currentUserId) return;
     
-    const yPresentUsers = ydoc.getArray<PresentUser>('presentUsers');
+    const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
     const now = Date.now();
     
     // Remove stale users first
