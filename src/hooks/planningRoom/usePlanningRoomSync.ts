@@ -135,23 +135,15 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
         // Prepare cards for adding to Yjs doc
         const cardsToAdd = newCards.map((card: any) => ({
           id: card.id,
-          address: card.address, // Use address
+          content: card.content || card.address,
           notes: card.notes || '',
           cardType: card.cardType || 'what',
-          // Ensure all required fields of Listing are present or have defaults
-          price: card.price || 0, // Example default
-          imageUrl: card.imageUrl || '',
-          sourceUrl: card.sourceUrl || '',
-          source: card.source || '',
-          groupId: card.groupId || groupId, // Ensure groupId is set
-          order: card.order || 0, // Ensure order is set
           userId: card.userId || 'unknown',
           createdAt: card.createdAt || new Date().toISOString(),
           updatedAt: card.updatedAt || new Date().toISOString(),
+          // Add metadata about the linked group
           linkedFrom: linkedGroup.group.id,
-          linkedFromName: linkedGroup.group.name,
-          lat: card.lat,
-          lng: card.lng,
+          linkedFromName: linkedGroup.group.name
         }));
         
         // Add cards to Yjs arrays
@@ -489,12 +481,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
                 content: card.address || card.notes || card.id,
                 notes: card.notes,
                 lat: card.lat,
-                lng: card.lng,
-                address: card.address,
-                price: card.price,
-                imageUrl: card.imageUrl,
-                sourceUrl: card.sourceUrl,
-                source: card.source,
+                lng: card.lng
               };
               
             // Add to cards array only if it doesn't already exist
@@ -768,6 +755,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
         try {
           const locationQuery = card.address; // Use address for the query
           if (!locationQuery) continue; // Skip if no address
+          
           const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}`;
           const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0' } });
           const data = await res.json();
@@ -806,7 +794,6 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
             }
           }
           
-          // Add a small delay to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
           console.error(`[Geocode Migration] Error geocoding card ${card.id}:`, error);

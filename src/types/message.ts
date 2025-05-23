@@ -31,6 +31,17 @@ export interface ChatMessage {
   type: MessageType; // Type of message: 'text' or 'poll'
 }
 
+// Message input type for addChatMessage function
+export interface ChatMessageInput {
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  userAvatar?: string;
+  text?: string;
+  pollId?: string;
+  type: MessageType;
+}
+
 /**
  * @deprecated Use ChatMessage instead for Yjs synchronized messages.
  * The old Message interface can be phased out or kept if used distinctly elsewhere.

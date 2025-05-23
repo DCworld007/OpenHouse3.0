@@ -1,6 +1,6 @@
 import { useState, Fragment, useEffect, useRef } from 'react';
 import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
-import { EMOJI_REACTIONS, Message, Poll, PollOption } from '@/types/message';
+import { EMOJI_REACTIONS, Message, Poll, PollOption, ChatMessage, ChatMessageInput } from '@/types/message';
 import { ListingGroup } from '@/types/listing';
 import { 
   ChatBubbleLeftRightIcon, 
@@ -29,7 +29,6 @@ import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
 import { useUser } from '@/lib/useUser';
 import { PlanningRoomYjsDoc } from '@/types/planning-room';
 import { getGroups } from '@/lib/groupStorage';
-import { ChatMessage } from '@/types/message';
 
 interface ExtendedMessage extends Message {
   sender: string;
@@ -131,14 +130,15 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-    planningRoom.addChatMessage({
+    const messageInput: ChatMessageInput = {
       userId: currentUserId,
       userName: currentUserName,
       userEmail: currentUserEmail,
       userAvatar: currentUserAvatar,
       text: newMessage,
       type: 'text',
-    });
+    };
+    planningRoom.addChatMessage(messageInput);
     setNewMessage('');
     setTimeout(() => {
       if (messages.length > 0) {
@@ -184,7 +184,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     };
     planningRoom.addPoll(newPoll);
 
-    planningRoom.addChatMessage({
+    const messageInput: ChatMessageInput = {
       userId: currentUserId,
       userName: currentUserName,
       userEmail: currentUserEmail,
@@ -192,7 +192,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       text: `Poll created: ${question}`,
       type: 'poll',
       pollId,
-    });
+    };
+    planningRoom.addChatMessage(messageInput);
 
     planningRoom.addActivity({
       id: uuidv4(),
@@ -399,9 +400,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     }
     
     const isMe = message.userId === currentUserId;
-    const displayName = isMe 
-      ? 'You' 
-      : (message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`);
+    let displayName = message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`;
+    if (isMe) {
+      displayName = 'You';
+    }
     
     return (
       <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
@@ -423,9 +425,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
     const isMe = senderId === currentUserId;
     const hasUserVoted = poll.options.some(o => o.votes.includes(currentUserId));
-    const displayName = isMe 
-      ? 'You' 
-      : (poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`);
+    let displayName = poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`;
+    if (isMe) {
+      displayName = 'You';
+    }
 
     return (
       <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
