@@ -465,7 +465,7 @@ export default function PlansPage() {
     setGroups(newGroups);
 
     try {
-      // Update backend
+      // Update backend using the correct endpoint path
       const response = await fetch(`/api/rooms/${groupId}`, {
         method: 'PATCH',
         headers: {
@@ -478,7 +478,8 @@ export default function PlansPage() {
       });
 
       if (!response.ok) {
-        console.error('Failed to update group name in backend:', await response.text());
+        const errorText = await response.text();
+        console.error('Failed to update group name in backend:', errorText);
         // If backend update fails, show error but keep local change
         toast.error('Failed to save group name to server. Changes may not persist across sessions.');
       } else {
