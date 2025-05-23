@@ -1,0 +1,77 @@
+import { useState, Fragment, useEffect, useRef } from 'react';
+import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
+import { EMOJI_REACTIONS, Message, Poll, PollOption } from '@/types/message';
+import { ListingGroup } from '@/types/listing';
+import { 
+  ChatBubbleLeftRightIcon, 
+  ArrowLeftIcon, 
+  FaceSmileIcon, 
+  PlusIcon,
+  ChartBarIcon,
+  DocumentPlusIcon,
+  XMarkIcon,
+  Bars3Icon,
+  LinkIcon,
+  UserPlusIcon,
+  ClipboardDocumentIcon,
+  CheckCircleIcon
+} from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import Card from './Card';
+import { Switch } from '@headlessui/react';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { arrayMove, SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import ActivityFeed from './ActivityFeed';
+import PlanCard from './PlanCard';
+import { v4 as uuidv4 } from 'uuid';
+import { Listing } from '@/types/listing';
+import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
+import { useUser } from '@/lib/useUser';
+import { PlanningRoomYjsDoc } from '@/types/planning-room';
+import { getGroups } from '@/lib/groupStorage';
+import { ChatMessage } from '@/types/message';
+
+interface ExtendedMessage extends Message {
+  sender: string;
+  reactions: Record<string, string[]>;
+}
+
+interface BaseActivityDetails {
+  userId: string;
+  messageId: string;
+  timestamp: number;
+}
+
+interface VoteActivity extends BaseActivityDetails {
+  type: 'vote';
+  pollId: string;
+  option: string;
+}
+
+interface CustomActivity {
+  timestamp: number;
+  userId: string;
+  messageId: string;
+}
+
+interface CustomPollActivity extends CustomActivity {
+  type: 'poll';
+  question: string;
+  options: string[];
+  pollIndex: number;
+}
+
+interface CustomReactionActivity extends CustomActivity {
+  type: 'reaction';
+  listingId: string;
+  reactionType: 'thumbsUp' | 'thumbsDown';
+}
+
+interface PlanningRoomProps {
+  group: ListingGroup;
+  onGroupUpdate: (group: ListingGroup) => void;
+}
+
+export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
+  // ... rest of the component implementation ...
+} 

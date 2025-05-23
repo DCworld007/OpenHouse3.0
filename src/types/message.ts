@@ -10,6 +10,9 @@ export interface Poll {
   options: PollOption[];
   createdBy: string; // User ID of the creator
   createdAt: number;
+  updatedAt?: number;
+  userAvatar?: string;
+  userName?: string;
 }
 
 export type MessageType = 'text' | 'poll';
@@ -31,14 +34,14 @@ export interface ChatMessage {
  * The old Message interface can be phased out or kept if used distinctly elsewhere.
  */
 export interface Message {
-  id: string;
-  content: string;
-  sender: string; // Potentially user ID or name - was ambiguous
-  timestamp: number;
-  type: MessageType; // This was 'text' | 'poll' already
-  reactions: { [key: string]: string[] }; // emoji: userIds[]
-  poll?: Poll; // This Poll type might need to align with Yjs Poll structure if different
-  // Potentially add userId, userName, userAvatar if this old type is still used
+  id?: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  text?: string;
+  pollId?: string;
+  type: MessageType;
+  timestamp?: number;
 }
 
 // EMOJI_REACTIONS can remain as is if used for a different reaction system

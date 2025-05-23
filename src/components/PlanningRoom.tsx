@@ -184,9 +184,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       userName: currentUserName,
       userAvatar: currentUserAvatar,
       text: `Poll created: ${question}`,
-      timestamp: Date.now(),
-      pollId,
       type: 'poll',
+      pollId,
     });
 
     planningRoom.addActivity({
@@ -387,7 +386,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   function PollMessage({ poll, senderId, timestamp }: { poll: Poll, senderId: string, timestamp: number }) {
     const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
     const isMe = senderId === currentUserId;
-
+    const hasUserVoted = poll.options.some(o => o.votes.includes(currentUserId));
     return (
       <div className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
         <div className="mb-0.5 flex items-center gap-2">
@@ -427,7 +426,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               );
             })}
           </div>
-          {isUserVote && (
+          {hasUserVoted && (
             <div className="mt-2 text-xs text-indigo-600 font-medium">You voted: {poll.options.find(o => o.votes.includes(currentUserId))?.text}</div>
           )}
         </div>
@@ -1155,7 +1154,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               <form onSubmit={(e) => {
                 e.preventDefault();
                 if (!pollQuestion.trim() || pollOptions.some(opt => !opt.text.trim())) return;
-                
                 handleCreatePoll(pollQuestion, pollOptions.map(opt => opt.text));
                 setPollQuestion('');
                 setPollOptions([{ text: '' }, { text: '' }]);
@@ -1192,7 +1190,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                   ))}
                   <button
                     type="button"
-                    onClick={() => setPollOptions([...pollOptions, { text: '' } as Pick<PollOption, 'text'>])}
+                    onClick={() => setPollOptions([...pollOptions, { text: '' }])}
                     className="text-sm text-indigo-600 hover:text-indigo-500"
                   >
                     + Add Option
@@ -1204,7 +1202,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     type="button"
                     onClick={() => {
                       setPollQuestion('');
-                      setPollOptions([{ text: '' }, { text: '' } as Pick<PollOption, 'text'>])}
+                      setPollOptions([{ text: '' }, { text: '' }]);
                       setShowPollCreator(false);
                     }}
                     className="px-4 py-2 text-gray-700 hover:text-gray-900"
