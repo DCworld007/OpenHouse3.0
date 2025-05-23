@@ -192,8 +192,8 @@ export default function InvitePage() {
           const roomId = inviteDetails.roomId;
           console.log('[Invite] Redirecting to room:', roomId);
           
-          // Redirect to the plans page with the room ID
-          router.push(`/plans?room=${roomId}`);
+          // Redirect directly to the planning room
+          router.push(`/planning-room/${roomId}`);
         }
       } catch (error) {
         console.error('[Invite] Error:', error);

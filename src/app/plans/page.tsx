@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
@@ -141,6 +141,8 @@ function ErrorBoundary({ error }: { error: Error }) {
 export default function PlansPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const roomParam = searchParams?.get('room');
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -156,6 +158,18 @@ export default function PlansPage() {
   const isAuthenticated = meApiResponse?.authenticated; // Authentication status
 
   const userId = actualUser?.id || ''; // Use actualUser here
+
+  // Handle room parameter from invite link
+  useEffect(() => {
+    if (roomParam && !isLoading && groups.length > 0) {
+      // Find if we have access to this room
+      const roomExists = groups.some(group => group.id === roomParam);
+      if (roomExists) {
+        // Redirect to the planning room
+        router.push(`/planning-room/${roomParam}`);
+      }
+    }
+  }, [roomParam, isLoading, groups, router]);
 
   // Always call the hook in the same order to avoid React hook order errors
   const firstGroupId = groups.length > 0 ? groups[0].id : '';
