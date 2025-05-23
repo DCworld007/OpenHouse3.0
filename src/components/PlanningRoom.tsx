@@ -383,17 +383,47 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     });
   };
 
+  function renderMessage(message: ChatMessage) {
+    if (message.type === 'poll' && message.pollId) {
+      const poll = planningRoom.polls.find(p => p.id === message.pollId);
+      if (poll) {
+        return <PollMessage key={message.id} poll={poll} senderId={message.userId} timestamp={message.timestamp} />;
+      }
+      return <div key={message.id} className="text-xs text-gray-400 italic p-2">Poll data not found for message ID: {message.id}</div>;
+    }
+    
+    const isMe = message.userId === currentUserId;
+    const displayName = isMe ? 'You' : (message.userName || `User ${message.userId.substring(0, 6)}`);
+    
+    return (
+      <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
+        <div className="mb-0.5 flex items-center gap-2">
+          {message.userAvatar && !isMe && (
+            <img src={message.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
+          )}
+          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
+          <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
+        </div>
+        <div className={`flex flex-col rounded-xl p-3 shadow-sm max-w-[80%] ${isMe ? 'ml-auto bg-indigo-50 border border-indigo-200' : 'mr-auto bg-white border border-gray-200'}`}>
+          <p className="text-gray-700">{message.text || ''}</p>
+        </div>
+      </div>
+    );
+  }
+
   function PollMessage({ poll, senderId, timestamp }: { poll: Poll, senderId: string, timestamp: number }) {
     const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
     const isMe = senderId === currentUserId;
     const hasUserVoted = poll.options.some(o => o.votes.includes(currentUserId));
+    const displayName = isMe ? 'You' : (poll.userName || `User ${senderId.substring(0, 6)}`);
+
     return (
-      <div className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
+      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
         <div className="mb-0.5 flex items-center gap-2">
           {poll.userAvatar && !isMe && (
-            <img src={poll.userAvatar} alt={poll.userName || `User ${senderId.substring(0, 6)}`} className="h-6 w-6 rounded-full" />
+            <img src={poll.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
           )}
-          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : poll.userName || `User ${senderId.substring(0, 6)}`}</span>
+          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
           <span className="text-xs text-gray-400">{new Date(timestamp).toLocaleTimeString()}</span>
         </div>
         <div className={`bg-indigo-50 border border-indigo-200 rounded-lg p-4 my-1 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}>
@@ -429,33 +459,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           {hasUserVoted && (
             <div className="mt-2 text-xs text-indigo-600 font-medium">You voted: {poll.options.find(o => o.votes.includes(currentUserId))?.text}</div>
           )}
-        </div>
-      </div>
-    );
-  }
-
-  function renderMessage(message: ChatMessage) {
-    if (message.type === 'poll' && message.pollId) {
-      const poll = planningRoom.polls.find(p => p.id === message.pollId);
-      if (poll) {
-        return <PollMessage key={message.id} poll={poll} senderId={message.userId} timestamp={message.timestamp} />;
-      }
-      return <div key={message.id} className="text-xs text-gray-400 italic p-2">Poll data not found for message ID: {message.id}</div>;
-    }
-    
-    const isMe = message.userId === currentUserId;
-    const displayName = message.userName || (isMe ? 'You' : `User ${message.userId.substring(0, 6)}`);
-    return (
-      <div key={message.id} className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
-        <div className="mb-0.5 flex items-center gap-2">
-          {message.userAvatar && !isMe && (
-            <img src={message.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
-          )}
-          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : displayName}</span>
-          <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
-        </div>
-        <div className={`flex flex-col rounded-xl p-3 shadow-sm max-w-[80%] ${isMe ? 'ml-auto bg-indigo-50 border border-indigo-200' : 'mr-auto bg-white border border-gray-200'}`}>
-          <p className="text-gray-700">{message.text || ''}</p>
         </div>
       </div>
     );
