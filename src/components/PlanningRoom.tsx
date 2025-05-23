@@ -400,14 +400,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     }
     
     const isCurrentUser = message.userId === currentUserId;
-    let displayName;
-    
-    // Determine display name based on message sender
-    if (isCurrentUser) {
-      displayName = 'You';
-    } else {
-      displayName = message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`;
-    }
+    const displayName = message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`;
     
     return (
       <div key={message.id} className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} w-full`}>
@@ -429,14 +422,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
     const isCurrentUser = senderId === currentUserId;
     const hasUserVoted = poll.options.some(o => o.votes.includes(currentUserId));
-    let displayName;
-    
-    // Determine display name based on poll creator
-    if (isCurrentUser) {
-      displayName = 'You';
-    } else {
-      displayName = poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`;
-    }
+    const displayName = poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`;
 
     return (
       <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} w-full`}>
