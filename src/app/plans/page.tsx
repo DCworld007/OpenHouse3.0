@@ -201,9 +201,31 @@ export default function PlansPage() {
                 name: 'To Be Scheduled',
                 cards: [],
               };
+
+              // Create the group in the backend first
+              try {
+                const createResponse = await fetch('/api/rooms', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    id: defaultGroup.id,
+                    name: defaultGroup.name,
+                    description: '',
+                  }),
+                });
+
+                if (!createResponse.ok) {
+                  console.error('[PlansPage] Failed to create default group in backend:', await createResponse.text());
+                }
+              } catch (error) {
+                console.error('[PlansPage] Error creating default group in backend:', error);
+              }
+
               setGroups([defaultGroup]);
               saveGroups([defaultGroup]);
-              await ensureGroupExistsInD1(defaultGroup, actualUser.id); // Pass actualUser.id
             }
           } else {
             console.error('[PlansPage] Failed to fetch groups from server, falling back to localStorage. Status:', response.status);
@@ -225,6 +247,7 @@ export default function PlansPage() {
               };
               setGroups([defaultGroup]);
               saveGroups([defaultGroup]);
+              await ensureGroupExistsInD1(defaultGroup, actualUser.id);
             }
           }
         } else if (!isUserLoading) { // User is not authenticated (and user loading is complete)
@@ -423,19 +446,49 @@ export default function PlansPage() {
     setGroups(newGroups);
   };
 
-  const handleGroupNameChange = (groupId: string, newName: string) => {
+  const handleGroupNameChange = async (groupId: string, newName: string) => {
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
+
+    // Add to history first
     addToHistory(groupId, {
       type: 'RENAME_GROUP',
       data: { oldName: group.name, newName },
       previousState: [...group.cards],
     });
+
+    // Update local state first for immediate feedback
     const newGroups = groups.map(group => 
       group.id === groupId ? { ...group, name: newName } : group
     );
     console.log('[PlansPage] setGroups (group name change)', newGroups);
     setGroups(newGroups);
+
+    try {
+      // Update backend
+      const response = await fetch(`/api/rooms/${groupId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: newName,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to update group name in backend:', await response.text());
+        // If backend update fails, show error but keep local change
+        toast.error('Failed to save group name to server. Changes may not persist across sessions.');
+      } else {
+        // Update localStorage after successful backend update
+        saveGroups(newGroups);
+      }
+    } catch (error) {
+      console.error('Error updating group name:', error);
+      toast.error('Failed to save group name. Changes may not persist across sessions.');
+    }
   };
 
   const handleAddGroup = (afterGroupId: string) => {
