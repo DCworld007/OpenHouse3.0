@@ -3,7 +3,8 @@ import * as Y from 'yjs';
 // @ts-ignore
 import { WebsocketProvider } from 'y-websocket';
 import { PlanningRoomYjsDoc } from '@/types/planning-room';
-import { ChatMessage } from '@/types/message';
+import { ChatMessage, MessageType } from '@/types/message';
+import { Listing } from '@/types/listing';
 
 // Replace with your actual y-websocket server URL (from Railway)
 const Y_WEBSOCKET_URL = process.env.NEXT_PUBLIC_Y_WEBSOCKET_URL || 'wss://y-websocket-production-d87f.up.railway.app';
@@ -25,7 +26,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
   const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages' | 'reactions' | 'polls' | 'activityFeed'>>({
     linkedCards: [],
     cardOrder: [],
-    chatMessages: [],
+    chatMessages: [] as ChatMessage[],
     reactions: {},
     polls: [],
     activityFeed: [],
@@ -121,7 +122,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
         const existingCardIds = new Set(yLinkedCards.toArray().map((card: any) => card.id));
         const newCards = linkedGroup.cards.filter((card: any) => 
           !existingCardIds.has(card.id) && 
-          card.content // Only add cards with content
+          (card.address || card.notes) // Check card.address or card.notes
         );
         
         if (newCards.length === 0) {
@@ -134,15 +135,23 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
         // Prepare cards for adding to Yjs doc
         const cardsToAdd = newCards.map((card: any) => ({
           id: card.id,
-          content: card.content,
+          address: card.address, // Use address
           notes: card.notes || '',
           cardType: card.cardType || 'what',
+          // Ensure all required fields of Listing are present or have defaults
+          price: card.price || 0, // Example default
+          imageUrl: card.imageUrl || '',
+          sourceUrl: card.sourceUrl || '',
+          source: card.source || '',
+          groupId: card.groupId || groupId, // Ensure groupId is set
+          order: card.order || 0, // Ensure order is set
           userId: card.userId || 'unknown',
           createdAt: card.createdAt || new Date().toISOString(),
           updatedAt: card.updatedAt || new Date().toISOString(),
-          // Add metadata about the linked group
           linkedFrom: linkedGroup.group.id,
-          linkedFromName: linkedGroup.group.name
+          linkedFromName: linkedGroup.group.name,
+          lat: card.lat,
+          lng: card.lng,
         }));
         
         // Add cards to Yjs arrays
@@ -317,8 +326,8 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
       yReactions.forEach((userMap, cardId) => {
         if (userMap instanceof Y.Map) {
           reactionsObj[cardId] = {};
-          userMap.forEach((reaction, userId) => {
-            reactionsObj[cardId][userId] = reaction;
+          userMap.forEach((reaction, userIdKey) => {
+            reactionsObj[cardId][userIdKey] = reaction;
           });
         }
       });
@@ -477,10 +486,15 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
               const cardData = {
                 id: card.id,
                 type: card.cardType,
-                content: card.content,
+                content: card.address || card.notes || card.id,
                 notes: card.notes,
                 lat: card.lat,
-                lng: card.lng
+                lng: card.lng,
+                address: card.address,
+                price: card.price,
+                imageUrl: card.imageUrl,
+                sourceUrl: card.sourceUrl,
+                source: card.source,
               };
               
             // Add to cards array only if it doesn't already exist
@@ -603,15 +617,27 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
   }, [groupId, docState.reactions, persistToD1]);
 
   // Add chat message (Yjs-powered)
-  const addChatMessage = useCallback((messageData: Omit<ChatMessage, 'id' | 'timestamp'> & { userName: string; userAvatar?: string }) => {
+  const addChatMessage = useCallback((messageInput: {
+    userId: string;
+    userName: string;
+    userAvatar?: string;
+    text?: string;
+    pollId?: string;
+    type: MessageType;
+  }) => {
     const ydoc = ydocRef.current;
     if (!ydoc) return;
     const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
-    
+
     const newMessage: ChatMessage = {
-      ...messageData,
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`,
       timestamp: Date.now(),
+      userId: messageInput.userId,
+      userName: messageInput.userName,
+      userAvatar: messageInput.userAvatar,
+      text: messageInput.text,
+      pollId: messageInput.pollId,
+      type: messageInput.type,
     };
     yChatMessages.push([newMessage]);
   }, []);
@@ -726,7 +752,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
       const cardsNeedingGeocode = cards.filter(card => 
         card.cardType === 'where' && 
         (typeof card.lat !== 'number' || typeof card.lng !== 'number') &&
-        card.content
+        card.address // Only check if address exists
       );
       
       if (cardsNeedingGeocode.length === 0) {
@@ -740,7 +766,9 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
       // Geocode each card
       for (const card of cardsNeedingGeocode) {
         try {
-          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(card.content)}`;
+          const locationQuery = card.address; // Use address for the query
+          if (!locationQuery) continue; // Skip if no address
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}`;
           const res = await fetch(url, { headers: { 'User-Agent': 'UnifyPlan/1.0' } });
           const data = await res.json();
           
@@ -749,26 +777,28 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
             const lng = parseFloat(data[0].lon);
             
             if (!isNaN(lat) && !isNaN(lng)) {
-              console.log(`[Geocode Migration] Successfully geocoded "${card.content}" to: ${lat}, ${lng}`);
+              console.log(`[Geocode Migration] Successfully geocoded "${locationQuery}" to: ${lat}, ${lng}`);
               
               // Update card with coordinates
               const cardIndex = cards.findIndex(c => c.id === card.id);
               if (cardIndex !== -1) {
-                const updatedCard = { ...card, lat, lng, updatedAt: new Date().toISOString() };
+                const existingCardData = yLinkedCards.get(cardIndex) as PlanningRoomYjsDoc['linkedCards'][0];
+                const updatedCardData = { ...existingCardData, lat, lng, updatedAt: new Date().toISOString() };
                 yLinkedCards.delete(cardIndex, 1);
-                yLinkedCards.insert(cardIndex, [updatedCard]);
+                yLinkedCards.insert(cardIndex, [updatedCardData]);
                 
                 // Also update localStorage
-                const storedData = localStorage.getItem('openhouse-data');
-                if (storedData) {
-                  const groups = JSON.parse(storedData);
-                  const groupIndex = groups.findIndex((g: any) => g.id === groupId);
-                  if (groupIndex >= 0 && groups[groupIndex].cards) {
-                    const cardIndex = groups[groupIndex].cards.findIndex((c: any) => c.id === card.id);
-                    if (cardIndex !== -1) {
-                      groups[groupIndex].cards[cardIndex].lat = lat;
-                      groups[groupIndex].cards[cardIndex].lng = lng;
-                      localStorage.setItem('openhouse-data', JSON.stringify(groups));
+                const storedDataLS = localStorage.getItem('openhouse-data');
+                if (storedDataLS) {
+                  const groupsLS = JSON.parse(storedDataLS);
+                  const groupIndexLS = groupsLS.findIndex((g: any) => g.id === groupId);
+                  if (groupIndexLS >= 0 && groupsLS[groupIndexLS].cards) {
+                    const cardIndexLS = groupsLS[groupIndexLS].cards.findIndex((c: any) => c.id === card.id);
+                    if (cardIndexLS !== -1) {
+                      groupsLS[groupIndexLS].cards[cardIndexLS].lat = lat;
+                      groupsLS[groupIndexLS].cards[cardIndexLS].lng = lng;
+                      groupsLS[groupIndexLS].cards[cardIndexLS].updatedAt = updatedCardData.updatedAt;
+                      localStorage.setItem('openhouse-data', JSON.stringify(groupsLS));
                     }
                   }
                 }
@@ -779,7 +809,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
           // Add a small delay to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
-          console.error(`[Geocode Migration] Error geocoding "${card.content}":`, error);
+          console.error(`[Geocode Migration] Error geocoding card ${card.id}:`, error);
         }
       }
       
@@ -793,7 +823,7 @@ export function usePlanningRoomSync(groupId: string, currentUserId: string) {
   return {
     linkedCards: docState.linkedCards,
     cardOrder: docState.cardOrder,
-    chatMessages: docState.chatMessages,
+    chatMessages: docState.chatMessages as ChatMessage[],
     reactions: docState.reactions,
     polls: docState.polls,
     activityFeed: docState.activityFeed,
