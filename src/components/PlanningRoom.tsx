@@ -75,6 +75,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   // Use Yjs-powered planningRoom for real-time card sync
   const { user } = useUser();
   const userId = user?.sub || '';
+  const userName = user?.name || userId; // Fallback to userId if name is not available
+  const userAvatar = user?.picture || undefined;
   const planningRoom = usePlanningRoomSync(group.id, userId);
   // Use Yjs-powered chat messages
   const messages = planningRoom.chatMessages;
@@ -140,6 +142,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     planningRoom.addChatMessage({
       id: uuidv4(),
       userId,
+      userName, // Add userName
+      userAvatar, // Add userAvatar
       text: newMessage,
       timestamp: Date.now(),
     });
@@ -454,10 +458,12 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       }
     } else {
       const isMe = message.userId === userId;
+      const displayName = message.userName || message.userId; // Use userName, fallback to userId
       return (
         <div key={message.id} className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
           <div className="mb-0.5 flex items-center gap-2">
-            <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : message.userId}</span>
+            {/* Optionally, render user avatar here using message.userAvatar */}
+            <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : displayName}</span>
             <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
           </div>
           <div className={`flex flex-col rounded-xl p-3 bg-white border border-gray-100 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}>

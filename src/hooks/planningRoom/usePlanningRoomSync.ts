@@ -602,12 +602,23 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
   }, [groupId, docState.reactions, persistToD1]);
 
   // Add chat message (Yjs-powered)
-  const addChatMessage = useCallback((msg: PlanningRoomYjsDoc['chatMessages'][0]) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-    const yChatMessages = ydoc.getArray('chatMessages');
-    yChatMessages.push([msg]);
-  }, []);
+  const addChatMessage = (message: { id: string; userId: string; userName?: string; userAvatar?: string; text: string; timestamp: number; pollId?: string; type?: string }) => {
+    const yChatMessages = ydocRef.current?.getArray('chatMessages');
+    if (yChatMessages) {
+      // Ensure all expected fields are present, even if undefined initially
+      const fullMessage = {
+        id: message.id,
+        userId: message.userId,
+        userName: message.userName,
+        userAvatar: message.userAvatar,
+        text: message.text,
+        timestamp: message.timestamp,
+        pollId: message.pollId,
+        type: message.type,
+      };
+      yChatMessages.push([fullMessage]);
+    }
+  };
 
   // Add or update a reaction for a card
   const addReaction = useCallback((cardId: string, reaction: 'like' | 'dislike' | null) => {
