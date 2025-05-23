@@ -1,6 +1,6 @@
 import { useState, Fragment, useEffect, useRef } from 'react';
 import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
-import { EMOJI_REACTIONS, Message, Poll } from '@/types/message';
+import { EMOJI_REACTIONS, Message, Poll, PollOption } from '@/types/message';
 import { ListingGroup } from '@/types/listing';
 import { 
   ChatBubbleLeftRightIcon, 
@@ -29,6 +29,7 @@ import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
 import { useUser } from '@/lib/useUser';
 import { PlanningRoomYjsDoc } from '@/types/planning-room';
 import { getGroups } from '@/lib/groupStorage';
+import { ChatMessage } from '@/types/message';
 
 interface ExtendedMessage extends Message {
   sender: string;
@@ -72,14 +73,13 @@ interface PlanningRoomProps {
 }
 
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
-  // Use Yjs-powered planningRoom for real-time card sync
   const { user } = useUser();
-  const userId = user?.sub || '';
-  const userName = user?.name || userId; // Fallback to userId if name is not available
-  const userAvatar = user?.picture || undefined;
-  const planningRoom = usePlanningRoomSync(group.id, userId);
-  // Use Yjs-powered chat messages
-  const messages = planningRoom.chatMessages;
+  const currentUserId = user?.sub || '';
+  const currentUserName = user?.name || currentUserId;
+  const currentUserAvatar = user?.picture || undefined;
+
+  const planningRoom = usePlanningRoomSync(group.id, currentUserId);
+  const messages: ChatMessage[] = planningRoom.chatMessages as ChatMessage[];
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -91,32 +91,25 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
-  // --- ADDED: Invite Modal State ---
+  const [pollOptions, setPollOptions] = useState<Pick<PollOption, 'text'>[]>([{ text: '' }, { text: '' }]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [generatedInviteLink, setGeneratedInviteLink] = useState('');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
-  // Map Yjs cardOrder to linkedCards for display, filter out undefined
   const cards = planningRoom.cardOrder
     .map((cardId: string) => planningRoom.linkedCards.find((card: any) => card.id === cardId))
     .filter((card: any): card is NonNullable<typeof card> => Boolean(card));
-  // Add debug logging in the component render
   console.log('Rendering Yjs cards:', cards.map(c => c.id));
 
-  // --- Unread marker, jump-to-unread, and auto-scroll logic ---
   const chatRef = useRef<HTMLDivElement>(null);
   const [showJumpToUnread, setShowJumpToUnread] = useState(false);
   const [unreadIndex, setUnreadIndex] = useState<number | null>(null);
   const roomKey = `planning-room-last-seen-${group.id}`;
-  // Find last seen timestamp from localStorage
   useEffect(() => {
     const lastSeen = Number(localStorage.getItem(roomKey) || 0);
-    // Find first unread message index
     const idx = messages.findIndex(m => m.timestamp > lastSeen);
     setUnreadIndex(idx !== -1 ? idx : null);
-    // On mount, scroll to unread marker or bottom
     setTimeout(() => {
       const chat = chatRef.current;
       if (!chat) return;
@@ -127,7 +120,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       }
     }, 0);
   }, [group.id, messages.length]);
-  // Update last seen on unmount or when sending a message
   useEffect(() => {
     return () => {
       if (messages.length > 0) {
@@ -135,27 +127,23 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       }
     };
   }, [group.id, messages.length]);
-  // When sending a message, update last seen
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     planningRoom.addChatMessage({
-      id: uuidv4(),
-      userId,
-      userName, // Add userName
-      userAvatar, // Add userAvatar
+      userId: currentUserId,
+      userName: currentUserName,
+      userAvatar: currentUserAvatar,
       text: newMessage,
-      timestamp: Date.now(),
+      type: 'text',
     });
     setNewMessage('');
-    // Update last seen
     setTimeout(() => {
       if (messages.length > 0) {
         localStorage.setItem(roomKey, String(Date.now()));
       }
     }, 100);
   };
-  // Show jump-to-unread button if user scrolls away from unread marker
   useEffect(() => {
     const chat = chatRef.current;
     if (!chat || unreadIndex === null) return;
@@ -176,62 +164,55 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     if (unreadElem) unreadElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  /**
-   * Create a new poll and add it to the Yjs doc (real-time, persistent)
-   */
-  const handleCreatePoll = (question: string, options: string[]) => {
+  const handleCreatePoll = (question: string, optionsTexts: string[]) => {
     const pollId = uuidv4();
-    const newPoll: PlanningRoomYjsDoc['polls'][0] = {
+    const newPoll: Poll = {
       id: pollId,
       question,
-      options,
-      votes: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      options: optionsTexts.map((text, index) => ({ 
+        id: `${pollId}-opt-${index}`,
+        text,
+        votes: [] 
+      })),
+      createdBy: currentUserId,
+      createdAt: Date.now(),
     };
     planningRoom.addPoll(newPoll);
-    // Add poll as a special chat message
+
     planningRoom.addChatMessage({
-      id: uuidv4(),
-      userId,
-      text: '', // Not used for poll
+      userId: currentUserId,
+      userName: currentUserName,
+      userAvatar: currentUserAvatar,
+      text: `Poll created: ${question}`,
       timestamp: Date.now(),
       pollId,
       type: 'poll',
-    } as any);
-    // Log to activity feed with poll question
+    });
+
     planningRoom.addActivity({
       id: uuidv4(),
       type: 'poll_created',
-      userId,
+      userId: currentUserId,
       context: { pollId, pollQuestion: question },
       timestamp: Date.now(),
     });
-    // Reset and close modal
+
     setPollQuestion('');
-    setPollOptions(['', '']);
+    setPollOptions([{ text: '' }, { text: '' }]);
     setShowPollCreator(false);
   };
 
-  // Poll voting not yet supported in Yjs chat
-  // (removed legacy updatePollVotes logic)
-
-  // Reactions not yet supported in Yjs chat
-  // (removed legacy updateReaction logic)
-
   const handleAddCard = async (type: 'what' | 'where', content: string, notes?: string) => {
-    // Create base card data
     const newCardData: any = {
       id: uuidv4(),
       content,
       notes: notes || '',
       cardType: type,
-      userId,
+      userId: currentUserId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     
-    // Geocode location if card type is 'where'
     if (type === 'where') {
       try {
         const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(content)}`;
@@ -239,7 +220,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         const results = await response.json();
         
         if (results && results.length > 0) {
-          // Add lat/lng to the card data
           newCardData.lat = parseFloat(results[0].lat);
           newCardData.lng = parseFloat(results[0].lon);
           console.log(`[PlanningRoom] Geocoded location "${content}" to:`, newCardData.lat, newCardData.lng);
@@ -251,16 +231,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       }
     }
     
-    // Add the card to the planning room
     planningRoom.addCard(newCardData);
 
-    // Explicitly add activity after card is added to Yjs
     addActivity('card_add', { 
       cardTitle: newCardData.content, 
       timestamp: Date.now()
     });
 
-    // Optimistically close modal and reset fields immediately
     setShowNewCardForm(false);
     setShowActionsMenu(false);
     setNewCardContent('');
@@ -271,24 +248,19 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     e.preventDefault();
     if (!newCardContent.trim()) return;
     handleAddCard(cardType, newCardContent, newCardNotes);
-    // All resets are now handled in handleAddCard for instant feedback
   };
 
-  /**
-   * Add an activity to the Yjs-powered activity feed and persist to D1
-   */
   const addActivity = async (type: string, details: any) => {
     const activity = {
       id: uuidv4(),
       type: type as any,
-      userId,
-      userName: user?.name || undefined,
+      userId: currentUserId,
+      userName: currentUserName,
       userEmail: user?.email || undefined,
       context: details,
       timestamp: Date.now(),
     };
     planningRoom.addActivity(activity);
-    // Persist to D1
     try {
       await fetch(`/api/planning-room/${group.id}/activity`, {
         method: 'POST',
@@ -301,21 +273,19 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
-    // Use the actual userId from context
     const updatedGroup = { ...group };
     const updatedListings = updatedGroup.listings.map(listing => {
       if (listing.id === cardId) {
         const reactions = listing.reactions || [];
         const existingReactionIndex = reactions.findIndex(
-          r => r.type === reactionType && r.userId === userId
+          r => r.type === reactionType && r.userId === currentUserId
         );
 
         let updatedReactions = [...reactions];
         if (existingReactionIndex >= 0) {
           updatedReactions.splice(existingReactionIndex, 1);
         } else {
-          updatedReactions.push({ type: reactionType, userId });
-          // Add activity for both like/dislike
+          updatedReactions.push({ type: reactionType, userId: currentUserId });
           const cardTitle =
             typeof listing === 'object'
               ? ('address' in listing && listing.address)
@@ -353,7 +323,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       const [moved] = newOrder.splice(oldIndex, 1);
       newOrder.splice(newIndex, 0, moved);
       planningRoom.reorderCards(newOrder);
-      // Track card reorder in activity feed
       const card = cards[oldIndex];
       if (card) {
         const cardTitle = typeof card === 'object' && 'address' in card ? (card as any).address : (card as any).content;
@@ -367,63 +336,85 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     }
   };
 
-  // --- Poll Voting Logic ---
-  /**
-   * Cast or change a vote for a poll (Yjs-powered, real-time)
-   */
-  const handleVote = (pollId: string, option: string) => {
-    // Find poll in Yjs doc
-    const pollIdx = planningRoom.polls.findIndex(p => p.id === pollId);
-    if (pollIdx === -1) return;
-    // Update poll in Yjs doc
+  const handleVote = (pollId: string, optionId: string) => {
     const ydoc = planningRoom.ydoc;
     if (!ydoc) return;
-    const yPolls = ydoc.getArray('polls');
-    const poll = yPolls.get(pollIdx) as PlanningRoomYjsDoc['polls'][0];
-    if (!poll) return;
-    // Update votes
-    poll.votes = { ...poll.votes, [userId]: option };
-    yPolls.delete(pollIdx, 1);
-    yPolls.insert(pollIdx, [poll]);
-    // Log to activity feed with poll question and option label
+    const yPolls = ydoc.getArray<Poll>('polls');
+    const pollIndex = planningRoom.polls.findIndex(p => p.id === pollId);
+    if (pollIndex === -1) return;
+
+    const poll = yPolls.get(pollIndex);
+    const optionIndex = poll.options.findIndex(opt => opt.id === optionId);
+    if (optionIndex === -1) return;
+
+    const currentVotes = poll.options[optionIndex].votes || [];
+    const userVoteIndex = currentVotes.indexOf(currentUserId);
+
+    let newOptions = [...poll.options];
+    if (userVoteIndex > -1) {
+      newOptions = newOptions.map(opt => ({
+        ...opt,
+        votes: opt.votes.filter(uid => uid !== currentUserId)
+      }));
+      newOptions[optionIndex] = {
+          ...newOptions[optionIndex],
+          votes: [...newOptions[optionIndex].votes, currentUserId]
+      };
+    } else {
+      newOptions = newOptions.map(opt => ({
+        ...opt,
+        votes: opt.votes.filter(uid => uid !== currentUserId)
+      }));
+      newOptions[optionIndex] = {
+          ...newOptions[optionIndex],
+          votes: [...newOptions[optionIndex].votes, currentUserId]
+      };
+    }
+    
+    const updatedPoll: Poll = { ...poll, options: newOptions, updatedAt: Date.now() };
+    yPolls.delete(pollIndex, 1);
+    yPolls.insert(pollIndex, [updatedPoll]);
+
     planningRoom.addActivity({
       id: uuidv4(),
       type: 'vote_cast',
-      userId,
-      context: { pollId, pollOption: option, pollQuestion: poll.question },
+      userId: currentUserId,
+      context: { pollId, pollOptionId: optionId, pollQuestion: poll.question, optionText: poll.options[optionIndex].text },
       timestamp: Date.now(),
     });
   };
 
-  // --- Render Poll as Chat Message ---
-  function PollMessage({ poll, senderId, timestamp }: { poll: PlanningRoomYjsDoc['polls'][0], senderId: string, timestamp: number }) {
-    const userVote = poll.votes[userId];
-    const totalVotes = Object.keys(poll.votes).length;
-    const isMe = senderId === userId;
+  function PollMessage({ poll, senderId, timestamp }: { poll: Poll, senderId: string, timestamp: number }) {
+    const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
+    const isMe = senderId === currentUserId;
+
     return (
       <div className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
         <div className="mb-0.5 flex items-center gap-2">
-          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : senderId}</span>
+          {poll.userAvatar && !isMe && (
+            <img src={poll.userAvatar} alt={poll.userName || `User ${senderId.substring(0, 6)}`} className="h-6 w-6 rounded-full" />
+          )}
+          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : poll.userName || `User ${senderId.substring(0, 6)}`}</span>
           <span className="text-xs text-gray-400">{new Date(timestamp).toLocaleTimeString()}</span>
         </div>
-        <div className={`bg-indigo-50 border border-indigo-200 rounded-lg p-4 my-1 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}> 
+        <div className={`bg-indigo-50 border border-indigo-200 rounded-lg p-4 my-1 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}>
           <div className="font-medium text-indigo-900 mb-2">{poll.question}</div>
           <div className="space-y-2">
-            {poll.options.map((option, idx) => {
-              const optionVotes = Object.values(poll.votes).filter(v => v === option).length;
-              const percent = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
-              const isUserVote = userVote === option;
+            {poll.options.map((option) => {
+              const optionVotesCount = option.votes.length;
+              const percent = totalVotesOnPoll > 0 ? Math.round((optionVotesCount / totalVotesOnPoll) * 100) : 0;
+              const isUserVote = option.votes.includes(currentUserId);
               return (
                 <button
-                  key={option}
-                  onClick={() => handleVote(poll.id, option)}
+                  key={option.id}
+                  onClick={() => handleVote(poll.id, option.id)}
                   className={`w-full flex items-center justify-between px-4 py-2 rounded-lg border transition-colors
                     ${isUserVote ? 'bg-indigo-100 border-indigo-400 text-indigo-700 font-semibold' : 'bg-white border-gray-200 hover:bg-indigo-50 hover:border-indigo-300'}
                   `}
                 >
-                  <span>{option}</span>
+                  <span>{option.text}</span>
                   <span className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">{optionVotes} vote{optionVotes !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-gray-500">{optionVotesCount} vote{optionVotesCount !== 1 ? 's' : ''}</span>
                     <span className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden ml-2">
                       <span
                         className="block h-2 rounded-full transition-all duration-300"
@@ -436,51 +427,46 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               );
             })}
           </div>
-          {userVote && (
-            <div className="mt-2 text-xs text-indigo-600 font-medium">You voted: {userVote}</div>
+          {isUserVote && (
+            <div className="mt-2 text-xs text-indigo-600 font-medium">You voted: {poll.options.find(o => o.votes.includes(currentUserId))?.text}</div>
           )}
         </div>
       </div>
     );
   }
-  // --- End Poll Voting Logic ---
 
-  // --- Auto-scroll chat to bottom (handled in unread logic above) ---
-
-  // --- Helper to render a message or poll ---
-  function renderMessage(message: any) {
-    if ((message as any).type === 'poll' && (message as any).pollId) {
-      const poll = planningRoom.polls.find(p => p.id === (message as any).pollId);
+  function renderMessage(message: ChatMessage) {
+    if (message.type === 'poll' && message.pollId) {
+      const poll = planningRoom.polls.find(p => p.id === message.pollId);
       if (poll) {
         return <PollMessage key={message.id} poll={poll} senderId={message.userId} timestamp={message.timestamp} />;
-      } else {
-        return null;
       }
-    } else {
-      const isMe = message.userId === userId;
-      const displayName = message.userName || message.userId; // Use userName, fallback to userId
-      return (
-        <div key={message.id} className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
-          <div className="mb-0.5 flex items-center gap-2">
-            {/* Optionally, render user avatar here using message.userAvatar */}
-            <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : displayName}</span>
-            <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
-          </div>
-          <div className={`flex flex-col rounded-xl p-3 bg-white border border-gray-100 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}>
-            <p className="text-gray-700">{message.text}</p>
-          </div>
-        </div>
-      );
+      return <div key={message.id} className="text-xs text-gray-400 italic p-2">Poll data not found for message ID: {message.id}</div>;
     }
+    
+    const isMe = message.userId === currentUserId;
+    const displayName = message.userName || (isMe ? 'You' : `User ${message.userId.substring(0, 6)}`);
+    return (
+      <div key={message.id} className={`flex flex-col items-${isMe ? 'end' : 'start'} w-full`}>
+        <div className="mb-0.5 flex items-center gap-2">
+          {message.userAvatar && !isMe && (
+            <img src={message.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
+          )}
+          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{isMe ? 'You' : displayName}</span>
+          <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
+        </div>
+        <div className={`flex flex-col rounded-xl p-3 shadow-sm max-w-[80%] ${isMe ? 'ml-auto bg-indigo-50 border border-indigo-200' : 'mr-auto bg-white border border-gray-200'}`}>
+          <p className="text-gray-700">{message.text || ''}</p>
+        </div>
+      </div>
+    );
   }
 
-  // --- Linked Groups State ---
   const [linkedGroups, setLinkedGroups] = useState<any[]>([]);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linking, setLinking] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
 
-  // Fetch persisted activity feed from D1 on mount
   useEffect(() => {
     async function fetchPersistedActivity() {
       try {
@@ -489,7 +475,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         });
         const data = await res.json();
         if (Array.isArray(data.activities)) {
-          // Merge into Yjs activity feed if not already present
           const existingIds = new Set(planningRoom.activityFeed.map((a: any) => a.id));
           data.activities.forEach((activity: any) => {
             if (!existingIds.has(activity.id)) {
@@ -502,20 +487,14 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       }
     }
     fetchPersistedActivity();
-    // Only run on initial mount for this group
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group.id]);
 
-  // Fetch linked groups on mount and after link/unlink
   useEffect(() => {
     async function fetchLinkedGroups() {
       try {
-        // Get all available groups from localStorage to send to the API
         const currentGroups = getGroups();
         
-        // IMPORTANT: Make sure allGroups includes the current cards for each group
         const enhancedGroups = currentGroups.map(g => {
-          // Ensure each group has both cards and listings array
           if (!g.cards) g.cards = [];
           if (!g.listings) g.listings = [];
           
@@ -532,12 +511,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           credentials: 'include'
         });
         
-        // If we get an error status, just log it and display empty state
         if (!res.ok) {
           const errorText = await res.text();
           console.error('[LinkedGroups] API fetch error:', res.status, errorText);
           
-          // Still set empty array when there's an error to avoid breaking the UI
           setLinkedGroups([]);
           return;
         }
@@ -554,7 +531,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
             console.log(`[LinkedGroups] Group ${i+1}:`, lg.group.id, lg.group.name);
             console.log(`[LinkedGroups] Cards for group ${i+1}:`, lg.cards.length);
             
-            // DEBUG: Check if the linked group exists in localStorage
             const originalGroup = currentGroups.find(g => g.id === lg.group.id);
             if (originalGroup) {
               console.log(`[LinkedGroups DEBUG] Original group from localStorage:`, {
@@ -573,21 +549,18 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         console.log('[LinkedGroups] State updated with:', data.linkedGroups);
       } catch (e) {
         console.error('[LinkedGroups] fetch error:', e);
-        // Set empty array on error to avoid breaking the UI
         setLinkedGroups([]);
       }
     }
     fetchLinkedGroups();
   }, [group.id]);
-  // Link a group
+
   async function handleLinkGroup() {
     if (!selectedGroupId) return;
     setLinking(true);
     try {
-      // Get all available groups to send to the API
       const currentGroups = getGroups();
       
-      // Ensure we're using the correct API endpoint with query parameter for groups
       const groupsParam = encodeURIComponent(JSON.stringify(currentGroups));
       const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/link?groups=${groupsParam}`;
       console.log('[LinkedGroups] Calling API:', apiUrl);
@@ -603,7 +576,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[LinkedGroups] API error:', res.status, errorText);
-        // Show an error dialog or toast here (using alert for simplicity)
         alert(`Failed to link group: ${res.status} error`);
         setShowLinkModal(false);
         setSelectedGroupId('');
@@ -615,13 +587,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       setShowLinkModal(false);
       setSelectedGroupId('');
       
-      // Refetch linked groups
       const updatedGroups = getGroups();
       const updatedGroupsParam = encodeURIComponent(JSON.stringify(updatedGroups));
       const res2 = await fetch(`/api/planning-room/${encodeURIComponent(group.id)}/linked-groups?groups=${updatedGroupsParam}`);
       if (!res2.ok) {
         console.error('[LinkedGroups] Failed to fetch linked groups:', res2.status);
-        // Just leave the UI as is if we can't refresh the linked groups list
         return;
       }
       
@@ -629,16 +599,14 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       setLinkedGroups(data2.linkedGroups || []);
     } catch (e: any) {
       console.error('[LinkedGroups] link error:', e);
-      // Show an error dialog or toast
       alert(`Error linking group: ${e.message || 'Unknown error'}`);
     } finally {
       setLinking(false);
     }
   }
-  // Unlink a group
+
   async function handleUnlinkGroup(linkedGroupId: string) {
     try {
-      // Ensure we're using the correct API endpoint
       const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/unlink`;
       console.log('[LinkedGroups] Unlinking group:', linkedGroupId, 'API:', apiUrl);
       
@@ -651,7 +619,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       if (!res.ok) {
         const errorText = await res.text();
         console.error('[LinkedGroups] API unlink error:', res.status, errorText);
-        // Show an error dialog or toast here (using alert for simplicity)
         alert(`Failed to unlink group: ${res.status} error`);
         return;
       }
@@ -659,10 +626,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       const data = await res.json();
       console.log('[LinkedGroups] unlink result:', data);
       
-      // Optimistically update UI by removing the unlinked group
       setLinkedGroups(prev => prev.filter(lg => lg.group.id !== linkedGroupId));
       
-      // Try to refetch linked groups, but it's okay if this fails
       try {
         const allGroups = getGroups();
         const groupsParam = encodeURIComponent(JSON.stringify(allGroups));
@@ -673,21 +638,15 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         }
     } catch (e) {
         console.error('[LinkedGroups] Failed to refetch after unlinking:', e);
-        // Already updated UI optimistically, so no additional action needed
       }
     } catch (e: any) {
       console.error('[LinkedGroups] unlink error:', e);
-      // Show an error dialog or toast
       alert(`Error unlinking group: ${e.message || 'Unknown error'}`);
     }
   }
-  // Sync copied cards with their originals
+
   async function handleSyncCopiedCards(originalGroupId: string) {
     try {
-      // Show a loading state if needed
-      // For example: setIsSyncing(originalGroupId);
-      
-      // Get all available groups from localStorage to send to the API
       const currentGroups = getGroups();
       const originalGroup = currentGroups.find(g => g.id === originalGroupId);
       
@@ -697,7 +656,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         return;
       }
       
-      // Call the sync API endpoint
       const apiUrl = `/api/planning-room/${encodeURIComponent(group.id)}/sync-copied-cards`;
       console.log('[LinkedGroups] Syncing copied cards from group:', originalGroupId);
       
@@ -720,7 +678,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       const data = await res.json();
       console.log('[LinkedGroups] sync result:', data);
       
-      // Refresh the cards display
       const updatedGroups = getGroups();
       const groupsParam = encodeURIComponent(JSON.stringify(updatedGroups));
       const res2 = await fetch(`/api/planning-room/${encodeURIComponent(group.id)}/linked-groups?groups=${groupsParam}`);
@@ -728,23 +685,18 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         const data2 = await res2.json();
         setLinkedGroups(data2.linkedGroups || []);
         
-        // Show success message
         alert(`Successfully synced ${data.syncedCount || 0} cards from ${originalGroup.name}`);
       }
     } catch (e: any) {
       console.error('[LinkedGroups] sync error:', e);
       alert(`Error syncing cards: ${e.message || 'Unknown error'}`);
-    } finally {
-      // Clear loading state if needed
-      // setIsSyncing(null);
     }
   }
-  // Get available groups for linking (exclude current and already linked)
+
   const availableGroups = getGroups().filter(
     g => g.id !== group.id && !linkedGroups.some(lg => lg.group.id === g.id)
   );
 
-  // --- Helper to filter duplicate activities by ID ---
   const uniqueActivitiesById = (activities: (Activity | null)[]) => {
     const seenIds = new Set<string>();
     return activities.filter(activity => {
@@ -756,7 +708,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     });
   };
 
-  // --- ADDED: Invite Logic ---
   const handleGenerateInviteLink = async () => {
     setIsGeneratingLink(true);
     setGeneratedInviteLink('');
@@ -766,11 +717,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       console.log(`[Invite] Starting invite generation for group:`, {
         groupId: group.id,
         groupName: group.name,
-        // Add more relevant group info for debugging
         cards: cards.length,
       });
 
-      // First ensure the room exists in the database
       const createRoomRes = await fetch('/api/rooms', {
         method: 'POST',
         headers: {
@@ -792,7 +741,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         throw new Error(`Failed to prepare room for invite. Please try again.`);
       }
 
-      // Verify the room exists and is accessible
       const roomCheckRes = await fetch(`/api/planning-room/${group.id}`, {
         method: 'GET',
         headers: {
@@ -810,14 +758,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         throw new Error(`Room not found or not accessible. Please refresh the page and try again.`);
       }
 
-      // Now generate the invite
       const res = await fetch(`/api/planning-room/${group.id}/invite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({}) // Send empty JSON object to avoid body parsing issues
+        body: JSON.stringify({})
       });
       
       if (!res.ok) {
@@ -834,13 +781,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       const data = await res.json();
       console.log('[Invite] Response data:', data);
       
-      // Check all possible locations where the URL might be in the response
       if (data.url) {
         setGeneratedInviteLink(data.url);
       } else if (data.inviteUrl) {
         setGeneratedInviteLink(data.inviteUrl);
       } else if (data.token) {
-        // Construct URL from token if no URL is provided
         const baseUrl = window.location.origin;
         const fullUrl = `${baseUrl}/invite/${data.token}`;
         setGeneratedInviteLink(fullUrl);
@@ -860,7 +805,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setInviteLinkCopied(true);
-      setTimeout(() => setInviteLinkCopied(false), 2000); // Reset after 2 seconds
+      setTimeout(() => setInviteLinkCopied(false), 2000);
     }).catch(err => {
       console.error('[Clipboard] Failed to copy:', err);
       alert('Failed to copy link.');
@@ -869,7 +814,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -880,7 +824,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               <h1 className="text-xl font-semibold text-gray-900">{group.name}</h1>
               <span className="px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full">Planning Room</span>
             </div>
-            {/* --- MODIFIED: Header Buttons --- */}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleGenerateInviteLink}
@@ -888,7 +831,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 className="p-1.5 text-gray-500 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition disabled:opacity-50"
                 title="Invite Users"
               >
-                {/* Basic spinner for loading state */}
                 {isGeneratingLink ? 
                   <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -918,10 +860,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-12 gap-6">
-          {/* Left Column - Cards */}
           <div className="col-span-3">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-4 border-b border-gray-200">
@@ -958,7 +898,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                             setActiveCardId={setActiveCardId}
                             setShowNewCardForm={setShowNewCardForm}
                             planningRoom={planningRoom}
-                            userId={userId}
+                            userId={currentUserId}
                             addActivity={addActivity}
                           />
                         ) : null
@@ -966,7 +906,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     </div>
                   </SortableContext>
                 </DndContext>
-                {/* Linked Groups Section */}
                 {linkedGroups.length > 0 && (
                   <div className="mt-8">
                     <h3 className="text-sm font-semibold text-indigo-700 mb-2">Linked Groups ({linkedGroups.length})</h3>
@@ -1068,10 +1007,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
             </div>
           </div>
 
-          {/* Middle Column - Chat (with Polls inline) */}
           <div className="col-span-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-[600px] flex flex-col">
-              {/* Chat Header */}
               <div className="p-4 border-b border-gray-200 flex-shrink-0">
                 <h2 className="text-lg font-semibold flex items-center text-gray-900">
                   <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 text-gray-400" />
@@ -1079,7 +1016,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 </h2>
               </div>
 
-              {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatRef}>
                 {messages.map((message, i) => {
                   if (unreadIndex === i) {
@@ -1111,7 +1047,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 )}
               </div>
 
-              {/* Chat Input */}
               <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
                 <form onSubmit={handleSendMessage} className="flex items-center gap-3">
                   <div className="relative">
@@ -1170,7 +1105,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
             </div>
           </div>
 
-          {/* Right Column - Activity Feed */}
           <div className="col-span-3">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-4 border-b border-gray-200">
@@ -1203,7 +1137,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         </div>
       </div>
 
-      {/* Modals */}
       {showPollCreator && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-[480px] overflow-hidden">
@@ -1221,11 +1154,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
             <div className="p-6">
               <form onSubmit={(e) => {
                 e.preventDefault();
-                if (!pollQuestion.trim() || pollOptions.some(opt => !opt.trim())) return;
+                if (!pollQuestion.trim() || pollOptions.some(opt => !opt.text.trim())) return;
                 
-                handleCreatePoll(pollQuestion, pollOptions.filter(opt => opt.trim()));
+                handleCreatePoll(pollQuestion, pollOptions.map(opt => opt.text));
                 setPollQuestion('');
-                setPollOptions(['', '']);
+                setPollOptions([{ text: '' }, { text: '' }]);
                 setShowPollCreator(false);
               }} className="space-y-6">
                 <div>
@@ -1247,10 +1180,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     <input
                       key={index}
                       type="text"
-                      value={option}
+                      value={option.text}
                       onChange={e => {
                         const newOptions = [...pollOptions];
-                        newOptions[index] = e.target.value;
+                        newOptions[index] = { ...option, text: e.target.value };
                         setPollOptions(newOptions);
                       }}
                       placeholder={`Option ${index + 1}`}
@@ -1259,7 +1192,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                   ))}
                   <button
                     type="button"
-                    onClick={() => setPollOptions([...pollOptions, ''])}
+                    onClick={() => setPollOptions([...pollOptions, { text: '' } as Pick<PollOption, 'text'>])}
                     className="text-sm text-indigo-600 hover:text-indigo-500"
                   >
                     + Add Option
@@ -1271,7 +1204,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     type="button"
                     onClick={() => {
                       setPollQuestion('');
-                      setPollOptions(['', '']);
+                      setPollOptions([{ text: '' }, { text: '' } as Pick<PollOption, 'text'>])}
                       setShowPollCreator(false);
                     }}
                     className="px-4 py-2 text-gray-700 hover:text-gray-900"
@@ -1280,7 +1213,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                   </button>
                   <button
                     type="submit"
-                    disabled={!pollQuestion.trim() || pollOptions.some(opt => !opt.trim())}
+                    disabled={!pollQuestion.trim() || pollOptions.some(opt => !opt.text.trim())}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Create Poll
@@ -1373,7 +1306,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         </div>
       )}
 
-      {/* Link Group Modal */}
       {showLinkModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-[400px] p-6">
@@ -1404,7 +1336,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         </div>
       )}
 
-      {/* --- ADDED: Invite Modal --- */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
@@ -1437,7 +1368,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     value={generatedInviteLink}
                     readOnly
                     className="flex-1 p-2 border border-gray-300 rounded-md shadow-sm text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
-                    onClick={(e) => (e.target as HTMLInputElement).select()} // Select text on click
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
                   />
                   <button
                     onClick={() => copyToClipboard(generatedInviteLink)}
@@ -1472,40 +1403,33 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   );
 }
 
-// Add SortableCard component for @dnd-kit
 function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planningRoom, userId, addActivity }: any) {
   const reactions = planningRoom.reactions?.[card.id] || {};
   const userReaction = reactions[userId] || null;
   const likeCount = Object.values(reactions).filter(r => r === 'like').length;
   const dislikeCount = Object.values(reactions).filter(r => r === 'dislike').length;
   
-  // Check if this card is from a linked group
   const isLinkedCard = card.linkedFrom && card.linkedFromName;
 
-  // Debug logging
   console.log('SortableCard', card.id, { reactions, userReaction, likeCount, dislikeCount, isLinkedCard });
 
   const handleReaction = (type: 'like' | 'dislike') => {
-    const currentReactionOnCard = userReaction; // Store before changing
+    const currentReactionOnCard = userReaction;
 
     if (currentReactionOnCard === type) {
       planningRoom.removeReaction(card.id);
-      // Optionally, log a 'reaction_removed' activity here if desired
-      // For now, we are not logging removals to avoid too much noise.
     } else {
       planningRoom.addReaction(card.id, type);
       
-      // Log activity for adding/changing a reaction
       const reactionTypeForActivity: 'thumbsUp' | 'thumbsDown' = type === 'like' ? 'thumbsUp' : 'thumbsDown';
       addActivity('card_reaction', {
-        cardTitle: card.content, // Assuming card.content is the title
+        cardTitle: card.content,
         reactionType: reactionTypeForActivity,
         timestamp: Date.now()
       });
     }
   };
 
-  // Show reactions on hover if no reactions and user hasn't reacted, otherwise always show
   const showReactionsAlways = likeCount > 0 || dislikeCount > 0 || userReaction;
 
   const {
@@ -1524,7 +1448,6 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
   return (
     <div ref={setNodeRef} style={style} className={`transition-all group ${isDragging ? 'opacity-50' : ''}`} {...attributes}>
       <div className={`bg-white rounded-lg border ${isLinkedCard ? 'border-indigo-300' : 'border-gray-200'} px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group`}>
-        {/* Drag Handle - only this is draggable */}
         <button
           className="mr-3 p-1 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing"
           tabIndex={0}
@@ -1534,7 +1457,6 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
         >
           <Bars3Icon className="h-5 w-5 text-gray-600" />
         </button>
-        {/* Card Content */}
         <div className="flex-1">
           <div className="space-y-4">
             <div>
@@ -1555,7 +1477,6 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
             )}
           </div>
         </div>
-        {/* Reactions - right, show on hover if no reactions, always if there are reactions or user has reacted */}
         <div className={`flex items-center gap-1 ml-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
           <button
             onClick={() => handleReaction('like')}
@@ -1574,7 +1495,6 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
             👎 <span className="ml-1 text-xs">{dislikeCount}</span>
           </button>
         </div>
-        {/* Plus Button - bottom center, half on/half off, only on hover */}
         <button
           onClick={() => {
             setActiveCardId(card.id);

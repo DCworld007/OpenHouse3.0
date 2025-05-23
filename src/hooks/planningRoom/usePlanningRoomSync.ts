@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 // @ts-ignore
 import { WebsocketProvider } from 'y-websocket';
 import { PlanningRoomYjsDoc } from '@/types/planning-room';
+import { ChatMessage } from '@/types/message';
 
 // Replace with your actual y-websocket server URL (from Railway)
 const Y_WEBSOCKET_URL = process.env.NEXT_PUBLIC_Y_WEBSOCKET_URL || 'wss://y-websocket-production-d87f.up.railway.app';
@@ -20,7 +21,7 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
   };
 }
 
-export function usePlanningRoomSync(groupId: string, userId: string) {
+export function usePlanningRoomSync(groupId: string, currentUserId: string) {
   const [docState, setDocState] = useState<Pick<PlanningRoomYjsDoc, 'linkedCards' | 'cardOrder' | 'chatMessages' | 'reactions' | 'polls' | 'activityFeed'>>({
     linkedCards: [],
     cardOrder: [],
@@ -279,7 +280,7 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     // Always get arrays/maps from the persistent doc
     const yLinkedCards = ydoc.getArray('linkedCards');
     const yCardOrder = ydoc.getArray('cardOrder');
-    const yChatMessages = ydoc.getArray('chatMessages');
+    const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
     const yReactions = ydoc.getMap('reactions');
     const yPolls = ydoc.getArray('polls');
     const yActivityFeed = ydoc.getArray('activityFeed');
@@ -363,7 +364,7 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       setDocState({
         linkedCards: uniqueLinkedCards,
         cardOrder: uniqueCardOrder as PlanningRoomYjsDoc['cardOrder'],
-        chatMessages: yChatMessages.toArray() as PlanningRoomYjsDoc['chatMessages'],
+        chatMessages: yChatMessages.toArray(),
         reactions: reactionsObj,
         polls: yPolls.toArray() as PlanningRoomYjsDoc['polls'],
         activityFeed: yActivityFeed.toArray() as PlanningRoomYjsDoc['activityFeed'],
@@ -602,23 +603,18 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
   }, [groupId, docState.reactions, persistToD1]);
 
   // Add chat message (Yjs-powered)
-  const addChatMessage = (message: { id: string; userId: string; userName?: string; userAvatar?: string; text: string; timestamp: number; pollId?: string; type?: string }) => {
-    const yChatMessages = ydocRef.current?.getArray('chatMessages');
-    if (yChatMessages) {
-      // Ensure all expected fields are present, even if undefined initially
-      const fullMessage = {
-        id: message.id,
-        userId: message.userId,
-        userName: message.userName,
-        userAvatar: message.userAvatar,
-        text: message.text,
-        timestamp: message.timestamp,
-        pollId: message.pollId,
-        type: message.type,
-      };
-      yChatMessages.push([fullMessage]);
-    }
-  };
+  const addChatMessage = useCallback((messageData: Omit<ChatMessage, 'id' | 'timestamp'> & { userName: string; userAvatar?: string }) => {
+    const ydoc = ydocRef.current;
+    if (!ydoc) return;
+    const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
+    
+    const newMessage: ChatMessage = {
+      ...messageData,
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 9),
+      timestamp: Date.now(),
+    };
+    yChatMessages.push([newMessage]);
+  }, []);
 
   // Add or update a reaction for a card
   const addReaction = useCallback((cardId: string, reaction: 'like' | 'dislike' | null) => {
@@ -630,8 +626,8 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
       userMap = new Y.Map();
       yReactions.set(cardId, userMap);
     }
-    (userMap as Y.Map<any>).set(userId, reaction);
-  }, [userId]);
+    (userMap as Y.Map<any>).set(currentUserId, reaction);
+  }, [currentUserId]);
 
   // Remove a reaction for a card
   const removeReaction = useCallback((cardId: string) => {
@@ -640,9 +636,9 @@ export function usePlanningRoomSync(groupId: string, userId: string) {
     const yReactions = ydoc.getMap('reactions');
     let userMap = yReactions.get(cardId) as Y.Map<any> | undefined;
     if (userMap instanceof Y.Map) {
-      userMap.delete(userId);
+      userMap.delete(currentUserId);
     }
-  }, [userId]);
+  }, [currentUserId]);
 
   /**
    * Add a poll to the planning room (Yjs-powered)
