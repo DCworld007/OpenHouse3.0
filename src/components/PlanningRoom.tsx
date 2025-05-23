@@ -399,22 +399,19 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       return <div key={message.id} className="text-xs text-gray-400 italic p-2">Poll data not found for message ID: {message.id}</div>;
     }
     
-    const isMe = message.userId === currentUserId;
-    let displayName = message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`;
-    if (isMe) {
-      displayName = 'You';
-    }
+    const isCurrentUser = message.userId === currentUserId;
+    const displayName = message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`;
     
     return (
-      <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
+      <div key={message.id} className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} w-full`}>
         <div className="mb-0.5 flex items-center gap-2">
-          {message.userAvatar && !isMe && (
+          {message.userAvatar && !isCurrentUser && (
             <img src={message.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
           )}
-          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
+          <span className={`text-xs font-medium ${isCurrentUser ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
           <span className="text-xs text-gray-400">{new Date(message.timestamp).toLocaleTimeString()}</span>
         </div>
-        <div className={`flex flex-col rounded-xl p-3 shadow-sm max-w-[80%] ${isMe ? 'ml-auto bg-indigo-50 border border-indigo-200' : 'mr-auto bg-white border border-gray-200'}`}>
+        <div className={`flex flex-col rounded-xl p-3 shadow-sm max-w-[80%] ${isCurrentUser ? 'ml-auto bg-indigo-50 border border-indigo-200' : 'mr-auto bg-white border border-gray-200'}`}>
           <p className="text-gray-700">{message.text || ''}</p>
         </div>
       </div>
@@ -423,23 +420,20 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   function PollMessage({ poll, senderId, timestamp }: { poll: Poll, senderId: string, timestamp: number }) {
     const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
-    const isMe = senderId === currentUserId;
+    const isCurrentUser = senderId === currentUserId;
     const hasUserVoted = poll.options.some(o => o.votes.includes(currentUserId));
-    let displayName = poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`;
-    if (isMe) {
-      displayName = 'You';
-    }
+    const displayName = poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`;
 
     return (
-      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
+      <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} w-full`}>
         <div className="mb-0.5 flex items-center gap-2">
-          {poll.userAvatar && !isMe && (
+          {poll.userAvatar && !isCurrentUser && (
             <img src={poll.userAvatar} alt={displayName} className="h-6 w-6 rounded-full" />
           )}
-          <span className={`text-xs font-medium ${isMe ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
+          <span className={`text-xs font-medium ${isCurrentUser ? 'text-indigo-500' : 'text-gray-500'}`}>{displayName}</span>
           <span className="text-xs text-gray-400">{new Date(timestamp).toLocaleTimeString()}</span>
         </div>
-        <div className={`bg-indigo-50 border border-indigo-200 rounded-lg p-4 my-1 shadow-sm max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}`}>
+        <div className={`bg-indigo-50 border border-indigo-200 rounded-lg p-4 my-1 shadow-sm max-w-[80%] ${isCurrentUser ? 'ml-auto' : 'mr-auto'}`}>
           <div className="font-medium text-indigo-900 mb-2">{poll.question}</div>
           <div className="space-y-2">
             {poll.options.map((option) => {
