@@ -76,6 +76,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const { user } = useUser();
   const currentUserId = user?.sub || '';
   const currentUserName = user?.name || currentUserId;
+  const currentUserEmail = user?.email;
   const currentUserAvatar = user?.picture || undefined;
 
   const planningRoom = usePlanningRoomSync(group.id, currentUserId);
@@ -133,6 +134,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     planningRoom.addChatMessage({
       userId: currentUserId,
       userName: currentUserName,
+      userEmail: currentUserEmail,
       userAvatar: currentUserAvatar,
       text: newMessage,
       type: 'text',
@@ -175,6 +177,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         votes: [] 
       })),
       createdBy: currentUserId,
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      userAvatar: currentUserAvatar,
       createdAt: Date.now(),
     };
     planningRoom.addPoll(newPoll);
@@ -182,6 +187,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     planningRoom.addChatMessage({
       userId: currentUserId,
       userName: currentUserName,
+      userEmail: currentUserEmail,
       userAvatar: currentUserAvatar,
       text: `Poll created: ${question}`,
       type: 'poll',
@@ -255,7 +261,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       type: type as any,
       userId: currentUserId,
       userName: currentUserName,
-      userEmail: user?.email || undefined,
+      userEmail: currentUserEmail,
       context: details,
       timestamp: Date.now(),
     };
@@ -393,7 +399,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     }
     
     const isMe = message.userId === currentUserId;
-    const displayName = isMe ? 'You' : (message.userName || `User ${message.userId.substring(0, 6)}`);
+    const displayName = isMe 
+      ? 'You' 
+      : (message.userName || message.userEmail || `User ${message.userId.substring(0, 6)}`);
     
     return (
       <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
@@ -415,7 +423,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     const totalVotesOnPoll = poll.options.reduce((sum, opt) => sum + opt.votes.length, 0);
     const isMe = senderId === currentUserId;
     const hasUserVoted = poll.options.some(o => o.votes.includes(currentUserId));
-    const displayName = isMe ? 'You' : (poll.userName || `User ${senderId.substring(0, 6)}`);
+    const displayName = isMe 
+      ? 'You' 
+      : (poll.userName || poll.userEmail || `User ${senderId.substring(0, 6)}`);
 
     return (
       <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>

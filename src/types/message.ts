@@ -13,6 +13,7 @@ export interface Poll {
   updatedAt?: number;
   userAvatar?: string;
   userName?: string;
+  userEmail?: string;
 }
 
 export type MessageType = 'text' | 'poll';
@@ -22,6 +23,7 @@ export interface ChatMessage {
   id: string;
   userId: string;       // ID of the user who sent/triggered this message
   userName?: string;    // Display name of that user
+  userEmail?: string;   // Email of that user
   userAvatar?: string;  // Avatar URL of that user
   text?: string;         // Message content (for text messages)
   timestamp: number;
@@ -37,6 +39,7 @@ export interface Message {
   id?: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   userAvatar?: string;
   text?: string;
   pollId?: string;
