@@ -112,11 +112,12 @@ export async function POST(
 
     return NextResponse.json({
       room: {
-        id: inviteTokenData.planningRoom.id,
+        id: inviteTokenData.planningRoomId,
         name: inviteTokenData.planningRoom.name,
         description: inviteTokenData.planningRoom.description || '',
         role: memberRole,
-        joinedNow: joinedNew
+        joinedNow: joinedNew,
+        alreadyMember: isMember
       }
     });
 

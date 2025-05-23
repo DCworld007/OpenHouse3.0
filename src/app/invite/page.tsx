@@ -202,7 +202,10 @@ export default function InvitePage() {
             console.log('[Invite] User was already a member of this room');
           }
           
-          router.push(roomUrl);
+          // Ensure we're using the correct room ID from the invite details
+          const finalRoomUrl = `/planning-room/${inviteDetails.roomId}`;
+          console.log('[Invite] Final redirect URL:', finalRoomUrl);
+          router.push(finalRoomUrl);
         }
       } catch (error) {
         console.error('Invite error:', error);

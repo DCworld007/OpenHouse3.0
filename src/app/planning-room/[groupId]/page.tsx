@@ -30,27 +30,97 @@ export default function PlanningRoomPage() {
       return;
     }
 
-    // Load group data
-    const groups = getGroups();
-    const foundGroup = groups.find((g: any) => g.id === groupId);
-    
-    if (!foundGroup) {
-      console.error(`Group not found: ${groupId}`);
-      router.push('/plans');
-      return;
+    async function loadGroupData() {
+      try {
+        // First try to get from backend
+        const response = await fetch(`/api/rooms/${groupId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setGroup({
+            id: data.id,
+            name: data.name,
+            type: 'custom',
+            date: new Date().toISOString().split('T')[0],
+            order: 0,
+            listings: []
+          });
+          return;
+        }
+
+        // Fallback to localStorage if backend fails
+        const groups = getGroups();
+        const foundGroup = groups.find((g: any) => g.id === groupId);
+        
+        if (!foundGroup) {
+          console.error(`Group not found: ${groupId}`);
+          router.push('/plans');
+          return;
+        }
+        
+        setGroup(foundGroup);
+      } catch (error) {
+        console.error('Error loading group data:', error);
+        // Fallback to localStorage
+        const groups = getGroups();
+        const foundGroup = groups.find((g: any) => g.id === groupId);
+        
+        if (!foundGroup) {
+          console.error(`Group not found: ${groupId}`);
+          router.push('/plans');
+          return;
+        }
+        
+        setGroup(foundGroup);
+      }
     }
-    
-    setGroup(foundGroup);
+
+    loadGroupData();
   }, [groupId, router, pathname]);
 
   // Handle group updates
-  const handleGroupUpdate = (updatedGroup: ListingGroup) => {
+  const handleGroupUpdate = async (updatedGroup: ListingGroup) => {
     setGroup(updatedGroup);
-    const groups = getGroups();
-    const groupIndex = groups.findIndex((g: ListingGroup) => g.id === updatedGroup.id);
-    if (groupIndex !== -1) {
-      groups[groupIndex] = { ...updatedGroup };
-      saveGroups(groups);
+
+    try {
+      // Update backend first
+      const response = await fetch(`/api/rooms/${updatedGroup.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: updatedGroup.name,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to update group in backend:', await response.text());
+      }
+
+      // Then update localStorage
+      const groups = getGroups();
+      const groupIndex = groups.findIndex((g: ListingGroup) => g.id === updatedGroup.id);
+      if (groupIndex !== -1) {
+        groups[groupIndex] = { ...updatedGroup };
+        saveGroups(groups);
+      }
+    } catch (error) {
+      console.error('Error updating group:', error);
+      // Still update localStorage even if backend fails
+      const groups = getGroups();
+      const groupIndex = groups.findIndex((g: ListingGroup) => g.id === updatedGroup.id);
+      if (groupIndex !== -1) {
+        groups[groupIndex] = { ...updatedGroup };
+        saveGroups(groups);
+      }
     }
   };
 
