@@ -1,6 +1,5 @@
-import { Message as BaseMessage, Poll } from './message';
 import { Listing, ListingGroup } from './listing';
-import { ChatMessage, Poll as YjsPoll } from './message';
+import { ChatMessage, Poll } from './message-types';
 
 export interface PlanningMessage extends ChatMessage {
   // This can be removed if ChatMessage from message.ts is sufficient
@@ -9,6 +8,15 @@ export interface PlanningMessage extends ChatMessage {
 export interface PlanningRoomProps {
   group: ListingGroup;
   onGroupUpdate: (updatedGroup: ListingGroup) => void;
+}
+
+export interface PresentUser {
+  id: string;          // User ID
+  name?: string;       // User's display name
+  email?: string;      // User's email (useful for debugging/display)
+  avatar?: string;     // User's avatar URL
+  lastActive: number;  // Timestamp of last activity or when they joined/refreshed
+  joinedAt: number;    // Timestamp when they initially joined this session
 }
 
 // Yjs document shape for planningRoom:{groupId}
@@ -37,7 +45,7 @@ export interface PlanningRoomYjsDoc {
    * All polls created in this room, with options and votes.
    * (Not yet fully implemented in UI/hooks.)
    */
-  polls: YjsPoll[];
+  polls: Poll[];
   /**
    * Reactions to cards, keyed by cardId and userId.
    * Only one reaction per user per card.
@@ -48,4 +56,8 @@ export interface PlanningRoomYjsDoc {
    * (Not yet fully implemented in UI/hooks.)
    */
   activityFeed: any[];
+  /**
+   * Array of users currently present in the room
+   */
+  presentUsers: PresentUser[];
 } 
