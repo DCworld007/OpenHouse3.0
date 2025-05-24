@@ -38,52 +38,44 @@ export function getAuthRedirectUrl(): string {
 export function getLoginCallbackUrl(): string {
   if (typeof window === 'undefined') return '/plans';
 
-  // Check for pending invite token in sessionStorage first
-  const pendingInviteToken = sessionStorage.getItem('pendingInviteToken');
-  if (pendingInviteToken) {
-    // Intentionally do not remove it here yet. The invite page itself should clear it once successfully processed.
-    // This makes the retrieval idempotent if called multiple times before actual redirect.
-    return `/invite?token=${pendingInviteToken}`;
-  }
-
+  // Check for returnTo parameter in URL
   const params = new URLSearchParams(window.location.search);
   const returnTo = params.get('returnTo');
   
   if (returnTo) {
-    // If returnTo is an invite link, prioritize that directly
-    // Decode it once, as it comes from URL query param
-    const decodedReturnTo = decodeURIComponent(returnTo);
-    if (decodedReturnTo.startsWith('/invite?token=')) {
-      // Ensure the invite page clears sessionStorage.pendingInviteToken if it uses this
-      return decodedReturnTo;
-    }
-
-    // Fallback to more general URL parsing for other cases
     try {
-      let url: URL;
-      try {
-        url = new URL(decodedReturnTo); // Use decodedReturnTo
-      } catch {
-        url = new URL(decodedReturnTo, window.location.origin); // Use decodedReturnTo
+      // Decode it once, as it comes from URL query param
+      const decodedReturnTo = decodeURIComponent(returnTo);
+      
+      // If returnTo is an invite link, prioritize that directly
+      if (decodedReturnTo.startsWith('/invite?token=')) {
+        return decodedReturnTo;
       }
 
-      const path = url.pathname;
-      // We already handled /invite?token= above
       // For other URLs, validate the domain
-      if (url.hostname === 'unifyplan.vercel.app' ||
-          url.hostname === 'localhost' ||
+      let url: URL;
+      try {
+        url = new URL(decodedReturnTo);
+      } catch {
+        url = new URL(decodedReturnTo, window.location.origin);
+      }
+
+      // Only allow redirects to same domain or vercel.app domains
+      if (url.hostname === window.location.hostname ||
+          url.hostname === 'unifyplan.vercel.app' ||
           url.hostname.endsWith('.vercel.app')) {
         if (url.origin === window.location.origin) {
           return url.pathname + url.search;
         }
-        return decodedReturnTo; // Return the full, decoded returnTo if domains differ but are allowed
+        return decodedReturnTo;
       }
     } catch (e) {
-      console.error('[Auth Config] Invalid returnTo URL after initial invite check:', e);
+      console.error('[Auth Config] Invalid returnTo URL:', e);
     }
   }
 
-  return '/plans'; // Default callback
+  // Default callback
+  return '/plans';
 }
 
 // Get OAuth configuration

@@ -204,12 +204,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
     planningRoom.addPoll(newPoll);
     
-    addActivity('poll_created', {
+    addActivity('poll_create', {
       userId: currentUserId,
       userName: currentUserName,
       userEmail: currentUserEmail,
       pollId: newPoll.id,
-      pollQuestion: question
+      pollQuestion: question,
+      context: { type: 'poll', content: optionTexts.join(', ') }
     });
     
     // Clear form
@@ -247,7 +248,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
     planningRoom.addPoll(updatedPoll);
     
-    addActivity('vote_cast', {
+    addActivity('poll_vote', {
       userId: currentUserId,
       userName: currentUserName,
       userEmail: currentUserEmail,
@@ -1328,7 +1329,14 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
   
   const isLinkedCard = card.linkedFrom && card.linkedFromName;
 
-  console.log('SortableCard', card.id, { reactions, userReaction, likeCount, dislikeCount, isLinkedCard });
+  const [dropPosition, setDropPosition] = useState<number | null>(null);
+  const [isSwap, setIsSwap] = useState(false);
+  const [isOver, setIsOver] = useState(false);
+
+  const handleAddCard = () => {
+    setActiveCardId(card.id);
+    setShowNewCardForm(true);
+  };
 
   const handleReaction = (type: 'like' | 'dislike') => {
     const currentReactionOnCard = userReaction;
@@ -1357,70 +1365,51 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
     transition,
     isDragging,
   } = useSortable({ id: card.id });
-  const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    transition,
-    zIndex: isDragging ? 50 : undefined,
-  };
+
   return (
-    <div ref={setNodeRef} style={style} className={`transition-all group ${isDragging ? 'opacity-50' : ''}`} {...attributes}>
-      <div className={`bg-white rounded-lg border ${isLinkedCard ? 'border-indigo-300' : 'border-gray-200'} px-4 py-5 flex items-center hover:border-indigo-300 transition-colors shadow-sm relative group`}>
+    <div
+      ref={setNodeRef}
+      style={{
+        opacity: isDragging ? 0.5 : 1,
+        transform: isSwap && isOver ? 'scale(1.06)' : undefined,
+        boxShadow: isSwap && isOver ? '0 0 0 4px #2563eb, 0 4px 16px rgba(37,99,235,0.18)' : undefined,
+        border: isSwap && isOver ? '3px solid #2563eb' : undefined,
+        background: isSwap && isOver ? 'rgba(37,99,235,0.08)' : undefined,
+        transition: 'box-shadow 0.15s, transform 0.15s, border 0.15s, background 0.15s',
+      }}
+      className="flex-shrink-0 w-[300px] relative"
+    >
+      {dropPosition === index && isOver && !isSwap && (
+        <>
+          <div className="absolute -left-3 top-2 bottom-2 w-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+          <div className="absolute left-2 -top-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+          <div className="absolute left-2 -bottom-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
+        </>
+      )}
+      <PlanCard
+        id={card.id}
+        what={card.type === 'what' ? card.content : ''}
+        where={card.type === 'where' ? card.content : ''}
+        notes={card.notes}
+        isDragging={isDragging}
+        onAddCard={handleAddCard}
+      />
+      <div className={`flex items-center gap-1 ml-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
         <button
-          className="mr-3 p-1 rounded hover:bg-gray-100 cursor-grab active:cursor-grabbing"
-          tabIndex={0}
-          aria-label="Drag to reorder"
-          type="button"
-          {...listeners}
+          onClick={() => handleReaction('like')}
+          className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
+            ${userReaction === 'like' ? 'bg-blue-100 text-blue-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          title="Like"
         >
-          <Bars3Icon className="h-5 w-5 text-gray-600" />
+          👍 <span className="ml-1 text-xs">{likeCount}</span>
         </button>
-        <div className="flex-1">
-          <div className="space-y-4">
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5 flex items-center">
-                {card.cardType === 'where' ? 'Where' : 'What'}
-                {isLinkedCard && (
-                  <span className="ml-2 bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs">
-                    From {card.linkedFromName}
-                  </span>
-                )}
-              </div>
-              <div className="text-sm text-gray-900">{card.content}</div>
-            </div>
-            {card.notes && (
-              <div className="pt-2 border-t">
-                <div className="text-sm text-gray-600 leading-relaxed">{card.notes}</div>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className={`flex items-center gap-1 ml-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
-          <button
-            onClick={() => handleReaction('like')}
-            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
-              ${userReaction === 'like' ? 'bg-blue-100 text-blue-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            title="Like"
-          >
-            👍 <span className="ml-1 text-xs">{likeCount}</span>
-          </button>
-          <button
-            onClick={() => handleReaction('dislike')}
-            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
-              ${userReaction === 'dislike' ? 'bg-red-100 text-red-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            title="Dislike"
-          >
-            👎 <span className="ml-1 text-xs">{dislikeCount}</span>
-          </button>
-        </div>
         <button
-          onClick={() => {
-            setActiveCardId(card.id);
-            setShowNewCardForm(true);
-          }}
-          className="absolute left-1/2 bottom-0 translate-x-[-50%] translate-y-1/2 z-10 transition-all duration-200 rounded-full bg-white border border-gray-200 p-2 hover:bg-indigo-50 hover:border-indigo-200 hover:scale-110 shadow-lg opacity-0 group-hover:opacity-100"
-          title="Add card"
+          onClick={() => handleReaction('dislike')}
+          className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
+            ${userReaction === 'dislike' ? 'bg-red-100 text-red-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          title="Dislike"
         >
-          <PlusIcon className="w-5 h-5 text-indigo-600" />
+          👎 <span className="ml-1 text-xs">{dislikeCount}</span>
         </button>
       </div>
     </div>

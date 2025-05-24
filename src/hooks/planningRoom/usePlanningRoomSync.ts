@@ -92,6 +92,6 @@ export function usePlanningRoomSync(
     addActivity,
     ydoc: ydocRef.current,
   };
-}
+} 
 
 export default usePlanningRoomSync; 

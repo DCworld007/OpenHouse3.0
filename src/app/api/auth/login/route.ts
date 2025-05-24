@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, signToken } from '@/utils/jwt';
 import { getAuthDomain } from '@/utils/auth-config';
+import { SignJWT } from 'jose';
+import { getJwtSecret } from '@/utils/jwt';
 
 export const runtime = 'edge';
 
@@ -10,83 +12,75 @@ export const runtime = 'edge';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { credential } = await request.json();
+    // Get request body
+    const requestBody = await request.json();
+    const { credential } = requestBody;
+
     if (!credential) {
       return NextResponse.json({ error: 'Missing credential' }, { status: 400 });
     }
 
     try {
-      // Verify Google token
-      const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+      // Verify Google ID token
+      const googleResponse = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + credential);
+      
       if (!googleResponse.ok) {
-        return NextResponse.json({ error: 'Invalid credential' }, { status: 401 });
+        console.error('[Login] Failed to verify Google token:', await googleResponse.text());
+        return NextResponse.json({ error: 'Failed to verify Google token' }, { status: 401 });
       }
-
-      const data = await googleResponse.json();
-      if (!data.email_verified) {
+      
+      const payload = await googleResponse.json();
+      console.log('[Login] Google token payload:', payload);
+      
+      if (!payload.email_verified) {
         return NextResponse.json({ error: 'Email not verified' }, { status: 401 });
       }
 
       // Create JWT token
-      const token = await signToken({
-        sub: data.sub,
-        email: data.email,
-        name: data.name,
-        picture: data.picture
+      const secret = await getJwtSecret();
+      const token = await new SignJWT({
+        sub: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('7d')
+        .sign(secret);
+
+      console.log('[Login] Generated JWT token');
+
+      // Create response with cookie
+      const nextResponse = NextResponse.json({ 
+        ok: true,
+        user: {
+          sub: payload.sub,
+          email: payload.email,
+          name: payload.name,
+          picture: payload.picture
+        }
       });
-
-      // Set up cookie options
-      const isProduction = process.env.NODE_ENV === 'production';
-      const expirationDate = new Date();
-      expirationDate.setDate(expirationDate.getDate() + 7); // 7 days
-
-      // Get the current hostname
-      const hostname = request.headers.get('host') || '';
-      const isLocalhost = hostname === 'localhost' || hostname.startsWith('localhost:');
-      const isVercelPreview = hostname.includes('vercel.app');
       
-      // Create response with both cookies
-      const nextResponse = NextResponse.json({ ok: true });
-      
-      // Common cookie options
-      const cookieOptions: {
-        expires: Date;
-        path: string;
-        httpOnly: boolean;
-        secure: boolean;
-        sameSite: 'lax';
-        domain?: string;
-      } = {
-        expires: expirationDate,
-        path: '/',
+      // Set both token formats
+      const cookieOptions = {
         httpOnly: true,
-        secure: isProduction,
-        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+        sameSite: 'lax' as const
       };
 
-      // Only set domain for production (unifyplan.vercel.app)
-      if (isProduction && !isLocalhost && !isVercelPreview) {
-        cookieOptions.domain = 'unifyplan.vercel.app';
-      }
-      
-      // Set both token cookies with secure settings
-      ['token', 'auth_token'].forEach(name => {
-        nextResponse.cookies.set(name, token, cookieOptions);
-      });
-      
+      nextResponse.cookies.set('token', token, cookieOptions);
+      nextResponse.cookies.set('auth_token', token, cookieOptions);
+
       return nextResponse;
     } catch (error) {
-      console.error('[API] Error verifying Google credential:', error);
-      return NextResponse.json(
-        { error: 'Invalid credential' },
-        { status: 401 }
-      );
+      console.error('[Login] Error:', error);
+      return NextResponse.json({ error: 'Login failed' }, { status: 500 });
     }
   } catch (error) {
-    console.error('[API] Login error:', error);
-    return NextResponse.json(
-      { error: 'Server error' },
-      { status: 500 }
-    );
+    console.error('[Login] Error:', error);
+    return NextResponse.json({ error: 'Login failed' }, { status: 500 });
   }
 } 

@@ -55,11 +55,12 @@ export default async function middleware(request: NextRequest) {
   }
 
   // Check for JWT in cookies
-  const token = request.cookies.get('token')?.value;
+  const token = request.cookies.get('token')?.value || request.cookies.get('auth_token')?.value;
 
   if (!token) {
     const url = new URL('/auth/login', request.url);
-    url.searchParams.set('returnTo', encodeURI(request.url));
+    // Preserve the full URL including query parameters
+    url.searchParams.set('returnTo', encodeURIComponent(request.url));
     return NextResponse.redirect(url);
   }
 
@@ -67,14 +68,16 @@ export default async function middleware(request: NextRequest) {
     const user = await verifyJWT(token);
     if (!user) {
       const url = new URL('/auth/login', request.url);
-      url.searchParams.set('returnTo', encodeURI(request.url));
+      // Preserve the full URL including query parameters
+      url.searchParams.set('returnTo', encodeURIComponent(request.url));
       return NextResponse.redirect(url);
     }
 
     return response;
   } catch (error) {
     const url = new URL('/auth/login', request.url);
-    url.searchParams.set('returnTo', encodeURI(request.url));
+    // Preserve the full URL including query parameters
+    url.searchParams.set('returnTo', encodeURIComponent(request.url));
     return NextResponse.redirect(url);
   }
 } 
