@@ -376,37 +376,43 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         <span className="font-medium">Present Users ({presentUsers.length})</span>
       </div>
       <div className="flex flex-wrap gap-2">
-        {presentUsers.map((user) => (
-          <div
-            key={user.id}
-            className="inline-flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm"
-          >
-            {user.avatar ? (
-              <img
-                src={user.avatar}
-                alt={user.name || user.email || user.id}
-                className="h-8 w-8 rounded-full"
-              />
-            ) : (
-              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-sm text-gray-500">
-                  {(user.name || user.email || user.id).charAt(0).toUpperCase()}
-                </span>
-              </div>
-            )}
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-gray-900">
-                {user.name || 'Anonymous User'}
-              </span>
-              {user.email && (
-                <span className="text-xs text-gray-500">
-                  {user.email}
-                </span>
+        {presentUsers.map((user) => {
+          // Get display name, prioritizing user's name or email, never showing ID
+          const displayName = user.name || (user.email ? user.email.split('@')[0] : 'Guest User');
+          const displayEmail = user.email;
+          
+          return (
+            <div
+              key={user.id}
+              className="inline-flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm"
+            >
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={displayName}
+                  className="h-8 w-8 rounded-full"
+                />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-sm text-gray-500">
+                    {displayName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
               )}
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-gray-900">
+                  {displayName}
+                </span>
+                {displayEmail && (
+                  <span className="text-xs text-gray-500">
+                    {displayEmail}
+                  </span>
+                )}
+              </div>
+              <span className="h-2 w-2 rounded-full bg-green-400 ml-2" />
             </div>
-            <span className="h-2 w-2 rounded-full bg-green-400 ml-2" />
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
