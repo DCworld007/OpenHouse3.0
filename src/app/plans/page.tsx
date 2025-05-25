@@ -152,10 +152,23 @@ function PlansPageContent() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Get user data from useUser hook
-  const { user: meApiResponse } = useUser(); 
-  const isUserLoading = meApiResponse === null; // Considered loading if meApiResponse is null
+  const { user: meApiResponse, isLoading: isUserLoading } = useUser(); 
   const actualUser = meApiResponse?.user;      // The actual user object nested in the response
   const isAuthenticated = meApiResponse?.authenticated; // Authentication status
+
+  // Show loading state while checking auth
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-pulse text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  // If not authenticated, the useUser hook will handle redirection
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const userId = actualUser?.id || ''; // Use actualUser here
 
