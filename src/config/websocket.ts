@@ -1,0 +1,1 @@
+export const WS_URL = 'wss://y-websocket-production-d87f.up.railway.app'; 

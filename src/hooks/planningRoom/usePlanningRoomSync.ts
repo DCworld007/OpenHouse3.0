@@ -2,10 +2,31 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { WebsocketProvider } from 'y-websocket';
 import * as Y from 'yjs';
 import { PlanningRoomYjsDoc, PresentUser } from '@/types/planning-room';
-import { ChatMessage, ChatMessageInput } from '@/types/message-types';
+import { ChatMessage, ChatMessageInput, Poll } from '@/types/message-types';
+import { Listing } from '@/types/listing';
+import { Activity } from '@/types/activity';
+import { WS_URL } from '@/config/websocket';
 
 const PRESENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const PRESENCE_UPDATE_INTERVAL = 30 * 1000; // 30 seconds
+const RECONNECT_TIMEOUT = 3000; // 3 seconds
+const SYNC_DEBOUNCE_DELAY = 1000; // 1 second
+
+// Persistent Y.Doc/Provider per groupId
+const yDocMap: Map<string, Y.Doc> = new Map();
+const providerMap: Map<string, WebsocketProvider> = new Map();
+
+interface PlanningRoomSync extends PlanningRoomYjsDoc {
+  addCard: (card: Listing, afterCardId?: string) => void;
+  addChatMessage: (message: ChatMessageInput) => void;
+  addPoll: (poll: Poll) => void;
+  addActivity: (activity: Activity) => void;
+  reorderCards: (newOrder: string[]) => void;
+  removeCard: (cardId: string) => void;
+  addReaction: (cardId: string, type: 'like' | 'dislike') => void;
+  removeReaction: (cardId: string) => void;
+  ydoc: Y.Doc | null;
+}
 
 function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
   let timeoutId: NodeJS.Timeout;
@@ -15,13 +36,39 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
   };
 }
 
+// Function to sync Yjs state to backend
+async function syncToBackend(groupId: string, ydoc: Y.Doc) {
+  try {
+    const yLinkedCards = ydoc.getArray('linkedCards');
+    const yCardOrder = ydoc.getArray('cardOrder');
+    
+    const state = {
+      linkedCards: yLinkedCards.toArray(),
+      cardOrder: yCardOrder.toArray()
+    };
+    
+    const response = await fetch(`/api/planning-room/${groupId}/cards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ doc: state })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to sync state: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('[Yjs] Failed to sync state to backend:', error);
+  }
+}
+
 export function usePlanningRoomSync(
   groupId: string,
   currentUserId: string,
   currentUserName?: string,
   currentUserEmail?: string,
   currentUserAvatar?: string
-) {
+): PlanningRoomSync {
   const [docState, setDocState] = useState<PlanningRoomYjsDoc>({
     linkedCards: [],
     cardOrder: [],
@@ -36,6 +83,7 @@ export function usePlanningRoomSync(
   const providerRef = useRef<WebsocketProvider | null>(null);
   const hasLoadedFromD1 = useRef(false);
   const presenceUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const joinedAtRef = useRef<number>(Date.now());
   const [isConnected, setIsConnected] = useState(false);
 
@@ -49,21 +97,44 @@ export function usePlanningRoomSync(
     }
 
     const ydoc = ydocRef.current;
-    const wsUrl = process.env.NEXT_PUBLIC_YJS_WS_URL || 'wss://yjs.unifyplan.vercel.app';
+    const wsUrl = WS_URL;
     
     // Create WebSocket provider if it doesn't exist
     if (!providerRef.current) {
-      providerRef.current = new WebsocketProvider(wsUrl, `planningRoom:${groupId}`, ydoc, {
-        connect: true,
-      });
+      try {
+        providerRef.current = new WebsocketProvider(wsUrl, `planningRoom:${groupId}`, ydoc, {
+          connect: true,
+          WebSocketPolyfill: WebSocket // Ensure we use the native WebSocket
+        });
+
+        console.log('[Yjs] Setting up WebSocket provider with URL:', wsUrl);
+      } catch (error) {
+        console.error('[Yjs] Failed to create WebSocket provider:', error);
+      }
     }
 
     const provider = providerRef.current;
+    if (!provider) {
+      console.error('[Yjs] No WebSocket provider available');
+      return;
+    }
 
-    // Set up connection status handlers
+    // Set up connection status handlers with retry logic
     provider.on('status', ({ status }: { status: string }) => {
       console.log('[Yjs] Connection status:', status);
       setIsConnected(status === 'connected');
+      
+      if (status === 'disconnected') {
+        // Try to reconnect after a delay
+        setTimeout(() => {
+          console.log('[Yjs] Attempting to reconnect...');
+          provider.connect();
+        }, 3000);
+      }
+    });
+
+    provider.on('connection-error', (error: Error) => {
+      console.error('[Yjs] Connection error:', error);
     });
 
     // Initialize Yjs arrays and maps if they don't exist
@@ -74,6 +145,43 @@ export function usePlanningRoomSync(
     const yPolls = ydoc.getArray('polls');
     const yActivityFeed = ydoc.getArray('activityFeed');
     const yPresentUsers = ydoc.getArray('presentUsers');
+
+    // Load initial state from backend
+    async function loadInitialState() {
+      try {
+        const response = await fetch(`/api/planning-room/${groupId}/cards`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.doc) {
+            const state = data.doc;
+            if (state.linkedCards?.length > 0) {
+              yLinkedCards.delete(0, yLinkedCards.length);
+              yLinkedCards.insert(0, state.linkedCards);
+            }
+            if (state.cardOrder?.length > 0) {
+              yCardOrder.delete(0, yCardOrder.length);
+              yCardOrder.insert(0, state.cardOrder);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Yjs] Failed to load initial state:', error);
+      }
+    }
+
+    // Load initial state if not already loaded
+    if (!hasLoadedFromD1.current) {
+      loadInitialState();
+      hasLoadedFromD1.current = true;
+    }
+
+    // Create debounced sync function
+    const debouncedSync = debounce((doc: Y.Doc) => {
+      syncToBackend(groupId, doc);
+    }, SYNC_DEBOUNCE_DELAY);
 
     // Update state when Yjs data changes
     const updateState = () => {
@@ -91,6 +199,9 @@ export function usePlanningRoomSync(
         activityFeed: yActivityFeed.toArray(),
         presentUsers: yPresentUsers.toArray(),
       });
+
+      // Sync changes to backend
+      debouncedSync(ydoc);
     };
 
     // Observe Yjs changes
@@ -104,42 +215,37 @@ export function usePlanningRoomSync(
 
     // Function to update current user's presence
     const updateCurrentUserPresence = () => {
-      if (!ydoc || !currentUserId) return;
-      const yPresent = ydoc.getArray<PresentUser>('presentUsers');
+      if (!ydocRef.current || !currentUserId) return;
+      
+      const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
       const now = Date.now();
-      const existingUserIndex = yPresent.toArray().findIndex(u => u.id === currentUserId);
+      
+      // Remove stale users first
+      const currentUsers = yPresentUsers.toArray();
+      const staleUsers = currentUsers.filter(
+        user => (now - user.lastActive) > PRESENCE_TIMEOUT
+      );
+      
+      staleUsers.forEach(user => {
+        const idx = yPresentUsers.toArray().findIndex(u => u.id === user.id);
+        if (idx !== -1) yPresentUsers.delete(idx, 1);
+      });
 
-      const currentUserData: PresentUser = {
+      // Update or add current user
+      const currentUserIdx = currentUsers.findIndex(u => u.id === currentUserId);
+      const presenceData: PresentUser = {
         id: currentUserId,
         name: currentUserName,
         email: currentUserEmail,
         avatar: currentUserAvatar,
         lastActive: now,
-        joinedAt: existingUserIndex !== -1 ? yPresent.get(existingUserIndex).joinedAt : joinedAtRef.current,
+        joinedAt: joinedAtRef.current
       };
 
-      if (existingUserIndex !== -1) {
-        const existing = yPresent.get(existingUserIndex);
-        if (existing.name !== currentUserData.name || 
-            existing.avatar !== currentUserData.avatar || 
-            existing.email !== currentUserData.email ||
-            (now - existing.lastActive) > (PRESENCE_UPDATE_INTERVAL / 2)) {
-          const updatedUser = { ...existing, ...currentUserData };
-          yPresent.delete(existingUserIndex, 1);
-          yPresent.insert(existingUserIndex, [updatedUser]);
-        }
-      } else {
-        yPresent.push([currentUserData]);
-        joinedAtRef.current = now;
+      if (currentUserIdx !== -1) {
+        yPresentUsers.delete(currentUserIdx, 1);
       }
-
-      // Clean up stale users
-      const allUsers = yPresent.toArray();
-      for (let i = allUsers.length - 1; i >= 0; i--) {
-        if ((now - allUsers[i].lastActive) > PRESENCE_TIMEOUT && allUsers[i].id !== currentUserId) {
-          yPresent.delete(i, 1);
-        }
-      }
+      yPresentUsers.push([presenceData]);
     };
 
     // Set up presence update interval
@@ -149,15 +255,12 @@ export function usePlanningRoomSync(
     }
     presenceUpdateIntervalRef.current = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
 
-    // Initial state update
-    updateState();
-
     // Cleanup function
     return () => {
       yLinkedCards.unobserve(updateState);
       yCardOrder.unobserve(updateState);
       yChatMessages.unobserve(updateState);
-      yReactions.unobserveDeep(updateState);
+      yReactions.unobserve(updateState);
       yPolls.unobserve(updateState);
       yActivityFeed.unobserve(updateState);
       yPresentUsers.unobserve(updateState);
@@ -167,8 +270,8 @@ export function usePlanningRoomSync(
       }
 
       // Remove user from presence
-      if (ydoc && currentUserId) {
-        const yPresent = ydoc.getArray<PresentUser>('presentUsers');
+      if (ydocRef.current && currentUserId) {
+        const yPresent = ydocRef.current.getArray<PresentUser>('presentUsers');
         const userIdx = yPresent.toArray().findIndex(u => u.id === currentUserId);
         if (userIdx !== -1) {
           yPresent.delete(userIdx, 1);
@@ -176,27 +279,33 @@ export function usePlanningRoomSync(
       }
 
       // Cleanup provider
-      if (provider) {
-        provider.disconnect();
+      if (providerRef.current) {
+        providerRef.current.disconnect();
       }
     };
   }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
-  // Add card
-  const addCard = useCallback((card: PlanningRoomYjsDoc['linkedCards'][0], afterCardId?: string) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
+  // Start presence updates
+  useEffect(() => {
+    updateCurrentUserPresence();
+    const interval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
+    return () => clearInterval(interval);
+  }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
-    const yLinkedCards = ydoc.getArray('linkedCards');
-    const yCardOrder = ydoc.getArray('cardOrder');
+  const addCard = useCallback((card: Listing, afterCardId?: string) => {
+    if (!ydocRef.current) return;
     
+    const yLinkedCards = ydocRef.current.getArray<Listing>('linkedCards');
+    const yCardOrder = ydocRef.current.getArray<string>('cardOrder');
+    
+    // Add card to linkedCards array
     yLinkedCards.push([card]);
     
+    // Add card ID to cardOrder array
     if (afterCardId) {
-      const order = yCardOrder.toArray() as string[];
-      const idx = order.indexOf(afterCardId);
-      if (idx !== -1) {
-        yCardOrder.insert(idx + 1, [card.id]);
+      const afterIndex = yCardOrder.toArray().indexOf(afterCardId);
+      if (afterIndex !== -1) {
+        yCardOrder.insert(afterIndex + 1, [card.id]);
       } else {
         yCardOrder.push([card.id]);
       }
@@ -205,111 +314,90 @@ export function usePlanningRoomSync(
     }
   }, []);
 
-  // Reorder cards
-  const reorderCards = useCallback((newOrder: string[]) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
+  const removeCard = useCallback((cardId: string) => {
+    if (!ydocRef.current) return;
     
-    const yCardOrder = ydoc.getArray('cardOrder');
+    const yLinkedCards = ydocRef.current.getArray<Listing>('linkedCards');
+    const yCardOrder = ydocRef.current.getArray<string>('cardOrder');
+    
+    // Remove from linkedCards
+    const cardIndex = yLinkedCards.toArray().findIndex(card => card.id === cardId);
+    if (cardIndex !== -1) {
+      yLinkedCards.delete(cardIndex, 1);
+    }
+    
+    // Remove from cardOrder
+    const orderIndex = yCardOrder.toArray().indexOf(cardId);
+    if (orderIndex !== -1) {
+      yCardOrder.delete(orderIndex, 1);
+    }
+  }, []);
+
+  const addChatMessage = useCallback((message: ChatMessageInput) => {
+    if (!ydocRef.current) return;
+    
+    const yChatMessages = ydocRef.current.getArray<ChatMessage>('chatMessages');
+    const chatMessage: ChatMessage = {
+      ...message,
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      reactions: {}
+    };
+    
+    yChatMessages.push([chatMessage]);
+  }, []);
+
+  const addPoll = useCallback((poll: Poll) => {
+    if (!ydocRef.current) return;
+    
+    const yPolls = ydocRef.current.getArray<Poll>('polls');
+    yPolls.push([poll]);
+  }, []);
+
+  const addActivity = useCallback((activity: Activity) => {
+    if (!ydocRef.current) return;
+    
+    const yActivityFeed = ydocRef.current.getArray<Activity>('activityFeed');
+    yActivityFeed.push([activity]);
+  }, []);
+
+  const reorderCards = useCallback((newOrder: string[]) => {
+    if (!ydocRef.current) return;
+    
+    const yCardOrder = ydocRef.current.getArray<string>('cardOrder');
     yCardOrder.delete(0, yCardOrder.length);
     yCardOrder.insert(0, newOrder);
   }, []);
 
-  // Remove card
-  const removeCard = useCallback((cardId: string) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-
-    const yLinkedCards = ydoc.getArray('linkedCards');
-    const yCardOrder = ydoc.getArray('cardOrder');
-    const cards = yLinkedCards.toArray() as PlanningRoomYjsDoc['linkedCards'];
-    const idx = cards.findIndex(c => c.id === cardId);
+  const addReaction = useCallback((cardId: string, type: 'like' | 'dislike') => {
+    if (!ydocRef.current || !currentUserId) return;
     
-    if (idx !== -1) {
-      yLinkedCards.delete(idx, 1);
-    }
-
-    const order = yCardOrder.toArray() as string[];
-    const orderIdx = order.indexOf(cardId);
-    if (orderIdx !== -1) {
-      yCardOrder.delete(orderIdx, 1);
-    }
-  }, []);
-
-  // Add chat message
-  const addChatMessage = useCallback((messageInput: ChatMessageInput) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-
-    const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
-    const newMessage: ChatMessage = {
-      id: `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 9)}`,
-      timestamp: Date.now(),
-      userId: messageInput.userId,
-      userName: messageInput.userName,
-      userEmail: messageInput.userEmail,
-      userAvatar: messageInput.userAvatar,
-      text: messageInput.text,
-      pollId: messageInput.pollId,
-      type: messageInput.type,
-    };
-    yChatMessages.push([newMessage]);
-  }, []);
-
-  // Add reaction
-  const addReaction = useCallback((cardId: string, reaction: 'like' | 'dislike' | null) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-
-    const yReactions = ydoc.getMap('reactions');
-    let userMap = yReactions.get(cardId) as Y.Map<any> | undefined;
-    if (!(userMap instanceof Y.Map)) {
-      userMap = new Y.Map();
-      yReactions.set(cardId, userMap);
-    }
-    (userMap as Y.Map<any>).set(currentUserId, reaction);
+    const yReactions = ydocRef.current.getMap<Record<string, string>>('reactions');
+    const cardReactions = yReactions.get(cardId) || {};
+    yReactions.set(cardId, { ...cardReactions, [currentUserId]: type });
   }, [currentUserId]);
 
-  // Remove reaction
   const removeReaction = useCallback((cardId: string) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-
-    const yReactions = ydoc.getMap('reactions');
-    let userMap = yReactions.get(cardId) as Y.Map<any> | undefined;
-    if (userMap instanceof Y.Map) {
-      userMap.delete(currentUserId);
-    }
+    if (!ydocRef.current || !currentUserId) return;
+    
+    const yReactions = ydocRef.current.getMap<Record<string, string>>('reactions');
+    const cardReactions = yReactions.get(cardId) || {};
+    delete cardReactions[currentUserId];
+    yReactions.set(cardId, cardReactions);
   }, [currentUserId]);
-
-  // Add poll
-  const addPoll = useCallback((poll: PlanningRoomYjsDoc['polls'][0]) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-
-    const yPolls = ydoc.getArray('polls');
-    yPolls.push([poll]);
-  }, []);
-
-  // Add activity
-  const addActivity = useCallback((activity: PlanningRoomYjsDoc['activityFeed'][0]) => {
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-
-    const yActivityFeed = ydoc.getArray('activityFeed');
-    yActivityFeed.push([activity]);
-  }, []);
 
   return {
     ...docState,
-    ydoc: ydocRef.current,
     addCard,
     removeCard,
-    reorderCards,
     addChatMessage,
-    addReaction,
-    removeReaction,
     addPoll,
     addActivity,
+    reorderCards,
+    addReaction,
+    removeReaction,
+    ydoc: ydocRef.current,
   };
-} 
+}
+
+export default usePlanningRoomSync; 
