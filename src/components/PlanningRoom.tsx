@@ -75,6 +75,9 @@ interface PlanningRoomSync extends PlanningRoomYjsDoc {
   addPoll: (poll: Poll) => void;
   addActivity: (activity: Activity) => void;
   reorderCards: (newOrder: string[]) => void;
+  removeCard: (cardId: string) => void;
+  addReaction: (cardId: string, type: 'like' | 'dislike') => void;
+  removeReaction: (cardId: string) => void;
   ydoc: Y.Doc | null;
 }
 
@@ -1388,8 +1391,8 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
       )}
       <PlanCard
         id={card.id}
-        what={card.type === 'what' ? card.content : ''}
-        where={card.type === 'where' ? card.content : ''}
+        what={card.cardType === 'what' ? card.content : ''}
+        where={card.cardType === 'where' ? card.content : ''}
         notes={card.notes}
         isDragging={isDragging}
         onAddCard={handleAddCard}

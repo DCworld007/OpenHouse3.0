@@ -51,7 +51,9 @@ export default function PlanCard({ id, what, where, notes, isDragging = false, o
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          onAddCard?.();
+          if (onAddCard) {
+            onAddCard();
+          }
         }}
         className="absolute -right-4 top-1/2 -translate-y-1/2 z-[60] transition-all duration-200 rounded-full bg-white border border-gray-200 p-2 hover:bg-indigo-50 hover:border-indigo-200 hover:scale-110 shadow-sm opacity-0 hover:group-hover:opacity-100 cursor-pointer"
       >
