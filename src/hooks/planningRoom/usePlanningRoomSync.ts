@@ -5,8 +5,9 @@ import { PlanningRoomYjsDoc, PresentUser } from '@/types/planning-room';
 import { ChatMessage, ChatMessageInput, Poll } from '@/types/message-types';
 import { Listing } from '@/types/listing';
 import { Activity } from '@/types/activity';
-import { WS_URL } from '@/config/websocket';
 
+// WebSocket configuration
+const WS_URL = 'wss://y-websocket-production-d87f.up.railway.app';
 const PRESENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const PRESENCE_UPDATE_INTERVAL = 30 * 1000; // 30 seconds
 const RECONNECT_TIMEOUT = 3000; // 3 seconds
