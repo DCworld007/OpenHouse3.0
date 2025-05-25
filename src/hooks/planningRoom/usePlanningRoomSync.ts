@@ -7,7 +7,8 @@ import { Listing } from '@/types/listing';
 import { Activity } from '@/types/activity';
 
 // WebSocket configuration
-const WS_URL = 'wss://y-websocket-production-d87f.up.railway.app';
+const Y_WEBSOCKET_URL = process.env.NEXT_PUBLIC_Y_WEBSOCKET_URL || 'wss://y-websocket-production-d87f.up.railway.app';
+console.log('[Yjs] Using WebSocket URL:', Y_WEBSOCKET_URL);
 const PRESENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const PRESENCE_UPDATE_INTERVAL = 30 * 1000; // 30 seconds
 const RECONNECT_TIMEOUT = 3000; // 3 seconds
@@ -92,25 +93,36 @@ export function usePlanningRoomSync(
   useEffect(() => {
     if (!groupId) return;
 
-    // Create Yjs doc if it doesn't exist
-    if (!ydocRef.current) {
-      ydocRef.current = new Y.Doc();
+    // Initialize Y.Doc and provider
+    if (!yDocMap.has(groupId)) {
+      const ydoc = new Y.Doc();
+      console.log('[Yjs] Initializing with URL:', Y_WEBSOCKET_URL);
+      const provider = new WebsocketProvider(Y_WEBSOCKET_URL, `planningRoom:${groupId}`, ydoc, {
+        connect: true,
+        WebSocketPolyfill: WebSocket,
+        params: { groupId }
+      });
+      yDocMap.set(groupId, ydoc);
+      providerMap.set(groupId, provider);
     }
 
+    ydocRef.current = yDocMap.get(groupId) || null;
+    providerRef.current = providerMap.get(groupId) || null;
+
     const ydoc = ydocRef.current;
-    const wsUrl = WS_URL;
+    const wsUrl = Y_WEBSOCKET_URL;
     
     // Create WebSocket provider if it doesn't exist
     if (!providerRef.current) {
       try {
+        console.log('[Yjs] Creating WebSocket provider with URL:', wsUrl);
         providerRef.current = new WebsocketProvider(wsUrl, `planningRoom:${groupId}`, ydoc, {
           connect: true,
-          WebSocketPolyfill: WebSocket // Ensure we use the native WebSocket
+          WebSocketPolyfill: WebSocket
         });
-
-        console.log('[Yjs] Setting up WebSocket provider with URL:', wsUrl);
       } catch (error) {
         console.error('[Yjs] Failed to create WebSocket provider:', error);
+        return;
       }
     }
 
