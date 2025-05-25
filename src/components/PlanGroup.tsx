@@ -16,6 +16,7 @@ import { Menu, Transition } from '@headlessui/react';
 import PlanCard from './PlanCard';
 import IntakeCard from './IntakeCard';
 import { usePlanningRoomSync } from '@/hooks/planningRoom/usePlanningRoomSync';
+import { useUser } from '@/lib/useUser';
 import toast from 'react-hot-toast';
 import { useDrag, useDrop } from 'react-dnd';
 
@@ -75,7 +76,14 @@ export default function PlanGroup({
   const [editedName, setEditedName] = useState(name);
   const [showIntakeModal, setShowIntakeModal] = useState(false);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
-  const planningRoom = usePlanningRoomSync(id, userId);
+  const { user } = useUser();
+  const planningRoom = usePlanningRoomSync(
+    id,
+    userId,
+    user?.name || userId,
+    user?.email,
+    user?.picture
+  );
   // Only set the ref in an effect to avoid infinite render loops
   useEffect(() => {
     if (planningRoomRef) {

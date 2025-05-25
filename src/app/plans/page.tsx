@@ -173,7 +173,13 @@ function PlansPageContent() {
 
   // Always call the hook in the same order to avoid React hook order errors
   const firstGroupId = groups.length > 0 ? groups[0].id : '';
-  const planningRoom = usePlanningRoomSync(firstGroupId, userId);
+  const planningRoom = usePlanningRoomSync(
+    firstGroupId,
+    userId,
+    actualUser?.name || userId,
+    actualUser?.email,
+    actualUser?.picture
+  );
 
   // --- Add planningRoomRefs map ---
   const planningRoomRefs = useRef<{ [groupId: string]: React.MutableRefObject<any> }>({});
