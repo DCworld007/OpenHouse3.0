@@ -97,20 +97,6 @@ export function usePlanningRoomSync(
     yPresentUsers.push([presenceData]);
   }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
-  const statusHandler = useCallback(({ status }: { status: WebSocketStatus }) => {
-    console.log('[Y.js] Connection status:', status);
-    setIsConnected(status === 'connected');
-    if (status === 'connected' && providerRef.current?.wsconnected) {
-      updateCurrentUserPresence();
-    }
-  }, [updateCurrentUserPresence]);
-
-  const errorHandler = useCallback((error: Event | { event: Event }) => {
-    const actualError = (error as any).event || error;
-    console.error(`[Yjs] Connection error:`, actualError);
-    setIsConnected(false);
-  }, []);
-
   useEffect(() => {
     if (!groupId) {
       console.warn('[Yjs] No groupId provided');
@@ -127,6 +113,21 @@ export function usePlanningRoomSync(
     providerRef.current = provider;
     // Store ydoc reference
     ydocRef.current = ydoc;
+
+    const statusHandler = ({ status }: { status: WebSocketStatus }) => {
+      console.log('[Y.js] Connection status:', status);
+      const isConnectedNow = status === 'connected';
+      setIsConnected(isConnectedNow);
+      if (isConnectedNow) {
+        updateCurrentUserPresence();
+      }
+    };
+
+    const errorHandler = (error: Event | { event: Event }) => {
+      const actualError = (error as any).event || error;
+      console.error(`[Yjs] Connection error for ${groupId}:`, actualError);
+      setIsConnected(false);
+    };
 
     provider.on('status', statusHandler);
     provider.on('connection-error', errorHandler);
@@ -198,7 +199,7 @@ export function usePlanningRoomSync(
         providerRef.current = null; 
       }
     };
-  }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar, updateCurrentUserPresence, statusHandler, errorHandler]);
+  }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar, updateCurrentUserPresence]);
 
   const addCard = (card: Listing, afterCardId?: string) => {
     if (!ydocRef.current) return;
