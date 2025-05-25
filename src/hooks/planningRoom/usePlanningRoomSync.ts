@@ -89,6 +89,48 @@ export function usePlanningRoomSync(
   const joinedAtRef = useRef<number>(Date.now());
   const [isConnected, setIsConnected] = useState(false);
 
+  // Function to update current user's presence
+  const updateCurrentUserPresence = useCallback(() => {
+    if (!ydocRef.current || !currentUserId) return;
+    
+    const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
+    const now = Date.now();
+    
+    // Remove stale users first
+    const currentUsers = yPresentUsers.toArray() as PresentUser[];
+    const staleUsers = currentUsers.filter(
+      user => (now - user.lastActive) > PRESENCE_TIMEOUT
+    );
+    
+    staleUsers.forEach(user => {
+      const idx = yPresentUsers.toArray().findIndex(u => (u as PresentUser).id === user.id);
+      if (idx !== -1) yPresentUsers.delete(idx, 1);
+    });
+
+    // Update or add current user
+    const presenceData: PresentUser = {
+      id: currentUserId,
+      name: currentUserName,
+      email: currentUserEmail,
+      avatar: currentUserAvatar,
+      lastActive: now,
+      joinedAt: joinedAtRef.current
+    };
+
+    const currentUserIdx = yPresentUsers.toArray().findIndex(u => (u as PresentUser).id === currentUserId);
+    if (currentUserIdx !== -1) {
+      yPresentUsers.delete(currentUserIdx, 1);
+    }
+    yPresentUsers.push([presenceData]);
+  }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
+
+  // Start presence updates
+  useEffect(() => {
+    updateCurrentUserPresence();
+    const interval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
+    return () => clearInterval(interval);
+  }, [updateCurrentUserPresence]);
+
   // Initialize Yjs document and WebSocket provider
   useEffect(() => {
     if (!groupId) return;
@@ -241,47 +283,6 @@ export function usePlanningRoomSync(
     yActivityFeed.observe(updateState);
     yPresentUsers.observe(updateState);
 
-    // Function to update current user's presence
-    const updateCurrentUserPresence = () => {
-      if (!currentUserId) return;
-      
-      const now = Date.now();
-      
-      // Remove stale users first
-      const currentUsers = yPresentUsers.toArray().map(item => item as PresentUser);
-      const staleUsers = currentUsers.filter(
-        user => (now - user.lastActive) > PRESENCE_TIMEOUT
-      );
-      
-      staleUsers.forEach(user => {
-        const idx = yPresentUsers.toArray().findIndex(u => (u as PresentUser).id === user.id);
-        if (idx !== -1) yPresentUsers.delete(idx, 1);
-      });
-
-      // Update or add current user
-      const presenceData: PresentUser = {
-        id: currentUserId,
-        name: currentUserName,
-        email: currentUserEmail,
-        avatar: currentUserAvatar,
-        lastActive: now,
-        joinedAt: joinedAtRef.current
-      };
-
-      const currentUserIdx = yPresentUsers.toArray().findIndex(u => (u as PresentUser).id === currentUserId);
-      if (currentUserIdx !== -1) {
-        yPresentUsers.delete(currentUserIdx, 1);
-      }
-      yPresentUsers.push([presenceData]);
-    };
-
-    // Set up presence update interval
-    updateCurrentUserPresence();
-    if (presenceUpdateIntervalRef.current) {
-      clearInterval(presenceUpdateIntervalRef.current);
-    }
-    presenceUpdateIntervalRef.current = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
-
     // Cleanup function
     return () => {
       yLinkedCards.unobserve(updateState);
@@ -311,13 +312,6 @@ export function usePlanningRoomSync(
       }
     };
   }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
-
-  // Start presence updates
-  useEffect(() => {
-    updateCurrentUserPresence();
-    const interval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
-    return () => clearInterval(interval);
-  }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
   const addCard = useCallback((card: Listing, afterCardId?: string) => {
     if (!ydocRef.current) return;
