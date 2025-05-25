@@ -11,7 +11,6 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverExternalPackages: ['@prisma/client'],
     serverActions: {
       enabled: true,
       allowedOrigins: ['localhost:3000', 'openhouse3-0.vercel.app'],
