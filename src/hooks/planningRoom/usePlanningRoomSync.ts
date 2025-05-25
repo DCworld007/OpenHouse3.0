@@ -9,14 +9,9 @@ import { Activity } from '@/types/activity';
 // WebSocket configuration
 const Y_WEBSOCKET_URL = 'wss://y-websocket-production-d87f.up.railway.app';
 console.log('[Yjs] Using WebSocket URL:', Y_WEBSOCKET_URL);
+
 const PRESENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const PRESENCE_UPDATE_INTERVAL = 30 * 1000; // 30 seconds
-const RECONNECT_TIMEOUT = 3000; // 3 seconds
-const SYNC_DEBOUNCE_DELAY = 1000; // 1 second
-
-// Persistent Y.Doc/Provider per groupId
-const yDocMap: Map<string, Y.Doc> = new Map();
-const providerMap: Map<string, WebsocketProvider> = new Map();
 
 interface PlanningRoomSync extends PlanningRoomYjsDoc {
   addCard: (card: Listing, afterCardId?: string) => void;
@@ -30,39 +25,7 @@ interface PlanningRoomSync extends PlanningRoomYjsDoc {
   ydoc: Y.Doc | null;
 }
 
-function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
-  let timeoutId: NodeJS.Timeout;
-  return function (...args: Parameters<T>) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn(...args), delay);
-  };
-}
-
-// Function to sync Yjs state to backend
-async function syncToBackend(groupId: string, ydoc: Y.Doc) {
-  try {
-    const yLinkedCards = ydoc.getArray('linkedCards');
-    const yCardOrder = ydoc.getArray('cardOrder');
-    
-    const state = {
-      linkedCards: yLinkedCards.toArray(),
-      cardOrder: yCardOrder.toArray()
-    };
-    
-    const response = await fetch(`/api/planning-room/${groupId}/cards`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ doc: state })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to sync state: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('[Yjs] Failed to sync state to backend:', error);
-  }
-}
+type WebSocketStatus = 'connected' | 'disconnected' | 'connecting';
 
 export function usePlanningRoomSync(
   groupId: string,
@@ -83,11 +46,8 @@ export function usePlanningRoomSync(
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
-  const hasLoadedFromD1 = useRef(false);
-  const presenceUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const joinedAtRef = useRef<number>(Date.now());
   const [isConnected, setIsConnected] = useState(false);
+  const joinedAtRef = useRef<number>(Date.now());
 
   // Function to update current user's presence
   const updateCurrentUserPresence = useCallback(() => {
@@ -124,53 +84,23 @@ export function usePlanningRoomSync(
     yPresentUsers.push([presenceData]);
   }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
-  // Start presence updates
-  useEffect(() => {
-    updateCurrentUserPresence();
-    const interval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
-    return () => clearInterval(interval);
-  }, [updateCurrentUserPresence]);
-
   // Initialize Yjs document and WebSocket provider
   useEffect(() => {
     if (!groupId) return;
 
-    // Initialize Y.Doc and provider
-    if (!yDocMap.has(groupId)) {
-      try {
-        console.log('[Yjs] Creating new Y.Doc and provider for group:', groupId);
-        const ydoc = new Y.Doc();
-        const provider = new WebsocketProvider(Y_WEBSOCKET_URL, `planningRoom:${groupId}`, ydoc, {
-          connect: true,
-          WebSocketPolyfill: WebSocket
-        });
-        
-        provider.on('status', ({ status }) => {
-          console.log('[Yjs] Connection status for group', groupId, ':', status);
-        });
-
-        provider.on('connection-error', (error) => {
-          console.error('[Yjs] Connection error for group', groupId, ':', error);
-        });
-
-        yDocMap.set(groupId, ydoc);
-        providerMap.set(groupId, provider);
-      } catch (error) {
-        console.error('[Yjs] Failed to create WebSocket provider:', error);
-      }
+    // Create Yjs doc if it doesn't exist
+    if (!ydocRef.current) {
+      ydocRef.current = new Y.Doc();
     }
 
-    ydocRef.current = yDocMap.get(groupId) || null;
-    providerRef.current = providerMap.get(groupId) || null;
-
     const ydoc = ydocRef.current;
-    const wsUrl = Y_WEBSOCKET_URL;
-    
+    if (!ydoc) return;
+
     // Create WebSocket provider if it doesn't exist
     if (!providerRef.current) {
       try {
-        console.log('[Yjs] Creating WebSocket provider with URL:', wsUrl);
-        providerRef.current = new WebsocketProvider(wsUrl, `planningRoom:${groupId}`, ydoc, {
+        console.log('[Yjs] Creating WebSocket provider with URL:', Y_WEBSOCKET_URL);
+        providerRef.current = new WebsocketProvider(Y_WEBSOCKET_URL, `planningRoom:${groupId}`, ydoc, {
           connect: true,
           WebSocketPolyfill: WebSocket
         });
@@ -186,25 +116,17 @@ export function usePlanningRoomSync(
       return;
     }
 
-    // Set up connection status handlers with retry logic
-    provider.on('status', ({ status }: { status: string }) => {
+    // Set up connection status handlers
+    provider.on('status', ({ status }: { status: WebSocketStatus }) => {
       console.log('[Yjs] Connection status:', status);
       setIsConnected(status === 'connected');
-      
-      if (status === 'disconnected') {
-        // Try to reconnect after a delay
-        setTimeout(() => {
-          console.log('[Yjs] Attempting to reconnect...');
-          provider.connect();
-        }, 3000);
-      }
     });
 
     provider.on('connection-error', (error: Error) => {
       console.error('[Yjs] Connection error:', error);
     });
 
-    // Initialize Yjs arrays and maps if they don't exist
+    // Initialize shared data structures
     const yLinkedCards = ydoc.getArray<Listing>('linkedCards');
     const yCardOrder = ydoc.getArray<string>('cardOrder');
     const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
@@ -213,52 +135,15 @@ export function usePlanningRoomSync(
     const yActivityFeed = ydoc.getArray<Activity>('activityFeed');
     const yPresentUsers = ydoc.getArray<PresentUser>('presentUsers');
 
-    // Load initial state from backend
-    async function loadInitialState() {
-      try {
-        const response = await fetch(`/api/planning-room/${groupId}/cards`, {
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.doc) {
-            const state = data.doc;
-            if (state.linkedCards?.length > 0) {
-              yLinkedCards.delete(0, yLinkedCards.length);
-              yLinkedCards.insert(0, state.linkedCards);
-            }
-            if (state.cardOrder?.length > 0) {
-              yCardOrder.delete(0, yCardOrder.length);
-              yCardOrder.insert(0, state.cardOrder);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[Yjs] Failed to load initial state:', error);
-      }
-    }
-
-    // Load initial state if not already loaded
-    if (!hasLoadedFromD1.current) {
-      loadInitialState();
-      hasLoadedFromD1.current = true;
-    }
-
-    // Create debounced sync function
-    const debouncedSync = debounce((doc: Y.Doc) => {
-      syncToBackend(groupId, doc);
-    }, SYNC_DEBOUNCE_DELAY);
-
-    // Update state when Yjs data changes
+    // Update state when Y.Doc changes
     const updateState = () => {
-      const linkedCards = yLinkedCards.toArray();
-      const cardOrder = yCardOrder.toArray();
-      const chatMessages = yChatMessages.toArray();
-      const reactions = yReactions.toJSON();
-      const polls = yPolls.toArray();
-      const activityFeed = yActivityFeed.toArray();
-      const presentUsers = yPresentUsers.toArray();
+      const linkedCards = yLinkedCards.toArray() as Listing[];
+      const cardOrder = yCardOrder.toArray() as string[];
+      const chatMessages = yChatMessages.toArray() as ChatMessage[];
+      const reactions = yReactions.toJSON() as Record<string, Record<string, string>>;
+      const polls = yPolls.toArray() as Poll[];
+      const activityFeed = yActivityFeed.toArray() as Activity[];
+      const presentUsers = yPresentUsers.toArray() as PresentUser[];
 
       setDocState({
         linkedCards,
@@ -269,19 +154,23 @@ export function usePlanningRoomSync(
         activityFeed,
         presentUsers,
       });
-
-      // Sync changes to backend
-      debouncedSync(ydoc);
     };
 
-    // Observe Yjs changes
+    // Observe changes
     yLinkedCards.observe(updateState);
     yCardOrder.observe(updateState);
     yChatMessages.observe(updateState);
-    yReactions.observeDeep(updateState);
+    yReactions.observe(updateState);
     yPolls.observe(updateState);
     yActivityFeed.observe(updateState);
     yPresentUsers.observe(updateState);
+
+    // Initial state update
+    updateState();
+
+    // Set up presence update interval
+    updateCurrentUserPresence();
+    const interval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
 
     // Cleanup function
     return () => {
@@ -293,25 +182,13 @@ export function usePlanningRoomSync(
       yActivityFeed.unobserve(updateState);
       yPresentUsers.unobserve(updateState);
 
-      if (presenceUpdateIntervalRef.current) {
-        clearInterval(presenceUpdateIntervalRef.current);
-      }
+      clearInterval(interval);
 
-      // Remove user from presence
-      if (ydocRef.current && currentUserId) {
-        const yPresent = ydocRef.current.getArray<PresentUser>('presentUsers');
-        const userIdx = yPresent.toArray().findIndex(u => u.id === currentUserId);
-        if (userIdx !== -1) {
-          yPresent.delete(userIdx, 1);
-        }
-      }
-
-      // Cleanup provider
-      if (providerRef.current) {
-        providerRef.current.disconnect();
+      if (provider) {
+        provider.disconnect();
       }
     };
-  }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
+  }, [groupId, updateCurrentUserPresence]);
 
   const addCard = useCallback((card: Listing, afterCardId?: string) => {
     if (!ydocRef.current) return;
@@ -319,10 +196,8 @@ export function usePlanningRoomSync(
     const yLinkedCards = ydocRef.current.getArray<Listing>('linkedCards');
     const yCardOrder = ydocRef.current.getArray<string>('cardOrder');
     
-    // Add card to linkedCards array
     yLinkedCards.push([card]);
     
-    // Add card ID to cardOrder array
     if (afterCardId) {
       const afterIndex = yCardOrder.toArray().indexOf(afterCardId);
       if (afterIndex !== -1) {
@@ -341,13 +216,11 @@ export function usePlanningRoomSync(
     const yLinkedCards = ydocRef.current.getArray<Listing>('linkedCards');
     const yCardOrder = ydocRef.current.getArray<string>('cardOrder');
     
-    // Remove from linkedCards
-    const cardIndex = yLinkedCards.toArray().findIndex(card => card.id === cardId);
+    const cardIndex = yLinkedCards.toArray().findIndex(card => (card as Listing).id === cardId);
     if (cardIndex !== -1) {
       yLinkedCards.delete(cardIndex, 1);
     }
     
-    // Remove from cardOrder
     const orderIndex = yCardOrder.toArray().indexOf(cardId);
     if (orderIndex !== -1) {
       yCardOrder.delete(orderIndex, 1);
@@ -358,11 +231,10 @@ export function usePlanningRoomSync(
     if (!ydocRef.current) return;
     
     const yChatMessages = ydocRef.current.getArray<ChatMessage>('chatMessages');
-    const chatMessage: ChatMessage = {
+    const chatMessage = {
       ...message,
       id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      reactions: {}
+      timestamp: Date.now()
     };
     
     yChatMessages.push([chatMessage]);
