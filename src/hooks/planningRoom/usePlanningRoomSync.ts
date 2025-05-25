@@ -51,45 +51,71 @@ export function usePlanningRoomSync(
   const joinedAtRef = useRef<number>(Date.now());
 
   const updateCurrentUserPresence = useCallback(() => {
-    if (!ydocRef.current || !currentUserId || !providerRef.current?.wsconnected) return;
+    if (!ydocRef.current || !currentUserId) return;
     
     const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
     const now = Date.now();
     
-    // Get current users and filter out stale ones
-    const currentUsers = yPresentUsers.toArray() as PresentUser[];
-    
-    // Create a Map to ensure uniqueness by ID and keep only the most recent entry
-    const uniqueUsers = new Map<string, PresentUser>();
-    
-    // First, process all other users (not the current user)
-    currentUsers.forEach(user => {
-      if (user.id !== currentUserId && // Not current user
-          (now - user.lastActive) <= PRESENCE_TIMEOUT && // Not stale
-          (!uniqueUsers.has(user.id) || uniqueUsers.get(user.id)!.lastActive < user.lastActive)) {
-        uniqueUsers.set(user.id, user);
+    // First remove any existing entries for current user
+    const currentUserIdxs: number[] = [];
+    yPresentUsers.toArray().forEach((u, idx) => {
+      if ((u as PresentUser).id === currentUserId) {
+        currentUserIdxs.push(idx);
       }
     });
     
-    // Add/update current user's presence
-    uniqueUsers.set(currentUserId, {
-      id: currentUserId,
-      name: currentUserName || currentUserId,
-      email: currentUserEmail,
-      avatar: currentUserAvatar,
-      lastActive: now
+    // Remove from highest index to lowest to maintain index validity
+    currentUserIdxs.sort((a, b) => b - a).forEach(idx => {
+      yPresentUsers.delete(idx, 1);
     });
     
-    // Update the array with deduplicated users
+    // Get current state and filter out stale/duplicate entries
+    const currentUsers = yPresentUsers.toArray() as PresentUser[];
+    const validUsers = currentUsers.filter(user => 
+      user.id !== currentUserId && // Remove current user's old entries
+      (now - user.lastActive) <= PRESENCE_TIMEOUT // Remove stale users
+    );
+    
+    // Clear the array and rebuild it
     yPresentUsers.delete(0, yPresentUsers.length);
-    Array.from(uniqueUsers.values()).forEach(user => yPresentUsers.push([user]));
+    
+    // Add back valid users
+    if (validUsers.length > 0) {
+      yPresentUsers.push(validUsers);
+    }
+    
+    // Add current user's presence
+    const presenceData: PresentUser = {
+      id: currentUserId,
+      name: currentUserName,
+      email: currentUserEmail,
+      avatar: currentUserAvatar,
+      lastActive: now,
+      joinedAt: joinedAtRef.current
+    };
+    
+    yPresentUsers.push([presenceData]);
   }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
+
+  const statusHandler = useCallback(({ status }: { status: WebSocketStatus }) => {
+    console.log('[Y.js] Connection status:', status);
+    setIsConnected(status === 'connected');
+    if (status === 'connected' && providerRef.current?.wsconnected) {
+      updateCurrentUserPresence();
+    }
+  }, [updateCurrentUserPresence]);
+
+  const errorHandler = useCallback((error: Event | { event: Event }) => {
+    const actualError = (error as any).event || error;
+    console.error(`[Yjs] Connection error:`, actualError);
+    setIsConnected(false);
+  }, []);
 
   useEffect(() => {
     if (!groupId) {
       console.warn('[Yjs] No groupId provided');
-            return;
-          }
+      return;
+    }
           
     const ydoc = new Y.Doc();
     const roomName = `planning-room:${groupId}`;
@@ -97,23 +123,18 @@ export function usePlanningRoomSync(
     
     const provider = new WebsocketProvider(Y_WEBSOCKET_URL, roomName, ydoc);
     
-    const statusHandler = ({ status }: { status: WebSocketStatus }) => {
-      console.log('[Y.js] Connection status:', status);
-      setIsConnected(status === 'connected');
-    };
-
-    const errorHandler = (error: Event | { event: Event }) => {
-      const actualError = (error as any).event || error;
-      console.error(`[Yjs] Connection error for ${groupId}:`, actualError);
-    };
-
-    provider.on('status', statusHandler);
-    provider.on('connection-error', errorHandler);
-
     // Store provider reference
     providerRef.current = provider;
     // Store ydoc reference
     ydocRef.current = ydoc;
+
+    provider.on('status', statusHandler);
+    provider.on('connection-error', errorHandler);
+
+    // Initial presence update if already connected
+    if (provider.wsconnected) {
+      updateCurrentUserPresence();
+    }
 
     const yLinkedCards = ydoc.getArray<Listing>('linkedCards');
     const yCardOrder = ydoc.getArray<string>('cardOrder');
@@ -153,8 +174,12 @@ export function usePlanningRoomSync(
 
     updateState();
 
-    updateCurrentUserPresence(); 
-    const presenceInterval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
+    // Set up interval for presence updates
+    const presenceInterval = setInterval(() => {
+      if (provider.wsconnected) {
+        updateCurrentUserPresence();
+      }
+    }, PRESENCE_UPDATE_INTERVAL);
 
     return () => {
       console.log(`[Yjs] Cleanup effect for groupId: ${groupId}. Provider connected: ${provider?.wsconnected}`);
@@ -173,7 +198,7 @@ export function usePlanningRoomSync(
         providerRef.current = null; 
       }
     };
-  }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar, updateCurrentUserPresence]);
+  }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar, updateCurrentUserPresence, statusHandler, errorHandler]);
 
   const addCard = (card: Listing, afterCardId?: string) => {
     if (!ydocRef.current) return;
