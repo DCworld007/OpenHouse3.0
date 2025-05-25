@@ -89,8 +89,8 @@ interface PlanningRoomProps {
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
   const { user } = useUser();
   const currentUserId = user?.id || user?.sub || '';
-  const currentUserName = user?.name || currentUserId;
-  const currentUserEmail = user?.email;
+  const currentUserName = user?.name || '';
+  const currentUserEmail = user?.email || '';
   const currentUserAvatar = user?.picture || undefined;
 
   const planningRoomResult = usePlanningRoomSync(group.id, currentUserId, currentUserName, currentUserEmail, currentUserAvatar);
