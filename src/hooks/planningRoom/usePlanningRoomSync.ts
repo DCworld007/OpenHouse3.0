@@ -10,8 +10,12 @@ import { Activity } from '@/types/activity';
 const Y_WEBSOCKET_URL = 'wss://y-websocket-production-d87f.up.railway.app';
 console.log('[Yjs] Using WebSocket URL:', Y_WEBSOCKET_URL);
 
-const PRESENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-const PRESENCE_UPDATE_INTERVAL = 30 * 1000; // 30 seconds
+const PRESENCE_TIMEOUT = 2 * 60 * 1000; // 2 minutes
+const PRESENCE_UPDATE_INTERVAL = 15 * 1000; // 15 seconds
+
+// Persistent Y.Doc/Provider per groupId
+const yDocMap: Map<string, Y.Doc> = new Map();
+const providerMap: Map<string, WebsocketProvider> = new Map();
 
 interface PlanningRoomSync extends PlanningRoomYjsDoc {
   addCard: (card: Listing, afterCardId?: string) => void;
@@ -49,14 +53,12 @@ export function usePlanningRoomSync(
   const [isConnected, setIsConnected] = useState(false);
   const joinedAtRef = useRef<number>(Date.now());
 
-  // Function to update current user's presence
   const updateCurrentUserPresence = useCallback(() => {
     if (!ydocRef.current || !currentUserId) return;
     
     const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
     const now = Date.now();
     
-    // Remove stale users first
     const currentUsers = yPresentUsers.toArray() as PresentUser[];
     const staleUsers = currentUsers.filter(
       user => (now - user.lastActive) > PRESENCE_TIMEOUT
@@ -67,7 +69,6 @@ export function usePlanningRoomSync(
       if (idx !== -1) yPresentUsers.delete(idx, 1);
     });
 
-    // Update or add current user
     const presenceData: PresentUser = {
       id: currentUserId,
       name: currentUserName,
@@ -84,63 +85,77 @@ export function usePlanningRoomSync(
     yPresentUsers.push([presenceData]);
   }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
-  // Initialize Yjs document and WebSocket provider
   useEffect(() => {
-    if (!groupId) return;
-
-    // Create Yjs doc if it doesn't exist
-    if (!ydocRef.current) {
-      ydocRef.current = new Y.Doc();
-    }
-
-    const ydoc = ydocRef.current;
-    if (!ydoc) return;
-
-    // Create WebSocket provider if it doesn't exist
-    if (!providerRef.current) {
-      try {
-        console.log('[Yjs] Creating WebSocket provider with URL:', Y_WEBSOCKET_URL);
-        providerRef.current = new WebsocketProvider(Y_WEBSOCKET_URL, `planningRoom:${groupId}`, ydoc, {
-          connect: true,
-          WebSocketPolyfill: WebSocket
-        });
-      } catch (error) {
-        console.error('[Yjs] Failed to create WebSocket provider:', error);
-        return;
+    if (!groupId) {
+      if (providerRef.current) {
+        console.log(`[Yjs] groupId is now invalid or empty. Disconnecting provider for room: ${providerRef.current.roomname}`);
+        providerRef.current.disconnect();
+        providerRef.current = null;
       }
-    }
-
-    const provider = providerRef.current;
-    if (!provider) {
-      console.error('[Yjs] No WebSocket provider available');
+      // if (ydocRef.current) {
+      //   ydocRef.current.destroy();
+      //   ydocRef.current = null;
+      // }
+      setDocState({ 
+        linkedCards: [], cardOrder: [], chatMessages: [],
+        reactions: {}, polls: [], activityFeed: [], presentUsers: [],
+      });
       return;
     }
 
-    // Set up connection status handlers
-    provider.on('status', ({ status }: { status: WebSocketStatus }) => {
-      console.log('[Yjs] Connection status:', status);
+    if (!ydocRef.current) {
+      console.log(`[Yjs] Creating new Y.Doc for groupId: ${groupId}`);
+      ydocRef.current = new Y.Doc();
+    }
+    const ydoc = ydocRef.current;
+
+    if (!providerRef.current || providerRef.current.roomname !== `planningRoom:${groupId}`) {
+      if (providerRef.current) {
+        console.log(`[Yjs] Disconnecting old provider for room: ${providerRef.current.roomname}`);
+        providerRef.current.disconnect();
+      }
+      
+      try {
+        console.log(`[Yjs] Creating new WebSocket provider for groupId: ${groupId}`);
+        providerRef.current = new WebsocketProvider(
+            Y_WEBSOCKET_URL,
+            `planningRoom:${groupId}`, 
+            ydoc,
+            { connect: true, WebSocketPolyfill: WebSocket }
+        );
+      } catch (error) {
+        console.error(`[Yjs] Failed to create WebSocket provider for groupId ${groupId}:`, error);
+        return; 
+      }
+    }
+
+    const provider = providerRef.current; 
+
+    const statusHandler = ({ status }: { status: WebSocketStatus }) => {
+      console.log(`[Yjs] Connection status for ${groupId}:`, status);
       setIsConnected(status === 'connected');
-    });
+    };
+    const errorHandler = (error: Event | { event: Event }) => { 
+      const actualError = (error as any).event || error;
+      console.error(`[Yjs] Connection error for ${groupId}:`, actualError);
+    };
 
-    provider.on('connection-error', (error: Error) => {
-      console.error('[Yjs] Connection error:', error);
-    });
+    provider.on('status', statusHandler);
+    provider.on('connection-error', errorHandler); 
 
-    // Initialize shared data structures
     const yLinkedCards = ydoc.getArray<Listing>('linkedCards');
     const yCardOrder = ydoc.getArray<string>('cardOrder');
     const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
-    const yReactions = ydoc.getMap<Record<string, string>>('reactions');
+    const yReactions = ydoc.getMap<Record<string, 'like' | 'dislike' | null>>('reactions');
     const yPolls = ydoc.getArray<Poll>('polls');
     const yActivityFeed = ydoc.getArray<Activity>('activityFeed');
     const yPresentUsers = ydoc.getArray<PresentUser>('presentUsers');
 
-    // Update state when Y.Doc changes
     const updateState = () => {
       const linkedCards = yLinkedCards.toArray() as Listing[];
       const cardOrder = yCardOrder.toArray() as string[];
       const chatMessages = yChatMessages.toArray() as ChatMessage[];
-      const reactions = yReactions.toJSON() as Record<string, Record<string, string>>;
+      const reactions = yReactions.toJSON() as Record<string, Record<string, 'like' | 'dislike' | null>>;
       const polls = yPolls.toArray() as Poll[];
       const activityFeed = yActivityFeed.toArray() as Activity[];
       const presentUsers = yPresentUsers.toArray() as PresentUser[];
@@ -156,7 +171,6 @@ export function usePlanningRoomSync(
       });
     };
 
-    // Observe changes
     yLinkedCards.observe(updateState);
     yCardOrder.observe(updateState);
     yChatMessages.observe(updateState);
@@ -165,30 +179,35 @@ export function usePlanningRoomSync(
     yActivityFeed.observe(updateState);
     yPresentUsers.observe(updateState);
 
-    // Initial state update
     updateState();
 
-    // Set up presence update interval
-    updateCurrentUserPresence();
-    const interval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
+    updateCurrentUserPresence(); 
+    const presenceInterval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
 
-    // Cleanup function
     return () => {
-      yLinkedCards.unobserve(updateState);
-      yCardOrder.unobserve(updateState);
-      yChatMessages.unobserve(updateState);
-      yReactions.unobserve(updateState);
-      yPolls.unobserve(updateState);
-      yActivityFeed.unobserve(updateState);
-      yPresentUsers.unobserve(updateState);
+      console.log(`[Yjs] Cleanup effect for groupId: ${groupId}. Provider connected: ${provider?.connected}`);
+      
+      provider?.off('status', statusHandler);
+      provider?.off('connection-error', errorHandler);
 
-      clearInterval(interval);
+      clearInterval(presenceInterval);
 
       if (provider) {
-        provider.disconnect();
+         console.log(`[Yjs] Disconnecting provider in cleanup for room: ${provider.roomname}`);
+         provider.disconnect();
+      }
+      
+      if (!groupId && providerRef.current) { // Should be covered by the main !groupId check at the top of useEffect
+          // providerRef.current.disconnect(); // already disconnected
+          providerRef.current = null; 
+      }
+      
+      if (providerRef.current && providerRef.current.roomname === `planningRoom:${groupId}`) {
+        // providerRef.current.disconnect(); // Already done by the 'provider.disconnect()' above if provider is the same
+        providerRef.current = null; 
       }
     };
-  }, [groupId, updateCurrentUserPresence]);
+  }, [groupId, currentUserId, currentUserName, currentUserEmail, currentUserAvatar, updateCurrentUserPresence]);
 
   const addCard = useCallback((card: Listing, afterCardId?: string) => {
     if (!ydocRef.current) return;
@@ -216,7 +235,7 @@ export function usePlanningRoomSync(
     const yLinkedCards = ydocRef.current.getArray<Listing>('linkedCards');
     const yCardOrder = ydocRef.current.getArray<string>('cardOrder');
     
-    const cardIndex = yLinkedCards.toArray().findIndex(card => (card as Listing).id === cardId);
+    const cardIndex = yLinkedCards.toArray().findIndex(c => (c as Listing).id === cardId);
     if (cardIndex !== -1) {
       yLinkedCards.delete(cardIndex, 1);
     }
@@ -233,7 +252,7 @@ export function usePlanningRoomSync(
     const yChatMessages = ydocRef.current.getArray<ChatMessage>('chatMessages');
     const chatMessage = {
       ...message,
-      id: crypto.randomUUID(),
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
       timestamp: Date.now()
     };
     
@@ -265,7 +284,7 @@ export function usePlanningRoomSync(
   const addReaction = useCallback((cardId: string, type: 'like' | 'dislike') => {
     if (!ydocRef.current || !currentUserId) return;
     
-    const yReactions = ydocRef.current.getMap<Record<string, string>>('reactions');
+    const yReactions = ydocRef.current.getMap<Record<string, 'like' | 'dislike' | null>>('reactions');
     const cardReactions = yReactions.get(cardId) || {};
     yReactions.set(cardId, { ...cardReactions, [currentUserId]: type });
   }, [currentUserId]);
@@ -273,7 +292,7 @@ export function usePlanningRoomSync(
   const removeReaction = useCallback((cardId: string) => {
     if (!ydocRef.current || !currentUserId) return;
     
-    const yReactions = ydocRef.current.getMap<Record<string, string>>('reactions');
+    const yReactions = ydocRef.current.getMap<Record<string, 'like' | 'dislike' | null>>('reactions');
     const cardReactions = yReactions.get(cardId) || {};
     delete cardReactions[currentUserId];
     yReactions.set(cardId, cardReactions);
@@ -292,5 +311,7 @@ export function usePlanningRoomSync(
     ydoc: ydocRef.current,
   };
 }
+
+// export default usePlanningRoomSync; // If you have this, uncomment it
 
 export default usePlanningRoomSync; 
