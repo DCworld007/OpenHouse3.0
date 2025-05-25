@@ -93,7 +93,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const currentUserEmail = user?.email || '';
   const currentUserAvatar = user?.picture || undefined;
 
-  const planningRoomResult = usePlanningRoomSync(group.id, currentUserId, currentUserName, currentUserEmail, currentUserAvatar);
+  const planningRoomResult = usePlanningRoomSync(
+    group.id,
+    currentUserId,
+    currentUserName,
+    currentUserEmail,
+    currentUserAvatar
+  );
   const planningRoom = planningRoomResult as unknown as PlanningRoomSync;
   
   const messages = planningRoom.chatMessages;
@@ -377,8 +383,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       </div>
       <div className="flex flex-wrap gap-2">
         {presentUsers.map((user) => {
-          // Get display name, prioritizing user's name or email, never showing ID
-          const displayName = user.name || (user.email ? user.email.split('@')[0] : 'Guest User');
+          // Get display name, prioritizing user's name or email
+          const displayName = user.name || 'Anonymous User';
           const displayEmail = user.email;
           
           return (
