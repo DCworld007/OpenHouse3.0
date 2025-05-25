@@ -807,6 +807,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
                     <div className="flex gap-2">
                       <button
+                        onClick={handleGenerateInviteLink}
+                        className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
+                        title="Invite others"
+                      >
+                        <UserPlusIcon className="h-5 w-5" />
+                      </button>
+                      <button
                         onClick={() => setShowLinkModal(true)}
                         className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
                         title="Link Group"

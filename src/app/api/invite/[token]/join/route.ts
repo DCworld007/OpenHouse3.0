@@ -72,8 +72,15 @@ export async function POST(
     let isMember = false;
     let memberRole = 'MEMBER';
 
-    const roomWithSpecificMember = await prisma.planningRoom.findUnique({
-      where: { id: inviteTokenData.planningRoomId },
+    const existingMembership = await prisma.planningRoom.findFirst({
+      where: { 
+        id: inviteTokenData.planningRoomId,
+        members: {
+          some: {
+            userId: user.id
+          }
+        }
+      },
       select: {
         members: {
           where: { userId: user.id },
@@ -82,43 +89,55 @@ export async function POST(
       }
     });
 
-    if (roomWithSpecificMember && roomWithSpecificMember.members.length > 0) {
-      isMember = true;
-      memberRole = roomWithSpecificMember.members[0]?.role || 'MEMBER';
-    }
-
-    let joinedNew = false;
-    if (!isMember) {
-      await prisma.$transaction(async (tx) => {
-        await tx.planningRoom.update({
-          where: { id: inviteTokenData.planningRoomId },
-          data: {
-            members: {
-              create: {
-                userId: user.id,
-                role: 'MEMBER',
-              }
+    if (!existingMembership) {
+      await prisma.planningRoom.update({
+        where: { id: inviteTokenData.planningRoomId },
+        data: {
+          members: {
+            create: {
+              userId: user.id,
+              role: memberRole
             }
           }
-        });
-        await tx.inviteToken.update({
-          where: { token: token },
-          data: { usesCount: { increment: 1 } },
-        });
+        }
       });
-      joinedNew = true;
-      memberRole = 'MEMBER';
+
+      await prisma.inviteToken.update({
+        where: { id: inviteTokenData.id },
+        data: { usesCount: { increment: 1 } }
+      });
+    } else {
+      isMember = true;
+    }
+
+    const room = await prisma.planningRoom.findUnique({
+      where: { id: inviteTokenData.planningRoomId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        ownerId: true,
+        members: {
+          where: { userId: user.id },
+          select: { role: true }
+        }
+      }
+    });
+
+    if (!room) {
+      return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
     return NextResponse.json({
+      success: true,
       room: {
-        id: inviteTokenData.planningRoomId,
-        name: inviteTokenData.planningRoom.name,
-        description: inviteTokenData.planningRoom.description || '',
-        role: memberRole,
-        joinedNow: joinedNew,
-        alreadyMember: isMember
-      }
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        ownerId: room.ownerId,
+        role: room.members[0]?.role || memberRole
+      },
+      isNewMember: !isMember
     });
 
   } catch (error) {
