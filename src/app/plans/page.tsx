@@ -139,53 +139,34 @@ function ErrorBoundary({ error }: { error: Error }) {
 }
 
 function PlansPageContent() {
+  // 1. All hooks that don't depend on other hooks
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { user: meApiResponse, isLoading: isUserLoading } = useUser();
+  
+  // 2. Derived state from hooks above
   const roomParam = searchParams?.get('room');
+  const actualUser = meApiResponse?.user;
+  const isAuthenticated = meApiResponse?.authenticated;
+  const userId = actualUser?.id || '';
+
+  // 3. All useState hooks
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [actionHistory, setActionHistory] = useState<{ [groupId: string]: Action[] }>({});
   const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = React.useState<Error | null>(null);
+  const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Get user data from useUser hook
-  const { user: meApiResponse, isLoading: isUserLoading } = useUser(); 
-  const actualUser = meApiResponse?.user;      // The actual user object nested in the response
-  const isAuthenticated = meApiResponse?.authenticated; // Authentication status
+  // 4. All useRef hooks
+  const planningRoomRefs = useRef<{ [groupId: string]: React.MutableRefObject<any> }>({});
 
-  // Show loading state while checking auth
-  if (isUserLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-pulse text-gray-500">Loading...</div>
-      </div>
-    );
-  }
+  // 5. All useMemo hooks
+  const firstGroupId = useMemo(() => groups.length > 0 ? groups[0].id : '', [groups]);
 
-  // If not authenticated, the useUser hook will handle redirection
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  const userId = actualUser?.id || ''; // Use actualUser here
-
-  // Handle room parameter from invite link
-  useEffect(() => {
-    if (roomParam && !isLoading && groups.length > 0) {
-      // Find if we have access to this room
-      const roomExists = groups.some(group => group.id === roomParam);
-      if (roomExists) {
-        // Redirect to the planning room
-        router.push(`/planning-room/${roomParam}`);
-      }
-    }
-  }, [roomParam, isLoading, groups, router]);
-
-  // Always call the hook in the same order to avoid React hook order errors
-  const firstGroupId = groups.length > 0 ? groups[0].id : '';
+  // 6. All custom hooks that depend on state
   const planningRoom = usePlanningRoomSync(
     firstGroupId,
     userId,
@@ -194,17 +175,22 @@ function PlansPageContent() {
     actualUser?.picture
   );
 
-  // --- Add planningRoomRefs map ---
-  const planningRoomRefs = useRef<{ [groupId: string]: React.MutableRefObject<any> }>({});
-  // Create and clean up refs for groups in an effect
+  // 7. All useEffect hooks
   useEffect(() => {
-    // Add refs for new groups
+    if (roomParam && !isLoading && groups.length > 0) {
+      const roomExists = groups.some(group => group.id === roomParam);
+      if (roomExists) {
+        router.push(`/planning-room/${roomParam}`);
+      }
+    }
+  }, [roomParam, isLoading, groups, router]);
+
+  useEffect(() => {
     groups.forEach(group => {
       if (!planningRoomRefs.current[group.id]) {
         planningRoomRefs.current[group.id] = { current: null };
       }
     });
-    // Remove refs for deleted groups
     Object.keys(planningRoomRefs.current).forEach(id => {
       if (!groups.find(g => g.id === id)) {
         delete planningRoomRefs.current[id];
@@ -212,13 +198,13 @@ function PlansPageContent() {
     });
   }, [groups]);
 
-  // On mount, load groups from storage or create a default group with a unique ID
   useEffect(() => {
     async function loadInitialGroups() {
-      setIsLoading(true); // This is for the page's content loading
+      if (isUserLoading) return;
+      
+      setIsLoading(true);
       try {
-        // Use isAuthenticated to check if user session is valid
-        if (isAuthenticated && actualUser && actualUser.id) { 
+        if (isAuthenticated && actualUser && actualUser.id) {
           console.log('[PlansPage] User authenticated, fetching groups from server...');
           const response = await fetch('/api/me/groups', { credentials: 'include' });
           if (response.ok) {
@@ -235,7 +221,6 @@ function PlansPageContent() {
                 cards: [],
               };
 
-              // Create the group in the backend first
               try {
                 const createResponse = await fetch('/api/rooms', {
                   method: 'POST',
@@ -283,7 +268,7 @@ function PlansPageContent() {
               await ensureGroupExistsInD1(defaultGroup, actualUser.id);
             }
           }
-        } else if (!isUserLoading) { // User is not authenticated (and user loading is complete)
+        } else if (!isUserLoading) {
           console.log('[PlansPage] User not authenticated, loading from localStorage.');
           const savedGroups = getGroups();
           const migratedGroups = savedGroups.map(group => ({
@@ -320,14 +305,9 @@ function PlansPageContent() {
       }
     }
 
-    if (!isUserLoading) { // Only run if user loading from useUser is complete
-        loadInitialGroups();
-    }
-    // IMPORTANT: Add all dependencies of loadInitialGroups if they are used inside it and come from component scope
-    // For now, main dependencies are actualUser (derived from meApiResponse) and isUserLoading.
-  }, [meApiResponse, isUserLoading]); // Re-run when meApiResponse changes (which implies user or isUserLoading change)
+    loadInitialGroups();
+  }, [isUserLoading, isAuthenticated, actualUser]);
 
-  // Re-sync groups from storage on window focus or tab visibility
   useEffect(() => {
     const syncFromStorage = () => setGroups(getGroups());
     window.addEventListener('focus', syncFromStorage);
@@ -340,37 +320,53 @@ function PlansPageContent() {
     };
   }, []);
 
-  // Combine storage effects into one
   useEffect(() => {
-    if (groups.length === 0) return; // Skip empty state
+    if (groups.length === 0) return;
     console.log('[PlansPage] saveGroups', groups);
     const synced = syncGroupsWithListings(groups);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(synced));
   }, [groups]);
 
-  // Helper to sync listings with cards for all groups
-  const syncGroupsWithListings = (groups: Group[]) => {
-    return groups.map(group => ({
-      ...group,
-      listings: group.cards.map(card => ({
-        id: card.id,
-        address: card.content,
-        cardType: card.type,
-        groupId: group.id,
-        imageUrl: card.type === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
-        sourceUrl: '',
-        source: 'manual',
-        price: 0,
-        notes: card.notes,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        order: 0,
-        reactions: [],
-        lat: card.lat,
-        lng: card.lng
-      }))
-    }));
-  };
+  // Consistency checker: warn if cards and listings are out of sync
+  useEffect(() => {
+    groups.forEach(group => {
+      if (group.cards && group.listings) {
+        const cardsStr = JSON.stringify(group.cards);
+        const listingsStr = JSON.stringify(
+          group.listings.map(l => ({
+            id: l.id,
+            type: l.cardType,
+            content: l.address,
+            notes: l.notes,
+            lat: l.lat,
+            lng: l.lng
+          }))
+        );
+        if (cardsStr !== listingsStr) {
+          console.warn(`Group '${group.name}' is out of sync!`, {
+            cards: group.cards,
+            listings: group.listings
+          });
+        }
+      }
+    });
+  }, [groups]);
+
+  // Early returns for loading and auth states
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-pulse text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  // Rest of the component implementation...
+  // ... (keep all the existing functions and JSX)
 
   const addToHistory = (groupId: string, action: Omit<Action, 'groupId'>) => {
     setActionHistory(prev => ({
@@ -483,22 +479,8 @@ function PlansPageContent() {
     const group = groups.find(g => g.id === groupId);
     if (!group) return;
 
-    // Add to history first
-    addToHistory(groupId, {
-      type: 'RENAME_GROUP',
-      data: { oldName: group.name, newName },
-      previousState: [...group.cards],
-    });
-
-    // Update local state first for immediate feedback
-    const newGroups = groups.map(group => 
-      group.id === groupId ? { ...group, name: newName } : group
-    );
-    console.log('[PlansPage] setGroups (group name change)', newGroups);
-    setGroups(newGroups);
-
     try {
-      // Update backend using the correct endpoint path
+      // Update backend first
       const response = await fetch(`/api/rooms/${groupId}`, {
         method: 'PATCH',
         headers: {
@@ -512,16 +494,40 @@ function PlansPageContent() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Failed to update group name in backend:', errorText);
-        // If backend update fails, show error but keep local change
-        toast.error('Failed to save group name to server. Changes may not persist across sessions.');
-      } else {
-        // Update localStorage after successful backend update
-        saveGroups(newGroups);
+        console.error('[PlansPage] Failed to update group name in backend:', errorText);
+        toast.error('Failed to save group name to server');
+        return;
       }
+
+      // Add to history after successful backend update
+      addToHistory(groupId, {
+        type: 'RENAME_GROUP',
+        data: { oldName: group.name, newName },
+        previousState: [...group.cards],
+      });
+
+      // Update local state
+      const newGroups = groups.map(g => 
+        g.id === groupId ? { ...g, name: newName } : g
+      );
+      
+      // Update both state and localStorage atomically
+      setGroups(newGroups);
+      saveGroups(newGroups);
+
+      // Force sync with localStorage and verify
+      const savedData = localStorage.getItem(STORAGE_KEY);
+      const savedGroups = savedData ? JSON.parse(savedData) : [];
+      const savedGroup = savedGroups.find((g: Group) => g.id === groupId);
+      
+      if (!savedGroup || savedGroup.name !== newName) {
+        console.warn('[PlansPage] Group name sync mismatch, forcing update');
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newGroups));
+      }
+
     } catch (error) {
-      console.error('Error updating group name:', error);
-      toast.error('Failed to save group name. Changes may not persist across sessions.');
+      console.error('[PlansPage] Error updating group name:', error);
+      toast.error('Failed to save group name. Please try again.');
     }
   };
 
@@ -684,31 +690,6 @@ function PlansPageContent() {
     );
   };
 
-  // Consistency checker: warn if cards and listings are out of sync
-  useEffect(() => {
-    groups.forEach(group => {
-      if (group.cards && group.listings) {
-        const cardsStr = JSON.stringify(group.cards);
-        const listingsStr = JSON.stringify(
-          group.listings.map(l => ({
-            id: l.id,
-            type: l.cardType,
-            content: l.address,
-            notes: l.notes,
-            lat: l.lat,
-            lng: l.lng
-          }))
-        );
-        if (cardsStr !== listingsStr) {
-          console.warn(`Group '${group.name}' is out of sync!`, {
-            cards: group.cards,
-            listings: group.listings
-          });
-        }
-      }
-    });
-  }, [groups]);
-
   // Helper function to ensure a group exists in D1 database
   const ensureGroupExistsInD1 = async (group: Group, currentUserId?: string) => {
     const effectiveUserId = currentUserId || actualUser?.id; // Use actualUser here too
@@ -744,6 +725,30 @@ function PlansPageContent() {
       console.error('Error persisting group to D1:', error);
       throw error;
     }
+  };
+
+  // Helper to sync listings with cards for all groups
+  const syncGroupsWithListings = (groups: Group[]) => {
+    return groups.map(group => ({
+      ...group,
+      listings: group.cards.map(card => ({
+        id: card.id,
+        address: card.content,
+        cardType: card.type,
+        groupId: group.id,
+        imageUrl: card.type === 'where' ? '/marker-icon-2x.png' : '/placeholder-activity.jpg',
+        sourceUrl: '',
+        source: 'manual',
+        price: 0,
+        notes: card.notes,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        order: 0,
+        reactions: [],
+        lat: card.lat,
+        lng: card.lng
+      }))
+    }));
   };
 
   // Wrap the main logic in a try/catch to catch and log errors

@@ -144,7 +144,8 @@ export default function InvitePage() {
         // First get the invite details to validate the token and get room info
         console.log('[Invite] Fetching invite details for token:', token);
         const inviteResponse = await fetch(`/api/invite/${token}`, {
-          credentials: 'include'
+          credentials: 'include',
+          cache: 'no-store'
         });
 
         if (!inviteResponse.ok) {
@@ -171,7 +172,8 @@ export default function InvitePage() {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          cache: 'no-store'
         });
 
         if (!joinResponse.ok) {
@@ -188,12 +190,17 @@ export default function InvitePage() {
         }
 
         if (isSubscribed) {
-          // Use the room ID from the initial invite details for consistency
-          const roomId = inviteDetails.roomId;
+          // Ensure we're using the correct room ID from the join result
+          const roomId = joinResult.room.id;
           console.log('[Invite] Redirecting to room:', roomId);
           
-          // Redirect directly to the planning room
-          router.push(`/planning-room/${roomId}`);
+          // Add a small delay to ensure all state updates are processed
+          setTimeout(() => {
+            if (isSubscribed) {
+              // Force a hard navigation to ensure fresh state
+              window.location.href = `/planning-room/${roomId}`;
+            }
+          }, 100);
         }
       } catch (error) {
         console.error('[Invite] Error:', error);
