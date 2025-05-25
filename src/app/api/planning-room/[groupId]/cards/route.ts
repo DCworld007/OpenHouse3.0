@@ -1,32 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { kv } from '@vercel/kv';
 
 export const runtime = 'edge';
 
-// Simple in-memory storage for development
-// In production, this would be replaced with a database
-const docStorage = new Map<string, string>();
-
 export async function GET(
-  request: NextRequest
+  request: NextRequest,
+  { params }: { params: { groupId: string } }
 ) {
   try {
-    // Extract groupId from URL path
-    const url = new URL(request.url);
-    const pathParts = url.pathname.split('/');
-    const groupId = pathParts[pathParts.indexOf('planning-room') + 1];
+    const { groupId } = params;
     
-    console.log(`[API] Fetching cards for planning room ${groupId}`);
+    // Get the stored state from KV store
+    const state = await kv.get(`planningRoom:${groupId}:state`);
     
-    // Check if we have data for this group
-    const doc = docStorage.get(groupId);
-    
-    return NextResponse.json({ doc: doc || "" }, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      status: 200,
-    });
-    
+    return NextResponse.json({ doc: state || null });
   } catch (error) {
     console.error('[API] Error in cards GET endpoint:', error);
     return NextResponse.json(
@@ -37,14 +24,11 @@ export async function GET(
 }
 
 export async function POST(
-  request: NextRequest
+  request: NextRequest,
+  { params }: { params: { groupId: string } }
 ) {
   try {
-    // Extract groupId from URL path
-    const url = new URL(request.url);
-    const pathParts = url.pathname.split('/');
-    const groupId = pathParts[pathParts.indexOf('planning-room') + 1];
-    
+    const { groupId } = params;
     const body = await request.json();
     
     if (!body.doc) {
@@ -54,16 +38,10 @@ export async function POST(
       );
     }
     
-    console.log(`[API] Saving cards for planning room ${groupId}`);
+    // Store the state in KV store
+    await kv.set(`planningRoom:${groupId}:state`, body.doc);
     
-    // Store the doc
-    docStorage.set(groupId, body.doc);
-    
-    return NextResponse.json(
-      { success: true },
-      { status: 200 }
-    );
-    
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[API] Error in cards POST endpoint:', error);
     return NextResponse.json(
