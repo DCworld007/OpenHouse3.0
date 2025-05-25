@@ -379,25 +379,32 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         {presentUsers.map((user) => (
           <div
             key={user.id}
-            className="flex items-center space-x-2 bg-white p-2 rounded-full shadow-sm"
+            className="flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm w-full"
           >
             {user.avatar ? (
               <img
                 src={user.avatar}
-                alt={user.name || user.id}
-                className="h-6 w-6 rounded-full"
+                alt={user.name || user.email || user.id}
+                className="h-8 w-8 rounded-full"
               />
             ) : (
-              <div className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-xs text-gray-500">
-                  {(user.name || user.id).charAt(0).toUpperCase()}
+              <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                <span className="text-sm text-gray-500">
+                  {(user.name || user.email || user.id).charAt(0).toUpperCase()}
                 </span>
               </div>
             )}
-            <span className="text-sm font-medium text-gray-700">
-              {user.name || user.id}
-            </span>
-            <span className="h-2 w-2 rounded-full bg-green-400" />
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="text-sm font-medium text-gray-900 truncate">
+                {user.name || 'Anonymous User'}
+              </span>
+              {user.email && (
+                <span className="text-xs text-gray-500 truncate">
+                  {user.email}
+                </span>
+              )}
+            </div>
+            <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />
           </div>
         ))}
       </div>
