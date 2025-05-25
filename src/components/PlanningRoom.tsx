@@ -379,7 +379,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         {presentUsers.map((user) => (
           <div
             key={user.id}
-            className="flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm w-full"
+            className="inline-flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm"
           >
             {user.avatar ? (
               <img
@@ -394,17 +394,17 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 </span>
               </div>
             )}
-            <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-medium text-gray-900 truncate">
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-gray-900">
                 {user.name || 'Anonymous User'}
               </span>
               {user.email && (
-                <span className="text-xs text-gray-500 truncate">
+                <span className="text-xs text-gray-500">
                   {user.email}
                 </span>
               )}
             </div>
-            <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />
+            <span className="h-2 w-2 rounded-full bg-green-400 ml-2" />
           </div>
         ))}
       </div>
