@@ -398,15 +398,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           <UserGroupIcon className="h-5 w-5" />
           <span className="font-medium">Present Users ({presentUsers.length})</span>
         </div>
-        {presentUsers.length < 20 && (
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="inline-flex items-center px-2.5 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-500"
-          >
-            <UserPlusIcon className="h-5 w-5 mr-1" />
-            Invite
-          </button>
-        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {presentUsers.map((user) => {
@@ -506,7 +497,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
             )}
           </div>
           
-          <div className={`mx-2 ${isCurrentUser ? 'bg-blue-500 text-white' : 'bg-gray-100'} rounded-lg px-4 py-2`}>
+          <div className={`mx-2 ${isCurrentUser ? 'bg-blue-600 text-white' : 'bg-gray-100'} rounded-lg px-4 py-2`}>
             <div className="text-xs text-gray-500 mb-1">
               {message.userName || message.userId}
             </div>
@@ -912,13 +903,6 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                     <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
                     <div className="flex gap-2">
                       <button
-                        onClick={handleGenerateInviteLink}
-                        className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
-                        title="Invite others"
-                      >
-                        <UserPlusIcon className="h-5 w-5" />
-                      </button>
-                      <button
                         onClick={() => setShowLinkModal(true)}
                         className="p-1.5 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 rounded-full bg-indigo-50 transition"
                         title="Link Group"
@@ -938,19 +922,21 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                 <div className="p-4">
                   <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={cards.map(card => card.id)} strategy={verticalListSortingStrategy}>
-                      <div className="space-y-4">
+                      <div className="flex flex-col gap-4">
                         {cards.map((card, index) => (
                           card ? (
-                            <SortableCard
-                              key={card.id}
-                              card={card}
-                              index={index}
-                              setActiveCardId={setActiveCardId}
-                              setShowNewCardForm={setShowNewCardForm}
-                              planningRoom={planningRoom}
-                              userId={currentUserId}
-                              addActivity={addActivity}
-                            />
+                            <div key={card.id} className="w-full">
+                              <SortableCard
+                                key={card.id}
+                                card={card}
+                                index={index}
+                                setActiveCardId={setActiveCardId}
+                                setShowNewCardForm={setShowNewCardForm}
+                                planningRoom={planningRoom}
+                                userId={currentUserId}
+                                addActivity={addActivity}
+                              />
+                            </div>
                           ) : null
                         ))}
                       </div>
@@ -1492,8 +1478,9 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
         border: isSwap && isOver ? '3px solid #2563eb' : undefined,
         background: isSwap && isOver ? 'rgba(37,99,235,0.08)' : undefined,
         transition: 'box-shadow 0.15s, transform 0.15s, border 0.15s, background 0.15s',
+        width: '100%'
       }}
-      className="flex-shrink-0 w-[300px] relative"
+      className="relative"
     >
       {dropPosition === index && isOver && !isSwap && (
         <>
@@ -1502,14 +1489,16 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
           <div className="absolute left-2 -bottom-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
         </>
       )}
-      <PlanCard
-        id={card.id}
-        what={card.cardType === 'what' ? card.content : ''}
-        where={card.cardType === 'where' ? card.content : ''}
-        notes={card.notes}
-        isDragging={isDragging}
-        onAddCard={handleAddCard}
-      />
+      <div className="w-full">
+        <PlanCard
+          id={card.id}
+          what={card.cardType === 'what' ? card.content : ''}
+          where={card.cardType === 'where' ? card.content : ''}
+          notes={card.notes}
+          isDragging={isDragging}
+          onAddCard={handleAddCard}
+        />
+      </div>
       <div className={`flex items-center gap-1 ml-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
         <button
           onClick={() => handleReaction('like')}
