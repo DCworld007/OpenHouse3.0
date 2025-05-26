@@ -112,24 +112,6 @@ export default function InvitePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [roomNameForMeta, setRoomNameForMeta] = useState<string | null>(null);
 
-  // Effect to set default meta tags on initial load and when roomNameForMeta changes
-  useEffect(() => {
-    const defaultTitle = 'UnifyPlan Invite';
-    const defaultDescription = 'You have been invited to join a collaborative planning room on UnifyPlan.';
-    const title = roomNameForMeta ? `🗂️ ${roomNameForMeta} – Collaborative Plan` : defaultTitle;
-    const description = roomNameForMeta 
-      ? `Join this planning room (${roomNameForMeta}) to review ideas, vote on options, and chat live with your group.`
-      : defaultDescription;
-
-    document.title = title;
-    setMetaTag('og:title', title);
-    setMetaTag('og:description', description);
-    setMetaTag('description', description, 'name');
-    if (typeof window !== 'undefined') {
-      setMetaTag('og:url', window.location.href);
-    }
-  }, [roomNameForMeta]);
-
   useEffect(() => {
     let isSubscribed = true;
 
