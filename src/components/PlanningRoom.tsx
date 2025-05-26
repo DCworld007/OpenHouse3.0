@@ -101,9 +101,13 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   const isUserDataReady = !!(currentUserId && currentUserName && currentUserEmail);
 
-  const planningRoomResult = group && isUserDataReady ? 
-    usePlanningRoomSync(group.id, currentUserId, currentUserName, currentUserEmail, currentUserAvatar) :
-    null;
+  const planningRoomResult = usePlanningRoomSync(
+    group?.id,
+    currentUserId,
+    currentUserName,
+    currentUserEmail,
+    currentUserAvatar
+  );
 
   const planningRoom = planningRoomResult as PlanningRoomSync | null;
   
@@ -845,12 +849,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
     );
   }
 
-  if (!isUserDataReady) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-xl text-gray-600">Preparing your session...</p>
-      </div>
-    );
+  if (!currentUserId || !currentUserName || !currentUserEmail) {
+    console.warn('[PlanningRoom] Essential user data (ID, Name, or Email) is missing after load. Proceeding with potentially incomplete user info for usePlanningRoomSync.');
   }
   
   if (!planningRoom) {
