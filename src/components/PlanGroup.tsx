@@ -157,21 +157,41 @@ export default function PlanGroup({
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
     if (data.type === 'where') {
       const geo = await geocodeAddress(data.content);
       if (geo) {
         newCard = { ...newCard, lat: geo.lat, lng: geo.lng };
       }
     }
-    // Insert after the specified card in cardOrder
-    if (afterCardId) {
-      planningRoom.addCard(newCard, afterCardId);
-    } else {
-      planningRoom.addCard(newCard);
+
+    try {
+      // Insert after the specified card in cardOrder
+      if (afterCardId) {
+        planningRoom.addCard(newCard, afterCardId);
+      } else {
+        planningRoom.addCard(newCard);
+      }
+      console.log('[PlanGroup] After addCard, cardOrder:', planningRoom.cardOrder);
+      console.log('[PlanGroup] After addCard, linkedCards:', planningRoom.linkedCards);
+
+      // Also update the local state through onCardsChange
+      const updatedCards = [
+        ...cards,
+        {
+          id: newCard.id,
+          type: data.type,
+          content: data.content,
+          notes: data.notes,
+        }
+      ];
+      onCardsChange(id, updatedCards);
+      
+      toast.success('Card added successfully!');
+    } catch (error) {
+      console.error('[PlanGroup] Error adding card:', error);
+      toast.error('Failed to add card. Please try again.');
     }
-    console.log('[PlanGroup] After addCard, cardOrder:', planningRoom.cardOrder);
-    console.log('[PlanGroup] After addCard, linkedCards:', planningRoom.linkedCards);
-    toast.success('Card added successfully!');
   };
 
   // --- DnD logic ---

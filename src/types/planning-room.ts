@@ -17,6 +17,13 @@ export interface PresentUser {
   avatar?: string;     // User's avatar URL
   lastActive: number;  // Timestamp of last activity or when they joined/refreshed
   joinedAt: number;    // Timestamp when they initially joined this session
+  status: 'online' | 'offline' | 'away';  // User's connection status
+  inviteStatus?: {
+    isInvited: boolean;
+    invitedBy?: string;
+    invitedAt?: number;
+    acceptedAt?: number;
+  };
 }
 
 // Yjs document shape for planningRoom:{groupId}

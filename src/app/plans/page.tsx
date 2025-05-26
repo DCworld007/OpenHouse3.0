@@ -202,101 +202,77 @@ function PlansPageContent() {
     async function loadInitialGroups() {
       if (isUserLoading) return;
       
-      setIsLoading(true);
       try {
-        if (isAuthenticated && actualUser && actualUser.id) {
-          console.log('[PlansPage] User authenticated, fetching groups from server...');
-          const response = await fetch('/api/me/groups', { credentials: 'include' });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.groups && data.groups.length > 0) {
-              console.log('[PlansPage] Groups fetched from server:', data.groups);
-              setGroups(data.groups);
-              saveGroups(data.groups);
-            } else {
-              console.log('[PlansPage] No groups found on server, initializing default group.');
-              const defaultGroup: Group = {
-                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-                name: 'To Be Scheduled',
-                cards: [],
-              };
-
-              try {
-                const createResponse = await fetch('/api/rooms', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  credentials: 'include',
-                  body: JSON.stringify({
-                    id: defaultGroup.id,
-                    name: defaultGroup.name,
-                    description: '',
-                  }),
-                });
-
-                if (!createResponse.ok) {
-                  console.error('[PlansPage] Failed to create default group in backend:', await createResponse.text());
-                }
-              } catch (error) {
-                console.error('[PlansPage] Error creating default group in backend:', error);
-              }
-
-              setGroups([defaultGroup]);
-              saveGroups([defaultGroup]);
-            }
-          } else {
-            console.error('[PlansPage] Failed to fetch groups from server, falling back to localStorage. Status:', response.status);
-            const savedGroups = getGroups();
-            const migratedGroups = savedGroups.map(group => ({
-              ...group,
-              cards: group.cards.map((card: Card & { cardType?: string }) => ({
-                ...card,
-                type: card.type || card.cardType || 'what',
-              })),
-            }));
-            if (migratedGroups.length > 0) {
-              setGroups(migratedGroups);
-            } else {
-              const defaultGroup: Group = {
-                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-                name: 'To Be Scheduled',
-                cards: [],
-              };
-              setGroups([defaultGroup]);
-              saveGroups([defaultGroup]);
-              await ensureGroupExistsInD1(defaultGroup, actualUser.id);
-            }
-          }
-        } else if (!isUserLoading) {
-          console.log('[PlansPage] User not authenticated, loading from localStorage.');
-          const savedGroups = getGroups();
-          const migratedGroups = savedGroups.map(group => ({
-            ...group,
-            cards: group.cards.map((card: Card & { cardType?: string }) => ({
-              ...card,
-              type: card.type || card.cardType || 'what',
-            })),
-          }));
-          if (migratedGroups.length > 0) {
-            setGroups(migratedGroups);
-          } else {
-            const defaultGroup: Group = {
-              id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-              name: 'To Be Scheduled',
-              cards: [],
-            };
-            setGroups([defaultGroup]);
-            saveGroups([defaultGroup]);
-          }
+        if (!isAuthenticated || !actualUser?.id) {
+          console.log('[PlansPage] User not authenticated, redirecting to login...');
+          router.push('/auth/login');
+          return;
         }
+
+        console.log('[PlansPage] User authenticated, fetching groups from server...');
+        const response = await fetch('/api/rooms', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch groups: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('[PlansPage] Groups fetched from server:', data);
+
+        // Transform server data to match local format
+        const transformedGroups = data.map((group: any) => ({
+          id: group.id,
+          name: group.name,
+          type: 'custom',
+          date: new Date().toISOString().split('T')[0],
+          order: group.order || 0,
+          cards: group.cards?.map((cardLink: any) => ({
+            id: cardLink.card.id,
+            type: cardLink.card.type,
+            content: cardLink.card.content,
+            notes: cardLink.card.notes,
+            lat: cardLink.card.lat,
+            lng: cardLink.card.lng,
+            userId: cardLink.card.userId,
+            createdAt: cardLink.card.createdAt,
+            updatedAt: cardLink.card.updatedAt
+          })) || [],
+          listings: []
+        }));
+
+        // If no groups exist, create a default one
+        if (transformedGroups.length === 0) {
+          const defaultGroup = {
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+            name: 'To Be Scheduled',
+            type: 'custom',
+            date: new Date().toISOString().split('T')[0],
+            order: 0,
+            cards: [],
+            listings: []
+          };
+          transformedGroups.push(defaultGroup);
+        }
+
+        setGroups(transformedGroups);
+        saveGroups(transformedGroups);
       } catch (error) {
         console.error('Error loading initial groups:', error);
         setError(error instanceof Error ? error : new Error('Failed to load groups'));
-        const defaultGroup: Group = {
+        const defaultGroup = {
           id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
           name: 'To Be Scheduled',
+          type: 'custom',
+          date: new Date().toISOString().split('T')[0],
+          order: 0,
           cards: [],
+          listings: []
         };
         setGroups([defaultGroup]);
         saveGroups([defaultGroup]);
@@ -306,7 +282,7 @@ function PlansPageContent() {
     }
 
     loadInitialGroups();
-  }, [isUserLoading, isAuthenticated, actualUser]);
+  }, [isUserLoading, isAuthenticated, actualUser, router]);
 
   useEffect(() => {
     const syncFromStorage = () => setGroups(getGroups());

@@ -14,6 +14,52 @@ async function verifyJWT(token: string) {
   }
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    // Get the JWT token from cookie
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
+    }
+
+    // Verify the token
+    const payload = await verifyJWT(token);
+    if (!payload?.sub) {
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
+    }
+
+    // Get all rooms where the user is a member
+    const rooms = await prisma.planningRoom.findMany({
+      where: {
+        members: {
+          some: {
+            userId: payload.sub
+          }
+        }
+      },
+      include: {
+        members: true,
+        cards: {
+          include: {
+            card: true
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+
+    return NextResponse.json(rooms);
+  } catch (error) {
+    console.error('[API] Error in rooms GET endpoint:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Get the JWT token from cookie

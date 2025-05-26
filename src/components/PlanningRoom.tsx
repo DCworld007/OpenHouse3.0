@@ -393,9 +393,20 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   const PresentUsersDisplay = () => (
     <div className="flex flex-col space-y-2 p-4 bg-gray-50 rounded-lg">
-      <div className="flex items-center space-x-2 text-gray-600 mb-2">
-        <UserGroupIcon className="h-5 w-5" />
-        <span className="font-medium">Present Users ({presentUsers.length})</span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center space-x-2 text-gray-600">
+          <UserGroupIcon className="h-5 w-5" />
+          <span className="font-medium">Present Users ({presentUsers.length})</span>
+        </div>
+        {presentUsers.length < 20 && (
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="inline-flex items-center px-2.5 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-500"
+          >
+            <UserPlusIcon className="h-5 w-5 mr-1" />
+            Invite
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {presentUsers.map((user) => {
@@ -408,39 +419,63 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           }
           
           const displayEmail = user.email;
+          const isCurrentUser = user.id === currentUserId;
+          const statusColor = user.status === 'online' ? 'bg-green-400' : 
+                            user.status === 'away' ? 'bg-yellow-400' : 'bg-gray-400';
           
           return (
             <div
               key={user.id}
-              className="inline-flex items-center space-x-2 bg-white p-2 rounded-lg shadow-sm"
+              className={`inline-flex items-center space-x-2 p-2 rounded-lg shadow-sm ${
+                isCurrentUser ? 'bg-indigo-50 border border-indigo-100' : 'bg-white'
+              }`}
             >
-              {user.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={displayName} // Use the new displayName for alt text
-                  className="h-8 w-8 rounded-full"
-                />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-sm text-gray-500">
-                    {displayName.charAt(0).toUpperCase()}
+              <div className="relative">
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={displayName}
+                    className="h-8 w-8 rounded-full"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                    <span className="text-sm text-gray-500">
+                      {displayName.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ${statusColor} ring-2 ring-white`} />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center space-x-1">
+                  <span className="text-sm font-medium text-gray-900 truncate">
+                    {displayName}
                   </span>
+                  {isCurrentUser && (
+                    <span className="text-xs bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">
+                      You
+                    </span>
+                  )}
                 </div>
-              )}
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-900">
-                  {displayName}
-                </span>
                 {displayEmail && (
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 truncate">
                     {displayEmail}
                   </span>
                 )}
+                {user.inviteStatus?.isInvited && !user.inviteStatus.acceptedAt && (
+                  <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded mt-1">
+                    Invited
+                  </span>
+                )}
               </div>
-              <span className="h-2 w-2 rounded-full bg-green-400 ml-2" />
             </div>
           );
         })}
+        {presentUsers.length === 0 && (
+          <div className="text-sm text-gray-500 p-4 text-center w-full">
+            No users present
+          </div>
+        )}
       </div>
     </div>
   );
