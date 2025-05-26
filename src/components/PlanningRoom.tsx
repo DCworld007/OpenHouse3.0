@@ -93,10 +93,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   console.log('[PlanningRoom] User object from useUser():', JSON.stringify(user)); 
   console.log('[PlanningRoom] isLoading from useUser():', isUserLoading);
 
-  const currentUserId = user?.id || user?.sub;
-  const currentUserName = user?.name;
-  const currentUserEmail = user?.email;
-  const currentUserAvatar = user?.picture || undefined;
+  // Correctly access nested user properties
+  const currentUserId = user?.user?.id || user?.user?.sub;
+  const currentUserName = user?.user?.name;
+  const currentUserEmail = user?.user?.email;
+  const currentUserAvatar = user?.user?.picture || undefined;
 
   const isUserDataReady = !!(currentUserId && currentUserName && currentUserEmail);
 
