@@ -383,8 +383,14 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       </div>
       <div className="flex flex-wrap gap-2">
         {presentUsers.map((user) => {
-          // Get display name, prioritizing user's name or email
-          const displayName = user.name || 'Anonymous User';
+          // Robustly determine displayName
+          let displayName = 'Guest User';
+          if (user.name && user.name !== user.id) {
+            displayName = user.name;
+          } else if (user.email) {
+            displayName = user.email.split('@')[0];
+          }
+          
           const displayEmail = user.email;
           
           return (
@@ -395,7 +401,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               {user.avatar ? (
                 <img
                   src={user.avatar}
-                  alt={displayName}
+                  alt={displayName} // Use the new displayName for alt text
                   className="h-8 w-8 rounded-full"
                 />
               ) : (
