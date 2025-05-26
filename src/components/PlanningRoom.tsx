@@ -87,23 +87,23 @@ interface PlanningRoomProps {
 }
 
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
-  const { user } = useUser();
-  const currentUserId = user?.id || user?.sub || '';
-  const currentUserName = user?.name || '';
-  const currentUserEmail = user?.email || '';
+  const { user, isLoading: isUserLoading } = useUser();
+
+  const currentUserId = user?.id || user?.sub;
+  const currentUserName = user?.name;
+  const currentUserEmail = user?.email;
   const currentUserAvatar = user?.picture || undefined;
 
-  const planningRoomResult = usePlanningRoomSync(
-    group.id,
-    currentUserId,
-    currentUserName,
-    currentUserEmail,
-    currentUserAvatar
-  );
-  const planningRoom = planningRoomResult as unknown as PlanningRoomSync;
+  const isUserDataReady = !!(currentUserId && currentUserName && currentUserEmail);
+
+  const planningRoomResult = group && isUserDataReady ? 
+    usePlanningRoomSync(group.id, currentUserId, currentUserName, currentUserEmail, currentUserAvatar) :
+    null;
+
+  const planningRoom = planningRoomResult as PlanningRoomSync | null;
   
-  const messages = planningRoom.chatMessages;
-  const presentUsers = planningRoom.presentUsers;
+  const messages = planningRoom?.chatMessages || [];
+  const presentUsers = planningRoom?.presentUsers || [];
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const [showPollCreator, setShowPollCreator] = useState(false);
@@ -121,8 +121,8 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
 
-  const cards = planningRoom.cardOrder
-    .map((cardId: string) => planningRoom.linkedCards.find((card: Listing) => card.id === cardId))
+  const cards = (planningRoom?.cardOrder || [])
+    .map((cardId: string) => (planningRoom?.linkedCards || []).find((card: Listing) => card.id === cardId))
     .filter((card: Listing | undefined): card is Listing => Boolean(card));
   console.log('Rendering Yjs cards:', cards.map((c: Listing) => c.id));
 
@@ -153,7 +153,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   }, [group.id, messages.length]);
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !planningRoom) return;
     const messageInput: ChatMessageInput = {
       userId: currentUserId,
       userName: currentUserName,
@@ -191,6 +191,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   const handleCreatePoll = (question: string, optionTexts: string[]) => {
+    if (!planningRoom) return;
     const pollId = uuidv4();
     const now = Date.now();
     const newPoll: Poll = {
@@ -229,6 +230,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   const handleVote = (pollId: string, optionId: string) => {
+    if (!planningRoom) return;
     const poll = planningRoom.polls.find(p => p.id === pollId);
     if (!poll) return;
 
@@ -269,6 +271,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   const addActivity = (type: ActivityType, details: ActivityDetails) => {
+    if (!planningRoom) return;
     const activity: Activity = {
       id: uuidv4(),
       type,
@@ -279,6 +282,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   const handleAddCard = async (type: 'what' | 'where', content: string, notes?: string) => {
+    if (!planningRoom) return;
     const newCardData: Listing = {
       id: uuidv4(),
       content,
@@ -325,6 +329,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   };
 
   const handleReorderCards = (newOrder: string[]) => {
+    if (!planningRoom) return;
     planningRoom.reorderCards(newOrder);
     
     addActivity('card_reorder', {
@@ -337,11 +342,12 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   const handleCreateNewCard = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCardContent.trim()) return;
+    if (!newCardContent.trim() || !planningRoom) return;
     handleAddCard(cardType, newCardContent, newCardNotes);
   };
 
   const handleCardReaction = (cardId: string, reactionType: 'thumbsUp' | 'thumbsDown') => {
+    if (!planningRoom) return;
     const card = planningRoom.linkedCards.find(c => c.id === cardId);
     if (!card) return;
 
@@ -356,13 +362,14 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   const handleDragEnd = (event: any) => {
     const { active, over } = event;
-    if (!active || !over || active.id === over.id) return;
+    if (!active || !over || active.id === over.id || !planningRoom) return;
 
-    const oldIndex = planningRoom.cardOrder.indexOf(active.id);
-    const newIndex = planningRoom.cardOrder.indexOf(over.id);
+    const cardOrder = planningRoom.cardOrder || [];
+    const oldIndex = cardOrder.indexOf(active.id);
+    const newIndex = cardOrder.indexOf(over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
-    const newOrder = [...planningRoom.cardOrder];
+    const newOrder = [...cardOrder];
     newOrder.splice(oldIndex, 1);
     newOrder.splice(newIndex, 0, active.id);
     planningRoom.reorderCards(newOrder);
@@ -473,6 +480,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   useEffect(() => {
     async function fetchPersistedActivity() {
+      if (!planningRoom) return;
       try {
         const res = await fetch(`/api/planning-room/${group.id}/activity`, {
           credentials: 'include'
@@ -491,7 +499,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       }
     }
     fetchPersistedActivity();
-  }, [group.id]);
+  }, [group.id, planningRoom]);
 
   useEffect(() => {
     async function fetchLinkedGroups() {
@@ -815,6 +823,38 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       alert('Failed to copy link.');
     });
   };
+
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-xl text-gray-600">Loading user information...</p>
+      </div>
+    );
+  }
+
+  if (!group) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-xl text-gray-600">Loading group information...</p>
+      </div>
+    );
+  }
+
+  if (!isUserDataReady) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-xl text-gray-600">Preparing your session...</p>
+      </div>
+    );
+  }
+  
+  if (!planningRoom) {
+     return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-xl text-gray-600">Initializing planning room...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -1357,6 +1397,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 }
 
 function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planningRoom, userId, addActivity }: any) {
+  if (!planningRoom) return null;
   const reactions = planningRoom.reactions?.[card.id] || {};
   const userReaction = reactions[userId] || null;
   const likeCount = Object.values(reactions).filter(r => r === 'like').length;
