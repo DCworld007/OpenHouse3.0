@@ -1515,7 +1515,7 @@ function SortableCard({
         transition: 'box-shadow 0.15s, transform 0.15s, border 0.15s, background 0.15s',
         width: '100%'
       }}
-      className="relative"
+      className="relative group"
     >
       {dropPosition === index && isOver && !isSwap && (
         <>
@@ -1525,32 +1525,40 @@ function SortableCard({
         </>
       )}
       <div className="w-full">
-        <PlanCard
-          id={card.id}
-          what={card.cardType === 'what' ? card.content : ''}
-          where={card.cardType === 'where' ? card.content : ''}
-          notes={card.notes}
-          isDragging={isDragging}
-          onAddCard={handleAddCard}
-        />
-      </div>
-      <div className={`flex items-center gap-1 ml-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
-        <button
-          onClick={() => handleReaction('like')}
-          className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
-            ${userReaction === 'like' ? 'bg-blue-100 text-blue-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          title="Like"
-        >
-          👍 <span className="ml-1 text-xs">{likeCount}</span>
-        </button>
-        <button
-          onClick={() => handleReaction('dislike')}
-          className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
-            ${userReaction === 'dislike' ? 'bg-red-100 text-red-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          title="Dislike"
-        >
-          👎 <span className="ml-1 text-xs">{dislikeCount}</span>
-        </button>
+        <div {...attributes} {...listeners}>
+          <PlanCard
+            id={card.id}
+            what={card.cardType === 'what' ? card.content : ''}
+            where={card.cardType === 'where' ? card.content : ''}
+            notes={card.notes}
+            isDragging={isDragging}
+          />
+        </div>
+        <div className={`flex items-center gap-1 mt-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
+          <button
+            onClick={() => handleReaction('like')}
+            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
+              ${userReaction === 'like' ? 'bg-blue-100 text-blue-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            title="Like"
+          >
+            👍 <span className="ml-1 text-xs">{likeCount}</span>
+          </button>
+          <button
+            onClick={() => handleReaction('dislike')}
+            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
+              ${userReaction === 'dislike' ? 'bg-red-100 text-red-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            title="Dislike"
+          >
+            👎 <span className="ml-1 text-xs">{dislikeCount}</span>
+          </button>
+          <button
+            onClick={handleAddCard}
+            className="ml-auto p-1.5 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Add card below"
+          >
+            <PlusIcon className="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </div>
   );
