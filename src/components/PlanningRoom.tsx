@@ -3,6 +3,7 @@ import { Activity, ActivityType, ActivityDetails } from '@/types/activity';
 import { EMOJI_REACTIONS } from '@/types/message';
 import { ChatMessage, ChatMessageInput, MessageType, Poll, PollOption, Message } from '@/types/message-types';
 import { ListingGroup } from '@/types/listing';
+import { format } from 'date-fns';
 import { 
   ChatBubbleLeftRightIcon, 
   ArrowLeftIcon, 
@@ -502,8 +503,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
               ? 'bg-indigo-50 text-gray-900 border border-indigo-100 shadow-sm' 
               : 'bg-white border border-gray-200'
           } rounded-lg px-4 py-2`}>
-            <div className={`text-xs ${isCurrentUser ? 'text-indigo-600' : 'text-gray-500'} font-medium mb-1`}>
-              {message.userName || message.userId}
+            <div className={`text-xs ${isCurrentUser ? 'text-indigo-600' : 'text-gray-500'} font-medium mb-1 flex items-center gap-2`}>
+              <span>{message.userName || message.userId}</span>
+              <span className="text-gray-400">·</span>
+              <span className="text-gray-400">{format(new Date(message.timestamp), 'h:mm a')}</span>
             </div>
             <div className="text-gray-900">{message.text}</div>
           </div>
