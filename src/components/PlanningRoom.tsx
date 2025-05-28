@@ -948,6 +948,9 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                                 setShowNewCardForm={setShowNewCardForm}
                                 planningRoom={planningRoom}
                                 userId={currentUserId}
+                                currentUserId={currentUserId}
+                                currentUserName={currentUserName}
+                                currentUserEmail={currentUserEmail}
                                 addActivity={addActivity}
                               />
                             </div>
@@ -1436,7 +1439,18 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   );
 }
 
-function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planningRoom, userId, addActivity }: any) {
+function SortableCard({ 
+  card, 
+  index, 
+  setActiveCardId, 
+  setShowNewCardForm, 
+  planningRoom, 
+  userId,
+  currentUserId,
+  currentUserName,
+  currentUserEmail,
+  addActivity 
+}: any) {
   if (!planningRoom) return null;
   const reactions = planningRoom.reactions?.[card.id] || {};
   const userReaction = reactions[userId] || null;
@@ -1464,9 +1478,16 @@ function SortableCard({ card, index, setActiveCardId, setShowNewCardForm, planni
       
       const reactionTypeForActivity: 'thumbsUp' | 'thumbsDown' = type === 'like' ? 'thumbsUp' : 'thumbsDown';
       addActivity('card_reaction', {
+        userId: currentUserId,
+        userName: currentUserName,
+        userEmail: currentUserEmail,
+        cardId: card.id,
         cardTitle: card.content,
         reactionType: reactionTypeForActivity,
-        timestamp: Date.now()
+        context: {
+          cardType: card.cardType,
+          content: card.content
+        }
       });
     }
   };
