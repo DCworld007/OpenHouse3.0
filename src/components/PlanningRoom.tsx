@@ -497,11 +497,15 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
             )}
           </div>
           
-          <div className={`mx-2 ${isCurrentUser ? 'bg-blue-600 text-white' : 'bg-gray-100'} rounded-lg px-4 py-2`}>
-            <div className="text-xs text-gray-500 mb-1">
+          <div className={`mx-2 ${
+            isCurrentUser 
+              ? 'bg-indigo-100 text-gray-900 border border-indigo-200' 
+              : 'bg-gray-100 border border-gray-200'
+          } rounded-lg px-4 py-2`}>
+            <div className={`text-xs ${isCurrentUser ? 'text-indigo-700' : 'text-gray-500'} font-medium mb-1`}>
               {message.userName || message.userId}
             </div>
-            {message.text}
+            <div className="text-gray-900">{message.text}</div>
           </div>
         </div>
       </div>
