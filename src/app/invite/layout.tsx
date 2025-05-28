@@ -71,16 +71,6 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   };
 }
 
-export const metadata: Metadata = {
-  title: 'Join Planning Room - UnifyPlan',
-  description: 'Join a planning room to collaborate with others',
-  openGraph: {
-    title: 'Join Planning Room - UnifyPlan',
-    description: 'Join a planning room to collaborate with others',
-    type: 'website'
-  }
-};
-
 export default function InviteLayout({
   children,
 }: {
