@@ -24,6 +24,8 @@ interface PlanningRoomSync extends PlanningRoomYjsDoc {
   addReaction: (cardId: string, type: 'like' | 'dislike') => void;
   removeReaction: (cardId: string) => void;
   ydoc: Y.Doc | null;
+  addUserInvite: (userId: string, invitedBy: string) => void;
+  acceptInvite: (userId: string) => void;
 }
 
 type WebSocketStatus = 'connected' | 'disconnected' | 'connecting';
@@ -51,56 +53,135 @@ export function usePlanningRoomSync(
   const joinedAtRef = useRef<number>(Date.now());
 
   const updateCurrentUserPresence = useCallback(() => {
-    if (!ydocRef.current || !currentUserId || !providerRef.current?.wsconnected) return;
+    if (!ydocRef.current || !currentUserId) return;
     
+    console.log('[Yjs Presence] updateCurrentUserPresence CALLED. Hook inputs:', 
+      { currentUserId, currentUserName, currentUserEmail, currentUserAvatar, joinedAt: joinedAtRef.current }
+    );
+
     const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
     const now = Date.now();
     
-    // Create a Map to ensure uniqueness by ID and keep only the most recent entry
-    const uniqueUsers = new Map<string, PresentUser>();
-    
-    // Process existing users
-    yPresentUsers.toArray().forEach(user => {
-      // Skip stale users and current user
-      if (user.id === currentUserId || (now - user.lastActive) > PRESENCE_TIMEOUT) {
-        return;
-      }
-      
-      // Keep only the most recent entry for each user
-      if (!uniqueUsers.has(user.id) || uniqueUsers.get(user.id)!.lastActive < user.lastActive) {
-        uniqueUsers.set(user.id, user);
+    // First remove any existing entries for current user
+    const currentUserIdxs: number[] = [];
+    yPresentUsers.toArray().forEach((u, idx) => {
+      if ((u as PresentUser).id === currentUserId) {
+        currentUserIdxs.push(idx);
       }
     });
     
-    // Clear the array and rebuild it atomically
-    yPresentUsers.delete(0, yPresentUsers.length);
+    currentUserIdxs.sort((a, b) => b - a).forEach(idx => {
+      yPresentUsers.delete(idx, 1);
+    });
     
-    // Add all valid unique users
-    const validUsers = Array.from(uniqueUsers.values());
+    const currentRemoteUsers = yPresentUsers.toArray() as PresentUser[];
+    const validUsers = currentRemoteUsers.filter(user => {
+      const timeSinceActive = now - user.lastActive;
+      if (timeSinceActive > PRESENCE_TIMEOUT) {
+        return false;
+      }
+      // Update user status based on activity
+      if (timeSinceActive > 30000) { // 30 seconds
+        user.status = 'away';
+      } else {
+        user.status = 'online';
+      }
+      return true;
+    });
+    
+    yPresentUsers.delete(0, yPresentUsers.length);
     if (validUsers.length > 0) {
       yPresentUsers.push(validUsers);
     }
     
-    // Add current user's presence
     const presenceData: PresentUser = {
       id: currentUserId,
-      name: currentUserName || currentUserId,
+      name: currentUserName,
       email: currentUserEmail,
       avatar: currentUserAvatar,
       lastActive: now,
-      joinedAt: joinedAtRef.current
+      joinedAt: joinedAtRef.current,
+      status: 'online'
     };
     
     yPresentUsers.push([presenceData]);
+    
+    console.log('[Yjs Presence] Final yPresentUsers in YDoc AFTER update:', JSON.parse(JSON.stringify(yPresentUsers.toArray())));
   }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
-  const statusHandler = useCallback(({ status }: { status: any }) => {
-    console.log('[Y.js] Connection status:', status);
-    if (providerRef.current) {
-      setIsConnected(providerRef.current.wsconnected);
-      if (providerRef.current.wsconnected) {
-        updateCurrentUserPresence();
+  // Add a function to handle invites
+  const addUserInvite = useCallback((userId: string, invitedBy: string) => {
+    if (!ydocRef.current) return;
+    
+    const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
+    const now = Date.now();
+    
+    // Find the user if they already exist
+    const existingUsers = yPresentUsers.toArray() as PresentUser[];
+    const userIndex = existingUsers.findIndex(u => u.id === userId);
+    
+    if (userIndex !== -1) {
+      // Update existing user
+      const user = existingUsers[userIndex];
+      yPresentUsers.delete(userIndex, 1);
+      yPresentUsers.insert(userIndex, [{
+        ...user,
+        inviteStatus: {
+          isInvited: true,
+          invitedBy,
+          invitedAt: now
+        }
+      }]);
+    } else {
+      // Add new invited user
+      yPresentUsers.push([{
+        id: userId,
+        lastActive: now,
+        joinedAt: now,
+        status: 'offline',
+        inviteStatus: {
+          isInvited: true,
+          invitedBy,
+          invitedAt: now
+        }
+      }]);
+    }
+  }, []);
+
+  // Add a function to accept an invite
+  const acceptInvite = useCallback((userId: string) => {
+    if (!ydocRef.current) return;
+    
+    const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
+    const now = Date.now();
+    
+    // Find the user
+    const existingUsers = yPresentUsers.toArray() as PresentUser[];
+    const userIndex = existingUsers.findIndex(u => u.id === userId);
+    
+    if (userIndex !== -1) {
+      const user = existingUsers[userIndex];
+      if (user.inviteStatus?.isInvited) {
+        yPresentUsers.delete(userIndex, 1);
+        yPresentUsers.insert(userIndex, [{
+          ...user,
+          status: 'online',
+          lastActive: now,
+          inviteStatus: {
+            ...user.inviteStatus,
+            acceptedAt: now
+          }
+        }]);
       }
+    }
+  }, []);
+
+  // Moved statusHandler and errorHandler outside of useEffect
+  const statusHandler = useCallback(({ status }: { status: WebSocketStatus }) => {
+    console.log('[Y.js] Connection status:', status);
+    setIsConnected(status === 'connected');
+    if (status === 'connected' && providerRef.current?.wsconnected) {
+      updateCurrentUserPresence();
     }
   }, [updateCurrentUserPresence]);
 
@@ -287,6 +368,8 @@ export function usePlanningRoomSync(
     addReaction,
     removeReaction,
     ydoc: ydocRef.current,
+    addUserInvite,
+    acceptInvite
   };
 }
 
