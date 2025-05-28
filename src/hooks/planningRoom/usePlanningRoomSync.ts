@@ -51,40 +51,40 @@ export function usePlanningRoomSync(
   const joinedAtRef = useRef<number>(Date.now());
 
   const updateCurrentUserPresence = useCallback(() => {
-    if (!ydocRef.current || !currentUserId) return;
+    if (!ydocRef.current || !currentUserId || !providerRef.current?.wsconnected) return;
     
-    console.log('[Yjs Presence] updateCurrentUserPresence CALLED. Hook inputs:', 
-      { currentUserId, currentUserName, currentUserEmail, currentUserAvatar, joinedAt: joinedAtRef.current }
-    );
-
     const yPresentUsers = ydocRef.current.getArray<PresentUser>('presentUsers');
     const now = Date.now();
     
-    // First remove any existing entries for current user
-    const currentUserIdxs: number[] = [];
-    yPresentUsers.toArray().forEach((u, idx) => {
-      if ((u as PresentUser).id === currentUserId) {
-        currentUserIdxs.push(idx);
+    // Create a Map to ensure uniqueness by ID and keep only the most recent entry
+    const uniqueUsers = new Map<string, PresentUser>();
+    
+    // Process existing users
+    yPresentUsers.toArray().forEach(user => {
+      // Skip stale users and current user
+      if (user.id === currentUserId || (now - user.lastActive) > PRESENCE_TIMEOUT) {
+        return;
+      }
+      
+      // Keep only the most recent entry for each user
+      if (!uniqueUsers.has(user.id) || uniqueUsers.get(user.id)!.lastActive < user.lastActive) {
+        uniqueUsers.set(user.id, user);
       }
     });
     
-    currentUserIdxs.sort((a, b) => b - a).forEach(idx => {
-      yPresentUsers.delete(idx, 1);
-    });
-    
-    const currentRemoteUsers = yPresentUsers.toArray() as PresentUser[];
-    const validUsers = currentRemoteUsers.filter(user => 
-      (now - user.lastActive) <= PRESENCE_TIMEOUT
-    );
-    
+    // Clear the array and rebuild it atomically
     yPresentUsers.delete(0, yPresentUsers.length);
+    
+    // Add all valid unique users
+    const validUsers = Array.from(uniqueUsers.values());
     if (validUsers.length > 0) {
       yPresentUsers.push(validUsers);
     }
     
+    // Add current user's presence
     const presenceData: PresentUser = {
       id: currentUserId,
-      name: currentUserName,
+      name: currentUserName || currentUserId,
       email: currentUserEmail,
       avatar: currentUserAvatar,
       lastActive: now,
@@ -92,23 +92,23 @@ export function usePlanningRoomSync(
     };
     
     yPresentUsers.push([presenceData]);
-
-    console.log('[Yjs Presence] Final yPresentUsers in YDoc AFTER update:', JSON.parse(JSON.stringify(yPresentUsers.toArray())));
   }, [currentUserId, currentUserName, currentUserEmail, currentUserAvatar]);
 
-  const statusHandler = useCallback(({ status }: { status: WebSocketStatus }) => {
+  const statusHandler = useCallback(({ status }: { status: any }) => {
     console.log('[Y.js] Connection status:', status);
-    setIsConnected(status === 'connected');
-    if (status === 'connected' && providerRef.current?.wsconnected) {
-      updateCurrentUserPresence();
+    if (providerRef.current) {
+      setIsConnected(providerRef.current.wsconnected);
+      if (providerRef.current.wsconnected) {
+        updateCurrentUserPresence();
+      }
     }
   }, [updateCurrentUserPresence]);
 
   const errorHandler = useCallback((error: Event | { event: Event }) => {
     const actualError = (error as any).event || error;
-    console.error(`[Yjs] Connection error:`, actualError);
+    console.error(`[Yjs] Connection error for ${groupId}:`, actualError);
     setIsConnected(false);
-  }, []);
+  }, [groupId]);
 
   useEffect(() => {
     if (!groupId) {
@@ -130,11 +130,6 @@ export function usePlanningRoomSync(
     provider.on('status', statusHandler);
     provider.on('connection-error', errorHandler);
 
-    // Initial presence update if already connected
-    if (provider.wsconnected) {
-      updateCurrentUserPresence();
-    }
-
     const yLinkedCards = ydoc.getArray<Listing>('linkedCards');
     const yCardOrder = ydoc.getArray<string>('cardOrder');
     const yChatMessages = ydoc.getArray<ChatMessage>('chatMessages');
@@ -152,9 +147,6 @@ export function usePlanningRoomSync(
       const activityFeed = yActivityFeed.toArray() as Activity[];
       const presentUsers = yPresentUsers.toArray() as PresentUser[];
       
-      // Log the state being set to React UI
-      console.log('[Yjs Presence] Setting React presentUsers state:', JSON.parse(JSON.stringify(presentUsers)));
-
       setDocState({
         linkedCards,
         cardOrder,
@@ -176,12 +168,8 @@ export function usePlanningRoomSync(
 
     updateState();
 
-    // Set up interval for presence updates
-    const presenceInterval = setInterval(() => {
-      if (provider.wsconnected) {
-        updateCurrentUserPresence();
-      }
-    }, PRESENCE_UPDATE_INTERVAL);
+    updateCurrentUserPresence(); 
+    const presenceInterval = setInterval(updateCurrentUserPresence, PRESENCE_UPDATE_INTERVAL);
 
     return () => {
       console.log(`[Yjs] Cleanup effect for groupId: ${groupId}. Provider connected: ${provider?.wsconnected}`);
