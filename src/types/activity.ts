@@ -1,17 +1,14 @@
 export type ActivityType = 
   | 'card_add'
-  | 'card_remove'
-  | 'card_update'
+  | 'card_edit'
   | 'card_reaction'
   | 'card_reorder'
-  | 'card_linked'
   | 'poll_create'
-  | 'poll_vote'
-  | 'user_join'
-  | 'user_leave';
+  | 'poll_vote';
 
 export interface ActivityDetails {
   cardId?: string;
+  cardTitle?: string;
   pollId?: string;
   pollQuestion?: string;
   pollOptionId?: string;
