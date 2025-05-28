@@ -124,11 +124,24 @@ export default function InvitePage() {
       }
 
       try {
-        // First get the invite details to validate the token and get room info
-        console.log('[Invite] Fetching invite details for token:', token);
+        // First check if user is authenticated
+        const authResponse = await fetch('/api/me', {
+          credentials: 'include'
+        });
+        
+        const authData = await authResponse.json();
+        
+        if (!authData.authenticated) {
+          // If not authenticated, redirect to login
+          const currentUrl = window.location.href;
+          const loginUrl = `/auth/login?redirect=${encodeURIComponent(currentUrl)}`;
+          window.location.href = loginUrl;
+          return;
+        }
+
+        // Get invite details
         const inviteResponse = await fetch(`/api/invite/${token}`, {
-          credentials: 'include',
-          cache: 'no-store'
+          credentials: 'include'
         });
 
         if (!inviteResponse.ok) {
@@ -137,8 +150,7 @@ export default function InvitePage() {
         }
 
         const inviteDetails = await inviteResponse.json();
-        console.log('[Invite] Got invite details:', inviteDetails);
-
+        
         if (!inviteDetails.roomId) {
           throw new Error('Invalid invite - no room ID found');
         }
@@ -148,39 +160,27 @@ export default function InvitePage() {
           setRoomNameForMeta(inviteDetails.roomName);
         }
 
-        // Now try to join the room
-        console.log('[Invite] Attempting to join room:', inviteDetails.roomId);
+        // Join the room
         const joinResponse = await fetch(`/api/invite/${token}/join`, {
           method: 'POST',
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json'
-          },
-          cache: 'no-store'
+          }
         });
 
         if (!joinResponse.ok) {
           const errorData = await joinResponse.json();
-          if (errorData.error === 'Unauthorized') {
-            // If unauthorized, redirect to login
-            const currentUrl = window.location.href;
-            const loginUrl = `/auth/login?redirect=${encodeURIComponent(currentUrl)}`;
-            window.location.href = loginUrl;
-            return;
-          }
           throw new Error(errorData.error || 'Failed to join room');
         }
 
         const joinResult = await joinResponse.json();
-        console.log('[Invite] Join result:', joinResult);
 
         if (!joinResult || !joinResult.room?.id) {
-          console.error('[Invite] Invalid join result:', joinResult);
           throw new Error('Failed to join room - missing room ID in response');
         }
 
         if (isSubscribed) {
-          // Ensure we're using the correct room ID from the join result
           const roomId = joinResult.room.id;
           console.log('[Invite] Redirecting to room:', roomId);
           
@@ -206,7 +206,7 @@ export default function InvitePage() {
     return () => {
       isSubscribed = false;
     };
-  }, [token, router]);
+  }, [token]);
 
   if (error) {
     return (
