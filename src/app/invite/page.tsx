@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getAuthDomain, shouldRedirectToMainAuth } from '@/utils/auth-config';
+import { getBaseUrl } from '@/lib/baseUrl';
 
 // Helper function to set or update a meta tag
 function setMetaTag(property: string, content: string, type: 'name' | 'property' = 'property') {
@@ -160,6 +161,13 @@ export default function InvitePage() {
 
         if (!joinResponse.ok) {
           const errorData = await joinResponse.json();
+          if (errorData.error === 'Unauthorized') {
+            // If unauthorized, redirect to login
+            const currentUrl = window.location.href;
+            const loginUrl = `/auth/login?redirect=${encodeURIComponent(currentUrl)}`;
+            window.location.href = loginUrl;
+            return;
+          }
           throw new Error(errorData.error || 'Failed to join room');
         }
 
