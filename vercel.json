@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "regions": ["sfo1"],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "main-clean": true
+    }
+  },
+  "github": {
+    "silent": true,
+    "autoAlias": true
+  }
+} 
