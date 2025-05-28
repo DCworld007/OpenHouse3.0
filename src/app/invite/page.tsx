@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getAuthDomain, shouldRedirectToMainAuth } from '@/utils/auth-config';
-import { getBaseUrl } from '@/lib/baseUrl';
 
 // Helper function to set or update a meta tag
 function setMetaTag(property: string, content: string, type: 'name' | 'property' = 'property') {
@@ -17,10 +16,6 @@ function setMetaTag(property: string, content: string, type: 'name' | 'property'
     element.setAttribute('content', content);
     document.getElementsByTagName('head')[0].appendChild(element);
   }
-}
-
-function getBaseUrl() {
-  return getAuthDomain();
 }
 
 async function checkAuth() {
@@ -51,7 +46,7 @@ async function checkAuth() {
 
 async function getInviteDetails(token: string) {
   try {
-    const baseUrl = getBaseUrl();
+    const baseUrl = getAuthDomain();
     console.log('[Invite] Fetching invite details from:', baseUrl);
     
     const response = await fetch(`${baseUrl}/api/invite/${token}`, {
@@ -79,7 +74,7 @@ async function getInviteDetails(token: string) {
 
 async function joinRoom(token: string) {
   try {
-    const baseUrl = getBaseUrl();
+    const baseUrl = getAuthDomain();
     console.log('[Invite] Joining room with token at:', baseUrl);
     
     const response = await fetch(`${baseUrl}/api/invite/${token}/join`, {
