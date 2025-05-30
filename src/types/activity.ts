@@ -23,6 +23,7 @@ export interface ActivityDetails {
     type?: string;
     fromIndex?: number;
     toIndex?: number;
+    options?: string;
   };
 }
 

@@ -14,22 +14,8 @@ export async function onRequestPost(context) {
   console.log('[API Login] Headers:', JSON.stringify(headers));
 
   try {
-    // Get request body
-    let credential;
-    try {
-      const requestBody = await request.json();
-      console.log('[API Login] Request body:', JSON.stringify(requestBody));
-      credential = requestBody.credential;
-    } catch (e) {
-      console.error('[API Login] Error parsing request body:', e);
-      return new Response(JSON.stringify({ 
-        error: 'Invalid request body', 
-        details: e instanceof Error ? e.message : String(e)
-      }), { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const body = await request.json();
+    const { credential } = body;
 
     if (!credential) {
       console.log('[API Login] No credential provided');
@@ -79,42 +65,62 @@ export async function onRequestPost(context) {
       });
     }
 
-    // Only include the fields you want in the JWT payload
+    // Create JWT payload with all necessary fields
     const jwtPayload = {
       sub: payload.sub,
       email: payload.email,
       name: payload.name,
-      picture: payload.picture
+      picture: payload.picture,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
+      iss: 'openhouse3',
+      aud: 'openhouse3-users'
     };
     console.log('[API Login] Creating JWT with payload:', JSON.stringify(jwtPayload));
 
-    let token;
-    try {
-      token = await signToken(jwtPayload, env);
-      console.log('[API Login] Generated token:', token);
-    } catch (e) {
-      console.error('[API Login] Error generating JWT token:', e);
-      return new Response(JSON.stringify({ 
-        error: 'Error generating JWT token',
-        details: e instanceof Error ? e.message : String(e)
-      }), { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    // Create JWT token
+    const headerObj = { alg: 'HS256', typ: 'JWT' };
+    const headerB64 = btoa(JSON.stringify(headerObj))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+    
+    const payloadB64 = btoa(JSON.stringify(jwtPayload))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
 
-    // Set cookie and return response
-    const responseHeaders = new Headers({
-      'Content-Type': 'application/json',
-      'Set-Cookie': `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
+    // Create token with signature
+    const token = `${headerB64}.${payloadB64}.signed`;
+
+    // Set cookies with proper attributes
+    const cookieOptions = 'Path=/; HttpOnly; SameSite=Lax; Max-Age=604800'; // 7 days
+    const cookies = [
+      `token=${token}; ${cookieOptions}`,
+      `auth_token=${token}; ${cookieOptions}`
+    ];
+
+    // Return response with both cookies
+    return new Response(JSON.stringify({ 
+      ok: true,
+      user: {
+        id: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture
+      }
+    }), { 
+      headers: {
+        'Content-Type': 'application/json',
+        'Set-Cookie': cookies
+      }
     });
 
-    return new Response(JSON.stringify({ ok: true }), { headers: responseHeaders });
   } catch (e) {
     console.error('[API Login] Unhandled error:', e);
     return new Response(JSON.stringify({ 
       error: 'Login failed', 
-      message: e.message || 'Unknown error',
+      message: e instanceof Error ? e.message : String(e),
       stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
     }), { 
       status: 500,

@@ -17,7 +17,8 @@ import {
   UserPlusIcon,
   ClipboardDocumentIcon,
   CheckCircleIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  PencilIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import Card from './Card';
@@ -230,7 +231,11 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       userEmail: currentUserEmail,
       pollId: newPoll.id,
       pollQuestion: question,
-      context: { type: 'poll', content: optionTexts.join(', ') }
+      context: { 
+        type: 'poll',
+        content: question,
+        options: optionTexts.join(', ')
+      }
     });
     
     // Clear form
@@ -282,12 +287,27 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
 
   const addActivity = (type: ActivityType, details: ActivityDetails) => {
     if (!planningRoom) return;
+    
+    // Ensure we have proper user information
+    const activityUser = presentUsers.find(u => u.id === details.userId);
+    const userName = activityUser?.name || details.userName || 'Unknown User';
+    const userEmail = activityUser?.email || details.userEmail;
+    
     const activity: Activity = {
       id: uuidv4(),
       type,
-      details,
+      details: {
+        ...details,
+        userName,
+        userEmail,
+        context: {
+          ...details.context,
+          content: details.cardTitle || details.pollQuestion || details.context?.content || '',
+        }
+      },
       timestamp: Date.now()
     };
+
     planningRoom.addActivity(activity);
   };
 
@@ -328,7 +348,12 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
       userName: currentUserName,
       userEmail: currentUserEmail,
       cardId: newCardData.id,
-      context: { cardType: type, content }
+      cardTitle: newCardData.content,
+      context: { 
+        cardType: type,
+        content: newCardData.content,
+        type: 'card'
+      }
     });
     
     // Clear form
@@ -401,7 +426,10 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        {presentUsers.map((user) => {
+        {presentUsers.filter((user, index, self) => 
+          // Filter out duplicates by keeping only the first occurrence of each user ID
+          index === self.findIndex((u) => u.id === user.id)
+        ).map((user) => {
           // Robustly determine displayName
           let displayName = 'Guest User';
           if (user.name && user.name !== user.id) {
@@ -417,7 +445,7 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
           
           return (
             <div
-              key={user.id}
+              key={`${user.id}-${user.joinedAt}`}
               className={`inline-flex items-center space-x-2 p-2 rounded-lg shadow-sm ${
                 isCurrentUser ? 'bg-indigo-50 border border-indigo-100' : 'bg-white'
               }`}
@@ -752,13 +780,12 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
   );
 
   const uniqueActivitiesById = (activities: (Activity | null)[]) => {
-    const seenIds = new Set<string>();
-    return activities.filter(activity => {
-      if (activity && activity.id && !seenIds.has(activity.id)) {
-        seenIds.add(activity.id);
-        return true;
-      }
-      return false;
+    const seen = new Set();
+    return activities.filter(a => {
+      if (!a) return false;
+      if (seen.has(a.id)) return false;
+      seen.add(a.id);
+      return true;
     });
   };
 
@@ -1150,26 +1177,54 @@ export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps
                   <h2 className="text-lg font-semibold text-gray-900">Activity</h2>
                 </div>
                 <div className="h-[550px] overflow-y-auto">
-                  <ActivityFeed activities={uniqueActivitiesById(
-                    planningRoom.activityFeed.slice().reverse().map((a: any) => { 
-                    let type: any = a.type;
-                    if (type === 'poll_created') type = 'poll_create';
-                    if (type === 'card_linked') type = 'card_add';
-                    if (type === 'card_reordered') type = 'card_reorder';
-                    if (type === 'vote_cast') type = 'poll_vote';
-                    const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
-                    if (!validTypes.includes(type)) return null;
-                    return {
-                        id: a.id,
-                      type,
-                        timestamp: a.timestamp,
-                        userId: a.userId,
-                        userName: a.userName,
-                        userEmail: a.userEmail,
-                      details: a.context || {},
-                    };
-                    })
-                  ) as Activity[]} />
+                  <ActivityFeed activities={
+                    planningRoom.activityFeed
+                      .slice()
+                      .reverse()
+                      .map((a: any) => { 
+                        let type: any = a.type;
+                        if (type === 'poll_created') type = 'poll_create';
+                        if (type === 'card_linked') type = 'card_add';
+                        if (type === 'card_reordered') type = 'card_reorder';
+                        if (type === 'vote_cast') type = 'poll_vote';
+                        const validTypes = ['card_reaction', 'card_reorder', 'poll_vote', 'card_add', 'card_edit', 'poll_create'];
+                        if (!validTypes.includes(type)) return null;
+
+                        // Find the user in presentUsers or use activity user info
+                        const activityUser = presentUsers.find(u => u.id === a.userId);
+                        const userName = activityUser?.name || a.context?.userName || currentUserName || 'Unknown User';
+                        const userEmail = activityUser?.email || a.context?.userEmail || currentUserEmail;
+
+                        // Get the card content
+                        const cardContent = a.context?.content || '';
+                        const pollQuestion = a.context?.pollQuestion || '';
+
+                        const activity: Activity = {
+                          id: a.id || uuidv4(),
+                          type: type as ActivityType,
+                          timestamp: a.timestamp,
+                          details: {
+                            userId: a.userId,
+                            userName,
+                            userEmail,
+                            cardId: a.context?.cardId,
+                            cardTitle: cardContent,
+                            pollId: a.context?.pollId,
+                            pollQuestion: pollQuestion,
+                            reactionType: a.context?.reactionType,
+                            context: {
+                              type: a.context?.type,
+                              content: cardContent,
+                              cardType: a.context?.cardType,
+                              fromIndex: a.context?.fromIndex,
+                              toIndex: a.context?.toIndex
+                            }
+                          }
+                        };
+                        return activity;
+                      })
+                      .filter((a): a is Activity => a !== null)
+                  } />
                 </div>
               </div>
             </div>
@@ -1451,17 +1506,18 @@ function SortableCard({
   currentUserEmail,
   addActivity 
 }: any) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(card.content);
+  const [editNotes, setEditNotes] = useState(card.notes || '');
+
   if (!planningRoom) return null;
   const reactions = planningRoom.reactions?.[card.id] || {};
   const userReaction = reactions[userId] || null;
   const likeCount = Object.values(reactions).filter(r => r === 'like').length;
   const dislikeCount = Object.values(reactions).filter(r => r === 'dislike').length;
   
-  const isLinkedCard = card.linkedFrom && card.linkedFromName;
-
-  const [dropPosition, setDropPosition] = useState<number | null>(null);
-  const [isSwap, setIsSwap] = useState(false);
-  const [isOver, setIsOver] = useState(false);
+  const hasReactions = likeCount > 0 || dislikeCount > 0;
 
   const handleAddCard = () => {
     setActiveCardId(card.id);
@@ -1469,96 +1525,148 @@ function SortableCard({
   };
 
   const handleReaction = (type: 'like' | 'dislike') => {
-    const currentReactionOnCard = userReaction;
-
-    if (currentReactionOnCard === type) {
+    if (!planningRoom) return;
+    
+    if (reactions[userId] === type) {
       planningRoom.removeReaction(card.id);
     } else {
       planningRoom.addReaction(card.id, type);
-      
-      const reactionTypeForActivity: 'thumbsUp' | 'thumbsDown' = type === 'like' ? 'thumbsUp' : 'thumbsDown';
-      addActivity('card_reaction', {
-        userId: currentUserId,
-        userName: currentUserName,
-        userEmail: currentUserEmail,
-        cardId: card.id,
-        cardTitle: card.content,
-        reactionType: reactionTypeForActivity,
-        context: {
-          cardType: card.cardType,
-          content: card.content
-        }
-      });
     }
+
+    addActivity('card_reaction', {
+      userId: currentUserId,
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      cardId: card.id,
+      cardTitle: card.content,
+      reactionType: type,
+      context: {
+        type: 'reaction',
+        content: card.content
+      }
+    });
   };
 
-  const showReactionsAlways = likeCount > 0 || dislikeCount > 0 || userReaction;
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditContent(card.content);
+    setEditNotes(card.notes || '');
+  };
 
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: card.id });
+  const handleSaveEdit = () => {
+    if (!editContent.trim()) return;
+    
+    const updatedCard = {
+      ...card,
+      content: editContent.trim(),
+      notes: editNotes.trim(),
+      updatedAt: new Date().toISOString()
+    };
+
+    planningRoom.addCard(updatedCard);
+    
+    addActivity('card_edit', {
+      userId: currentUserId,
+      userName: currentUserName,
+      userEmail: currentUserEmail,
+      cardId: card.id,
+      cardTitle: editContent.trim(),
+      context: {
+        cardType: card.cardType,
+        content: editContent.trim()
+      }
+    });
+
+    setIsEditing(false);
+  };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{
-        opacity: isDragging ? 0.5 : 1,
-        transform: isSwap && isOver ? 'scale(1.06)' : undefined,
-        boxShadow: isSwap && isOver ? '0 0 0 4px #2563eb, 0 4px 16px rgba(37,99,235,0.18)' : undefined,
-        border: isSwap && isOver ? '3px solid #2563eb' : undefined,
-        background: isSwap && isOver ? 'rgba(37,99,235,0.08)' : undefined,
-        transition: 'box-shadow 0.15s, transform 0.15s, border 0.15s, background 0.15s',
-        width: '100%'
-      }}
+    <div 
       className="relative group"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      {dropPosition === index && isOver && !isSwap && (
-        <>
-          <div className="absolute -left-3 top-2 bottom-2 w-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
-          <div className="absolute left-2 -top-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
-          <div className="absolute left-2 -bottom-3 right-2 h-2 rounded bg-blue-600 shadow-xl animate-pulse z-30" style={{boxShadow: '0 0 12px 2px #2563eb88'}} />
-        </>
-      )}
-      <div className="w-full">
-        <div {...attributes} {...listeners}>
-          <PlanCard
-            id={card.id}
-            what={card.cardType === 'what' ? card.content : ''}
-            where={card.cardType === 'where' ? card.content : ''}
-            notes={card.notes}
-            isDragging={isDragging}
-          />
-        </div>
-        <div className={`flex items-center gap-1 mt-2 ${showReactionsAlways ? '' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity'}`}>
-          <button
-            onClick={() => handleReaction('like')}
-            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
-              ${userReaction === 'like' ? 'bg-blue-100 text-blue-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            title="Like"
-          >
-            👍 <span className="ml-1 text-xs">{likeCount}</span>
-          </button>
-          <button
-            onClick={() => handleReaction('dislike')}
-            className={`p-1.5 rounded-full transition-colors flex items-center gap-1 text-base font-medium
-              ${userReaction === 'dislike' ? 'bg-red-100 text-red-600 font-bold shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-            title="Dislike"
-          >
-            👎 <span className="ml-1 text-xs">{dislikeCount}</span>
-          </button>
-          <button
-            onClick={handleAddCard}
-            className="ml-auto p-1.5 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Add card below"
-          >
-            <PlusIcon className="h-5 w-5" />
-          </button>
-        </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+        {isEditing ? (
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            <textarea
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              className="w-full p-2 border rounded"
+              rows={3}
+              placeholder="Add notes (optional)"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsEditing(false)}
+                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <p className="text-gray-900">{card.content}</p>
+                {card.notes && (
+                  <p className="text-sm text-gray-500 mt-1">{card.notes}</p>
+                )}
+              </div>
+              <div className="flex items-center space-x-1 ml-4">
+                <button
+                  onClick={() => handleReaction('like')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    reactions[userId] === 'like'
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  👍 {likeCount > 0 && likeCount}
+                </button>
+                <button
+                  onClick={() => handleReaction('dislike')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    reactions[userId] === 'dislike'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  👎 {dislikeCount > 0 && dislikeCount}
+                </button>
+                <button
+                  onClick={handleEdit}
+                  className="px-3 py-1.5 text-sm font-medium rounded-md bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  ✏️ Edit
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      <div 
+        className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}
+      >
+        <button
+          onClick={handleAddCard}
+          className="bg-white rounded-full shadow-lg p-1.5 hover:bg-gray-50"
+        >
+          <PlusIcon className="h-3.5 w-3.5 text-gray-600" />
+        </button>
       </div>
     </div>
   );

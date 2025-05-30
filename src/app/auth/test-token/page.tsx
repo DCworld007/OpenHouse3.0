@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { setAuthToken } from '@/utils/auth-client';
 
 export default function TestTokenPage() {
   const router = useRouter();
@@ -9,47 +10,41 @@ export default function TestTokenPage() {
   
   useEffect(() => {
     try {
-      // First clear any existing tokens (cookies and localStorage)
-      document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax";
-      document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax";
-      localStorage.removeItem('auth_token');
-      
-      // Set the token with proper attributes
-      // This token is properly signed with the new secret "X7d4KjP9Rt6vQ8sFbZ2mEwHc5LnAaYpG3xNzVuJq"
+      // This token is properly signed with the test secret
       const testToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJuYW1lIjoiVGVzdCBVc2VyIiwiaWF0IjoxNzAxMzg4ODAwLCJpc3MiOiJvcGVuaG91c2UzIiwiYXVkIjoib3BlbmhvdXNlMy11c2VycyIsImV4cCI6MTk1NjUyODAwMH0.MAyJJetr0pPfAnBw8J_fZi3O3Wdr4NfVJfD5AmXHjSI";
       
-      // Try various cookie formats to maximize compatibility
-      // Standard format
-      document.cookie = `token=${testToken}; path=/; max-age=86400; SameSite=Lax`;
+      // Use the auth client to set tokens
+      const success = setAuthToken(testToken, 7); // 7 days expiry
       
-      // Try with domain attribute
-      const domain = window.location.hostname;
-      document.cookie = `token=${testToken}; path=/; domain=${domain}; max-age=86400; SameSite=Lax`;
-      
-      // Alternative cookie name
-      document.cookie = `auth_token=${testToken}; path=/; max-age=86400; SameSite=Lax`;
-      
-      // Store in localStorage as fallback
-      localStorage.setItem("auth_token", testToken);
-      localStorage.setItem("debug_cloudflare", "true");
-      
-      // Log for debugging
-      setMessage(`Tokens set. Current cookies: ${document.cookie}`);
-      
-      // Manual verification that cookies were set
-      setTimeout(() => {
-        const cookiesAfterSet = document.cookie;
-        const hasToken = cookiesAfterSet.includes('token=');
-        setMessage(`Token cookie ${hasToken ? 'successfully set' : 'FAILED to set'}. Will use localStorage fallback. Redirecting...`);
+      if (success) {
+        setMessage('Tokens set successfully. Redirecting...');
         
-        // Redirect after a delay to allow cookies to take effect
+        // Verify tokens were set
         setTimeout(() => {
-          // Navigate to home page
-          router.push('/');
-        }, 1000);
-      }, 500);
+          const cookies = document.cookie;
+          const hasToken = cookies.includes('token=') || cookies.includes('auth_token=');
+          const hasLocalStorage = localStorage.getItem('auth_token') || localStorage.getItem('token');
+          
+          if (!hasToken && !hasLocalStorage) {
+            setMessage('Warning: Failed to verify tokens were set. Continuing anyway...');
+          }
+          
+          // Redirect after a short delay
+          setTimeout(() => {
+            router.push('/');
+          }, 1000);
+        }, 500);
+      } else {
+        throw new Error('Failed to set auth tokens');
+      }
     } catch (error) {
       setMessage(`Error setting token: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Add retry button
+      const retryButton = document.createElement('button');
+      retryButton.textContent = 'Retry';
+      retryButton.onclick = () => window.location.reload();
+      document.body.appendChild(retryButton);
     }
   }, [router]);
   
@@ -59,7 +54,19 @@ export default function TestTokenPage() {
         <h1 className="text-2xl font-bold mb-4">Authentication Test</h1>
         <p className="mb-4">{message}</p>
         <div className="mt-4">
-          <p className="text-sm text-gray-500">You will be redirected to the homepage automatically...</p>
+          <p className="text-sm text-gray-500">
+            {message.includes('Error') 
+              ? 'Click retry below or refresh the page to try again.'
+              : 'You will be redirected to the homepage automatically...'}
+          </p>
+          {message.includes('Error') && (
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Retry
+            </button>
+          )}
         </div>
       </div>
     </div>
