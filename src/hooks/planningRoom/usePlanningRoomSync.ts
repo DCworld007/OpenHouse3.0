@@ -83,7 +83,7 @@ export function usePlanningRoomSync(
       // Update user status based on activity
       if (timeSinceActive > 30000) { // 30 seconds
         user.status = 'away';
-      } else {
+            } else {
         user.status = 'online';
       }
       return true;
@@ -371,6 +371,6 @@ export function usePlanningRoomSync(
     addUserInvite,
     acceptInvite
   };
-}
+} 
 
 export default usePlanningRoomSync; 

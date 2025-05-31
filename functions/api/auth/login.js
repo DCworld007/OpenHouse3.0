@@ -101,7 +101,7 @@ export async function onRequestPost(context) {
     ];
 
     // Return response with both cookies
-    return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({ 
       ok: true,
       user: {
         id: payload.sub,
@@ -111,7 +111,7 @@ export async function onRequestPost(context) {
       }
     }), { 
       headers: {
-        'Content-Type': 'application/json',
+      'Content-Type': 'application/json',
         'Set-Cookie': cookies
       }
     });

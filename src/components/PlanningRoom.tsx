@@ -89,7 +89,6 @@ interface PlanningRoomProps {
 }
 
 export default function PlanningRoom({ group, onGroupUpdate }: PlanningRoomProps) {
-  const { user, isLoading: isUserLoading } = useUser();
 
   // Log the raw user object from useUser to see its contents
   console.log('[PlanningRoom] User object from useUser():', JSON.stringify(user)); 
